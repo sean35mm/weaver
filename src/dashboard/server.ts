@@ -20,12 +20,13 @@ export interface StartOpts {
   host?: string;
   port?: number;
   pollMs?: number;
+  sessionTtlMs?: number;
 }
 
-function snapshot(store: Store, repoId: string): string {
+function snapshot(store: Store, repoId: string, sessionTtlMs: number): string {
   const now = Date.now();
   const data: StatusData = {
-    sessions: store.listActiveSessions(now, DEFAULT_SESSION_TTL_MS),
+    sessions: store.listActiveSessions(now, sessionTtlMs),
     claims: store.listActiveClaims(now),
     activity: store.listRecentActivity(50),
     notes: store.listNotes(50),
@@ -52,6 +53,7 @@ function listenOn(server: http.Server, port: number, host: string): Promise<void
 export async function startDashboard(opts: StartOpts): Promise<DashboardServer> {
   const host = opts.host ?? "127.0.0.1";
   const pollMs = opts.pollMs ?? 1000;
+  const sessionTtlMs = opts.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
   const clients = new Set<{ res: http.ServerResponse; timer: ReturnType<typeof setInterval> }>();
 
   const server = http.createServer((req, res) => {
@@ -67,7 +69,7 @@ export async function startDashboard(opts: StartOpts): Promise<DashboardServer> 
         connection: "keep-alive",
       });
       const send = (): void => {
-        res.write(`data: ${snapshot(opts.store, opts.repoId)}\n\n`);
+        res.write(`data: ${snapshot(opts.store, opts.repoId, sessionTtlMs)}\n\n`);
       };
       send(); // immediate first snapshot
       const timer = setInterval(send, pollMs);
