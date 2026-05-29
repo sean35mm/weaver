@@ -3,7 +3,6 @@ import { flagBool, flagStr } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { startDashboard } from "../dashboard/server.ts";
 import { formatStatus, type StatusData } from "../render.ts";
-import { DEFAULT_SESSION_TTL_MS } from "../store/reap.ts";
 
 function waitForSignal(): Promise<void> {
   return new Promise((resolve) => {
@@ -30,7 +29,12 @@ export async function runDashboard(ctx: Ctx): Promise<number> {
   const portRaw = flagStr(ctx.args, "port");
   const port = portRaw && Number.isFinite(Number(portRaw)) ? Number(portRaw) : undefined;
 
-  const server = await startDashboard({ store: ctx.store, repoId: ctx.repo.repoId, port });
+  const server = await startDashboard({
+    store: ctx.store,
+    repoId: ctx.repo.repoId,
+    port,
+    sessionTtlMs: ctx.config.sessionTtlMs,
+  });
   ctx.out(`weaver dashboard → ${server.url}   (Ctrl-C to stop)\n`);
   if (!flagBool(ctx.args, "no-open")) openBrowser(server.url);
 
@@ -40,21 +44,11 @@ export async function runDashboard(ctx: Ctx): Promise<number> {
   return 0;
 }
 
-function snapshot(ctx: Ctx): StatusData {
-  const now = ctx.now;
-  return {
-    sessions: ctx.store.listActiveSessions(now, DEFAULT_SESSION_TTL_MS),
-    claims: ctx.store.listActiveClaims(now),
-    activity: ctx.store.listRecentActivity(12),
-    notes: ctx.store.listNotes(8),
-  };
-}
-
 export async function runWatch(ctx: Ctx): Promise<number> {
   const draw = (): void => {
     const now = Date.now();
     const data: StatusData = {
-      sessions: ctx.store.listActiveSessions(now, DEFAULT_SESSION_TTL_MS),
+      sessions: ctx.store.listActiveSessions(now, ctx.config.sessionTtlMs),
       claims: ctx.store.listActiveClaims(now),
       activity: ctx.store.listRecentActivity(12),
       notes: ctx.store.listNotes(8),
@@ -72,6 +66,3 @@ export async function runWatch(ctx: Ctx): Promise<number> {
   process.stdout.write("\n");
   return 0;
 }
-
-// Exported for tests / potential reuse.
-export { snapshot };

@@ -4,6 +4,16 @@
   "description": "Shared situational awareness for multiple coding agents working in the same repo.",
   "type": "module",
   "license": "MIT",
+  "keywords": [
+    "agents",
+    "ai",
+    "cli",
+    "coding-agent",
+    "coordination",
+    "claude-code",
+    "codex",
+    "opencode"
+  ],
   "bin": {
     "weaver": "./dist/cli.js"
   },
@@ -13,11 +23,16 @@
   "engines": {
     "node": ">=22.5.0"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "demo": "node scripts/demo.ts",
+    "prepublishOnly": "npm run build",
     "test": "node --test test",
-    "test:bun": "bun test test"
+    "test:bun": "bun test test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "picomatch": "^4.0.2"

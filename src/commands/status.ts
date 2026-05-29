@@ -1,7 +1,6 @@
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { formatStatus, statusJson, type StatusData } from "../render.ts";
-import { DEFAULT_SESSION_TTL_MS } from "../store/reap.ts";
 
 // Observer: shows the picture of OTHER sessions; never registers presence.
 export function run(ctx: Ctx): number {
@@ -9,7 +8,7 @@ export function run(ctx: Ctx): number {
   const full = flagBool(ctx.args, "full");
 
   const data: StatusData = {
-    sessions: ctx.store.listActiveSessions(ctx.now, DEFAULT_SESSION_TTL_MS).filter((s) => s.id !== self),
+    sessions: ctx.store.listActiveSessions(ctx.now, ctx.config.sessionTtlMs).filter((s) => s.id !== self),
     claims: ctx.store.listActiveClaims(ctx.now).filter((c) => c.sessionId !== self),
     activity: ctx.store.listRecentActivity(full ? 100 : 8).filter((a) => a.sessionId !== self),
     notes: ctx.store.listNotes(full ? 100 : 5),

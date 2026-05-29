@@ -25,3 +25,6 @@ breaking changes.
   `--purge` also deletes the store).
 - Real-time visualization: `dashboard` (loopback-only HTTP + SSE web viewer, read-only) and
   `watch` (live terminal view). Both poll the store ~1s and stop on Ctrl-C.
+- Tunable TTLs via `weaver_meta` and a `config` command (session / claim / recent-activity).
+- `scripts/demo.ts` seeded multi-agent demo, `CONTRIBUTING.md`, and npm publish prep
+  (`publishConfig`, build-on-publish, keywords).

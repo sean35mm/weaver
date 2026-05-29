@@ -3,7 +3,6 @@ import { detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
 import { normalizeTarget } from "../repo/paths.ts";
 import { formatConflict } from "../render.ts";
-import { DEFAULT_CLAIM_TTL_MS } from "../store/reap.ts";
 import { clamp, isBroadGlob, parseTtl, requireArg, requireIdentity } from "../validate.ts";
 
 export function runClaim(ctx: Ctx): number {
@@ -11,10 +10,17 @@ export function runClaim(ctx: Ctx): number {
   const pattern = normalizeTarget(requireArg(ctx.args._[1], "glob"), ctx.repo.root, ctx.cwd);
   const reasonRaw = flagStr(ctx.args, "reason");
   const reason = reasonRaw ? clamp(reasonRaw) : null;
-  const ttlMs = parseTtl(flagStr(ctx.args, "ttl"), DEFAULT_CLAIM_TTL_MS);
+  const ttlMs = parseTtl(flagStr(ctx.args, "ttl"), ctx.config.claimTtlMs);
 
   // Surface overlaps with other live sessions before recording (advisory, never blocks).
-  const conflict = detectConflict({ store: ctx.store, target: pattern, selfId: id.key, now: ctx.now });
+  const conflict = detectConflict({
+    store: ctx.store,
+    target: pattern,
+    selfId: id.key,
+    now: ctx.now,
+    sessionTtlMs: ctx.config.sessionTtlMs,
+    recentMs: ctx.config.recentMs,
+  });
 
   // Refresh: supersede our own prior claim on the same pattern, then (re)record.
   ctx.store.releaseClaim(id.key, pattern, ctx.now);

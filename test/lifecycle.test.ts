@@ -21,6 +21,7 @@ async function ctxFor(root: string, argv: string[] = []): Promise<Ctx> {
     store,
     identity: { key: "explicit:me@h", source: "explicit", label: "test" },
     repo: { repoId: "abc123", root, basis: "path" },
+    config: { sessionTtlMs: 300_000, claimTtlMs: 1_800_000, recentMs: 1_200_000 },
     cwd: root,
     now: 1_000_000,
     env: {},

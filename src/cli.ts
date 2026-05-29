@@ -2,9 +2,11 @@
 /** Weaver CLI entry: parse → bootstrap (repo + store + identity) → dispatch → exit. */
 
 import { parseArgs } from "./args.ts";
+import { loadConfig } from "./config.ts";
 import * as activity from "./commands/activity.ts";
 import * as claim from "./commands/claim.ts";
 import * as check from "./commands/check.ts";
+import * as config from "./commands/config.ts";
 import * as dashboard from "./commands/dashboard.ts";
 import * as deinit from "./commands/deinit.ts";
 import * as doctor from "./commands/doctor.ts";
@@ -53,6 +55,7 @@ const REGISTRY: Record<string, Handler> = {
   enable: { run: toggle.runEnable, agent: false },
   disable: { run: toggle.runDisable, agent: false },
   deinit: { run: deinit.run, agent: false },
+  config: { run: config.run, agent: false },
 };
 
 function printHelp(write: (s: string) => void): void {
@@ -75,6 +78,7 @@ function printHelp(write: (s: string) => void): void {
   write("  init                                     enable in this repo (inject CLAUDE.md/AGENTS.md)\n");
   write("  disable / enable                         pause / resume agent writes for this repo\n");
   write("  deinit [--purge]                         remove instructions (and optionally the store)\n");
+  write("  config [<key> [<seconds>]]               view/set tunables (TTLs)\n");
 }
 
 async function main(): Promise<number> {
@@ -109,6 +113,7 @@ async function main(): Promise<number> {
     store,
     identity,
     repo,
+    config: loadConfig(store),
     cwd: process.cwd(),
     now,
     env: process.env as Record<string, string | undefined>,

@@ -288,6 +288,7 @@ orphaned history.
 | `weaver disable` / `weaver enable`   | you              | pause / resume Weaver for this project          |
 | `weaver deinit [--purge]`            | you              | remove instruction block (and optionally DB)   |
 | `weaver doctor`                      | you              | print resolved session key + source, repo-id, store path, runtime/binding — for debugging |
+| `weaver config [<key> [<secs>]]`     | you              | view/set tunables (session/claim/recent-activity TTLs) |
 
 Read commands support `--json` for machine consumption. `status` is **silent when there's
 nothing relevant**: no other live sessions, no active claims, no pinned notes, and no recent
