@@ -5,12 +5,15 @@ import { parseArgs } from "./args.ts";
 import * as activity from "./commands/activity.ts";
 import * as claim from "./commands/claim.ts";
 import * as check from "./commands/check.ts";
+import * as deinit from "./commands/deinit.ts";
 import * as doctor from "./commands/doctor.ts";
 import * as done from "./commands/done.ts";
+import * as init from "./commands/init.ts";
 import * as log from "./commands/log.ts";
 import * as note from "./commands/note.ts";
 import * as status from "./commands/status.ts";
 import * as task from "./commands/task.ts";
+import * as toggle from "./commands/toggle.ts";
 import type { Ctx } from "./context.ts";
 import { resolveIdentity } from "./identity/session.ts";
 import { resolveRepoId } from "./repo/identity.ts";
@@ -20,6 +23,8 @@ import { CliError } from "./validate.ts";
 
 const VERSION = "0.1.0";
 const BOOLEAN_FLAGS = new Set(["pin", "json", "full", "version", "help", "v", "purge", "exclusive"]);
+// Mutating writes that are paused when the project is disabled (done/lifecycle still work).
+const WRITE_GATED = new Set(["task", "claim", "release", "note", "log"]);
 
 interface Handler {
   run: (ctx: Ctx) => number;
@@ -39,6 +44,10 @@ const REGISTRY: Record<string, Handler> = {
   activity: { run: activity.run, agent: false },
   check: { run: check.run, agent: false },
   doctor: { run: doctor.run, agent: false },
+  init: { run: init.run, agent: false },
+  enable: { run: toggle.runEnable, agent: false },
+  disable: { run: toggle.runDisable, agent: false },
+  deinit: { run: deinit.run, agent: false },
 };
 
 function printHelp(write: (s: string) => void): void {
@@ -55,6 +64,10 @@ function printHelp(write: (s: string) => void): void {
   write("  activity [--full]                        recent activity feed\n");
   write("  done                                     end this session, release its claims\n");
   write("  doctor                                   diagnostics (identity, repo, store)\n");
+  write("\n");
+  write("  init                                     enable in this repo (inject CLAUDE.md/AGENTS.md)\n");
+  write("  disable / enable                         pause / resume agent writes for this repo\n");
+  write("  deinit [--purge]                         remove instructions (and optionally the store)\n");
 }
 
 async function main(): Promise<number> {
@@ -98,6 +111,11 @@ async function main(): Promise<number> {
   };
 
   try {
+    const enabled = (store.getMeta("enabled") ?? "1") !== "0";
+    if (!enabled && WRITE_GATED.has(first)) {
+      err("weaver: disabled for this project (`weaver enable` to resume)\n");
+      return 0;
+    }
     if (handler.agent) {
       if (!identity) {
         err("weaver: couldn't resolve a session identity for this command.\n");
@@ -118,7 +136,11 @@ async function main(): Promise<number> {
     err(`weaver: unexpected error: ${(e as Error)?.message ?? e}\n`);
     return 1;
   } finally {
-    store.close();
+    try {
+      store.close();
+    } catch {
+      /* may already be closed by `deinit --purge` */
+    }
   }
 }
 
