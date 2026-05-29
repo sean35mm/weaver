@@ -6,17 +6,21 @@
 
 export type IdSource = "explicit" | "harness" | "tty" | "ancestry";
 
-export type ActivityKind =
-  | "edit"
-  | "create"
-  | "delete"
-  | "run"
-  | "claim"
-  | "release"
-  | "task"
-  | "note"
-  | "join"
-  | "done";
+/** Runtime list (TS types are erased) so the CLI can validate/normalize `kind`. */
+export const ACTIVITY_KINDS = [
+  "edit",
+  "create",
+  "delete",
+  "run",
+  "claim",
+  "release",
+  "task",
+  "note",
+  "join",
+  "done",
+] as const;
+
+export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
 
 export interface SessionInput {
   id: string;
@@ -93,8 +97,11 @@ export interface Store {
   // claims (advisory, TTL'd, co-claims allowed)
   addClaim(input: ClaimInput): number;
   releaseClaim(sessionId: string, pattern: string, now: number): void;
+  releaseAllClaims(sessionId: string, now: number): void;
   /** Not released and not expired at `now`. */
   listActiveClaims(now: number): ClaimRow[];
+  /** Not released, regardless of expiry — used by conflict detection to surface stale holds. */
+  listOpenClaims(): ClaimRow[];
 
   // notes (durable, repo-scoped)
   addNote(input: NoteInput): number;
