@@ -14,3 +14,9 @@ breaking changes.
   migrations, the `Store` interface and its SQLite implementation, lazy staleness/retention.
 - Repo identity resolver and repo-root-relative path normalization.
 - Session identity resolver (`explicit` → harness env id → controlling TTY).
+- Core agent verbs: `status`, `task`, `claim`/`release`, `check`, `note`/`notes`, `log`,
+  `activity`, `done`, `doctor`, with a help screen.
+- Glob matching (`picomatch`) and three-tier conflict detection (hard / soft / stale).
+- Presence registration limited to agent/mutating commands (observers never appear as a
+  participant); advisory co-claims that surface overlaps and exit non-zero.
+- Lenient CLI-boundary validation (`parseTtl`, `normalizeKind`, `clamp`, `requireArg`).

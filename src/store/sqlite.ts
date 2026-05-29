@@ -174,12 +174,26 @@ export class SqliteStore implements Store {
     );
   }
 
+  releaseAllClaims(sessionId: string, now: number): void {
+    this.db.run(
+      "UPDATE claims SET released_at = ? WHERE session_id = ? AND released_at IS NULL",
+      now,
+      sessionId,
+    );
+  }
+
   listActiveClaims(now: number): ClaimRow[] {
     return this.db
       .all<RawClaim>(
         "SELECT * FROM claims WHERE released_at IS NULL AND expires_at > ? ORDER BY created_at",
         now,
       )
+      .map(toClaim);
+  }
+
+  listOpenClaims(): ClaimRow[] {
+    return this.db
+      .all<RawClaim>("SELECT * FROM claims WHERE released_at IS NULL ORDER BY created_at")
       .map(toClaim);
   }
 
