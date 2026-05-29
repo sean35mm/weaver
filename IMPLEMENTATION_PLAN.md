@@ -50,6 +50,8 @@ weaver/
 ├── .github/workflows/          # ci.yml (lint+typecheck+test, Node & Bun) + release-please.yml
 ├── src/
 │   ├── cli.ts                  # entrypoint: arg parsing → dispatch to commands
+│   ├── args.ts                 # tiny hand-rolled arg parser (zero-dep, fast startup)
+│   ├── validate.ts             # CLI-boundary validation (lenient+warn): parseTtl, normalizeKind, clamp, requireArg
 │   ├── commands/               # one file per verb; each exports run(ctx, args)
 │   │   ├── init.ts
 │   │   ├── status.ts
@@ -226,6 +228,20 @@ insert + read under both Node and Bun.
 ## Phase 2 — Core verbs
 
 **Outcome:** The full agent-facing protocol works end to end from the shell.
+
+**Validation philosophy:** No schema library in v1 — parameterized SQL prevents injection and
+the SQLite schema (`NOT NULL`, `FOREIGN KEY`, `PK`) enforces structural integrity for free.
+Validation is lightweight and lives only at the CLI boundary, **lenient + warn**: friendly
+message + clean exit on broken input, **never a stack trace**; observers and `check` never
+crash a tool call. A schema lib (Zod/valibot) is deferred to the cross-machine sync API, where
+untrusted payloads actually arrive.
+
+- [ ] **`args.ts` + `validate.ts` — CLI boundary.** Hand-rolled zero-dep arg parser plus
+      lenient validators: `requireArg` (missing required arg / empty pattern → friendly hint +
+      non-zero exit), `normalizeKind` (unknown activity kind → `run` with a stderr note),
+      `parseTtl` (`"30m"` → ms, bounded), `clamp` (cap reason/note/summary/intent length), and
+      a broad-glob flag (`**` / `/` allowed but warned). *Test:* ttl parse + bounds, kind
+      coercion, length clamp, missing-arg → non-zero exit, observer never throws.
 
 - [ ] **`identity/session.ts` — `resolveSessionKey()`** implements the validated ladder:
       explicit (`--session`/`WEAVER_SESSION`) → harness-native session id (registry confirmed in
