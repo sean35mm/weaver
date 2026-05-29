@@ -5,6 +5,7 @@ import { parseArgs } from "./args.ts";
 import * as activity from "./commands/activity.ts";
 import * as claim from "./commands/claim.ts";
 import * as check from "./commands/check.ts";
+import * as dashboard from "./commands/dashboard.ts";
 import * as deinit from "./commands/deinit.ts";
 import * as doctor from "./commands/doctor.ts";
 import * as done from "./commands/done.ts";
@@ -22,12 +23,12 @@ import { openStore } from "./store/open.ts";
 import { CliError } from "./validate.ts";
 
 const VERSION = "0.1.0";
-const BOOLEAN_FLAGS = new Set(["pin", "json", "full", "version", "help", "v", "purge", "exclusive"]);
+const BOOLEAN_FLAGS = new Set(["pin", "json", "full", "version", "help", "v", "purge", "exclusive", "no-open"]);
 // Mutating writes that are paused when the project is disabled (done/lifecycle still work).
 const WRITE_GATED = new Set(["task", "claim", "release", "note", "log"]);
 
 interface Handler {
-  run: (ctx: Ctx) => number;
+  run: (ctx: Ctx) => number | Promise<number>;
   /** Agent/mutating commands require identity and register presence; observers don't. */
   agent: boolean;
 }
@@ -44,6 +45,10 @@ const REGISTRY: Record<string, Handler> = {
   activity: { run: activity.run, agent: false },
   check: { run: check.run, agent: false },
   doctor: { run: doctor.run, agent: false },
+  dashboard: { run: dashboard.runDashboard, agent: false },
+  view: { run: dashboard.runDashboard, agent: false },
+  ui: { run: dashboard.runDashboard, agent: false },
+  watch: { run: dashboard.runWatch, agent: false },
   init: { run: init.run, agent: false },
   enable: { run: toggle.runEnable, agent: false },
   disable: { run: toggle.runDisable, agent: false },
@@ -64,6 +69,8 @@ function printHelp(write: (s: string) => void): void {
   write("  activity [--full]                        recent activity feed\n");
   write("  done                                     end this session, release its claims\n");
   write("  doctor                                   diagnostics (identity, repo, store)\n");
+  write("  dashboard [--port N] [--no-open]         live web view (Ctrl-C to stop)\n");
+  write("  watch                                    live terminal view (Ctrl-C to stop)\n");
   write("\n");
   write("  init                                     enable in this repo (inject CLAUDE.md/AGENTS.md)\n");
   write("  disable / enable                         pause / resume agent writes for this repo\n");
@@ -127,7 +134,7 @@ async function main(): Promise<number> {
         now,
       );
     }
-    return handler.run(ctx);
+    return await handler.run(ctx);
   } catch (e) {
     if (e instanceof CliError) {
       err(`weaver: ${e.message}\n`);
