@@ -23,3 +23,5 @@ breaking changes.
 - Lifecycle commands: `init` (inject the instruction block into `CLAUDE.md` + `AGENTS.md`),
   `disable`/`enable` (pause/resume agent writes for a repo), `deinit` (remove the block;
   `--purge` also deletes the store).
+- Real-time visualization: `dashboard` (loopback-only HTTP + SSE web viewer, read-only) and
+  `watch` (live terminal view). Both poll the store ~1s and stop on Ctrl-C.
