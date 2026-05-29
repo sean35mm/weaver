@@ -1,0 +1,26 @@
+{
+  "name": "weaver",
+  "version": "0.1.0",
+  "description": "Shared situational awareness for multiple coding agents working in the same repo.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "weaver": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test",
+    "test:bun": "bun test test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# local Weaver stores / scratch
+*.db
+*.db-wal
+*.db-shm
+
+# OS / editor
+.DS_Store
+*.log
+.env
+.env.*
