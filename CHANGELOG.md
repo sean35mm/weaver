@@ -20,3 +20,6 @@ breaking changes.
 - Presence registration limited to agent/mutating commands (observers never appear as a
   participant); advisory co-claims that surface overlaps and exit non-zero.
 - Lenient CLI-boundary validation (`parseTtl`, `normalizeKind`, `clamp`, `requireArg`).
+- Lifecycle commands: `init` (inject the instruction block into `CLAUDE.md` + `AGENTS.md`),
+  `disable`/`enable` (pause/resume agent writes for a repo), `deinit` (remove the block;
+  `--purge` also deletes the store).
