@@ -428,6 +428,10 @@ Then, **out of scope for v1**, in rough priority order:
    meaningful, low-frequency events (`SessionStart`, `PreToolUse` on edits, `PostToolUse` on
    edits, `Stop`), **never `UserPromptSubmit`**, and stay silent when there's no conflict so
    token cost is ~0 in the common case. Tiered via `weaver init --hooks=minimal|full`.
+2. **Per-harness packaging.** A Claude Code **Plugin** (bundling a discoverable Skill + the
+   hooks + the CLI itself, so there's no separate install), plus OpenCode/Pi wrappers. The CLI
+   stays the universal engine — packaging only improves activation reliability and
+   distribution per harness; it never replaces the cross-harness core.
 2. **Cross-machine sync.** A relay so agents on different machines (or teammates) share one
    commons — the natural seam for a paid/hosted offering.
 3. **Dashboard "pro."** History/audit, org-wide shared notes, actionable controls.

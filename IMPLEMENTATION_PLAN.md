@@ -433,6 +433,24 @@ dashboard "pro" (history/audit, org notes, actions) · full identity ladder (pro
 ancestry) · broader instruction-file targets (`.cursor/rules`, Windsurf) · optional graph
 backend behind `Store`.
 
+### Per-harness packaging (post-v1 workstream)
+
+The CLI stays the universal engine (the only substrate every harness can call); packaging is
+an optional wrapper layer on top that improves activation reliability and distribution. A
+skill/plugin does **not** replace the CLI — it bundles/wraps it. Decided architecture:
+
+- **Claude Code Plugin** — bundles (a) a **Skill** (a discoverable, richer form of the
+  instruction block), (b) the **hooks** (SessionStart + PreToolUse — the real reliability
+  win), and (c) optionally the **bundled CLI** so there's no separate `npm i -g`. Best-of-all
+  Claude Code experience.
+- **OpenCode / Pi** — thin TS plugin/extension wrappers over the CLI.
+- **Everything else** — CLI + `AGENTS.md` baseline (already the v1 path).
+
+Reliability ranking that drives this: hooks (deterministic) > skill/MCP/instruction-block
+(all model-discretion) — and shared-state accuracy is identical regardless of packaging, since
+it's the CLI's store logic. MCP was rejected for the same reason a skill-first approach is:
+both fragment the cross-harness guarantee that is Weaver's core value.
+
 ---
 
 ## Open decisions to confirm before coding
