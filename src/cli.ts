@@ -17,6 +17,7 @@ import * as note from "./commands/note.ts";
 import * as status from "./commands/status.ts";
 import * as task from "./commands/task.ts";
 import * as toggle from "./commands/toggle.ts";
+import * as uninstall from "./commands/uninstall.ts";
 import * as upgrade from "./commands/upgrade.ts";
 import type { Ctx } from "./context.ts";
 import { resolveIdentity } from "./identity/session.ts";
@@ -37,6 +38,8 @@ const BOOLEAN_FLAGS = new Set([
   "exclusive",
   "no-open",
   "check",
+  "yes",
+  "keep-data",
 ]);
 // Mutating writes that are paused when the project is disabled (done/lifecycle still work).
 const WRITE_GATED = new Set(["task", "claim", "release", "note", "log"]);
@@ -69,6 +72,7 @@ const REGISTRY: Record<string, Handler> = {
   deinit: { run: deinit.run, agent: false },
   config: { run: config.run, agent: false },
   upgrade: { run: upgrade.run, agent: false },
+  uninstall: { run: uninstall.run, agent: false },
 };
 
 function printHelp(write: (s: string) => void): void {
@@ -93,6 +97,7 @@ function printHelp(write: (s: string) => void): void {
   write("  deinit [--purge]                         remove instructions (and optionally the store)\n");
   write("  config [<key> [<seconds>]]               view/set tunables (TTLs)\n");
   write("  upgrade [--check]                        update the installed binary to the latest release\n");
+  write("  uninstall [--yes] [--keep-data]          remove the binary and ~/.weaver\n");
 }
 
 async function main(): Promise<number> {

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
+import { isStandaloneBinary } from "../env.ts";
 import { VERSION } from "../version.ts";
 
 const REPO = "sean35mm/weaver";
@@ -11,12 +12,6 @@ function platformAsset(): string | null {
   const os = process.platform === "darwin" ? "darwin" : process.platform === "linux" ? "linux" : null;
   const arch = process.arch === "arm64" ? "arm64" : process.arch === "x64" ? "x64" : null;
   return os && arch ? `weaver-${os}-${arch}` : null;
-}
-
-/** True when running as the compiled standalone binary (not `node`/`bun` from source). */
-function isStandaloneBinary(): boolean {
-  const base = path.basename(process.execPath).toLowerCase();
-  return base !== "node" && base !== "bun" && base !== "node.exe" && base !== "bun.exe";
 }
 
 export async function run(ctx: Ctx): Promise<number> {
