@@ -85,8 +85,8 @@ Everything reduces to four primitives:
 **1. Install (once per machine).** Runtime-agnostic:
 
 ```bash
-npm i -g @scope/weaver      # or: bun add -g @scope/weaver
-# or a single static binary:  curl -fsSL https://<gh-user>.github.io/weaver/install.sh | sh
+npm i -g @narulabs/weaver      # or: bun add -g @narulabs/weaver
+# or a single static binary:  curl -fsSL https://sean35mm.github.io/weaver/install.sh | sh
 ```
 
 **2. Enable on a project (once per repo).**
@@ -133,7 +133,7 @@ weaver done              # end MY session (presence + claims)
 weaver disable           # pause agent writes for this project (reads still inspect)
 weaver enable            # resume
 weaver deinit            # remove instruction block from CLAUDE.md/AGENTS.md (--purge to drop the DB)
-npm rm -g @scope/weaver  # uninstall entirely
+npm rm -g @narulabs/weaver  # uninstall entirely
 ```
 
 ## Architecture
@@ -454,9 +454,8 @@ Then, **out of scope for v1**, in rough priority order:
 *context* = Latin *con-* ("together") + *texere* ("to weave"). **Weaver** weaves your agents'
 separate contexts into one fabric. (It's also a nod to the Dota 2 hero.) The bare npm name
 `weaver` is held by an abandoned 2016 package, so the package ships **scoped**
-(`@<scope>/weaver`) while the GitHub repo, the binary, and the brand are all simply
-**weaver**. (Pre-publish, `package.json` uses the local placeholder name `weaver`; it's
-renamed to the scoped name when the npm account is set up.)
+(`@narulabs/weaver`) while the GitHub repo, the binary, and the brand are all simply
+**weaver**.
 
 ## License & contributing
 

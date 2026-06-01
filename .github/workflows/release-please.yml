@@ -13,9 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           release-type: node
-          # Opens/maintains a "Release vX.Y.Z" PR from conventional commits.
-          # Merging it tags the release and (with an npm publish step added later)
-          # publishes to npm. Publishing is intentionally deferred until the npm
-          # account/scope exists.
+      # When a release is cut, publish to npm. Requires an NPM_TOKEN repo secret
+      # (Settings → Secrets and variables → Actions) with publish rights to @narulabs.
+      - uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.release_created }}
+      - uses: actions/setup-node@v4
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - if: ${{ steps.release.outputs.release_created }}
+        run: npm ci && npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
