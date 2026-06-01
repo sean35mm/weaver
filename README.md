@@ -4,6 +4,8 @@
 > *context* — from Latin *con-* ("together") + *texere* ("to weave"). Weaver weaves the
 > separate contexts of your agents into one shared fabric.
 
+**📖 Documentation:** **<https://sean35mm.github.io/weaver/>** · 🤖 agents: [`llms.txt`](https://sean35mm.github.io/weaver/llms.txt)
+
 Weaver is a **CLI-first, serverless coordination layer** for multiple AI coding agents
 working in the same repository at the same time. When you have Claude Code in one window,
 Codex in another, and OpenCode in a third — all editing the same project — they are
