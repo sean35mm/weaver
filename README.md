@@ -137,7 +137,7 @@ weaver done              # end MY session (presence + claims)
 weaver disable           # pause agent writes for this project (reads still inspect)
 weaver enable            # resume
 weaver deinit            # remove instruction block from CLAUDE.md/AGENTS.md (--purge to drop the DB)
-rm "$(command -v weaver)"   # uninstall entirely (removes the binary)
+weaver uninstall            # remove the binary + ~/.weaver (use --keep-data to keep stores)
 ```
 
 ## Architecture

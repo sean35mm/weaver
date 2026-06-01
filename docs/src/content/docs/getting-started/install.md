@@ -37,8 +37,13 @@ weaver upgrade --check  # just check whether a newer version exists
 ## Uninstall
 
 ```sh
-rm "$(command -v weaver)"
+weaver uninstall              # removes the binary and ~/.weaver (prompts first)
+weaver uninstall --keep-data  # remove the binary but keep your stores
+weaver uninstall --yes        # skip the confirmation prompt
 ```
+
+Any `weaver` blocks left in a repo's `CLAUDE.md` / `AGENTS.md` are self-disabling; run
+`weaver deinit` in a repo first if you want them removed.
 
 ## Running from source (contributors)
 
