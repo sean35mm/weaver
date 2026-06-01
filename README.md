@@ -86,7 +86,8 @@ Everything reduces to four primitives:
 
 ```bash
 npm i -g @narulabs/weaver      # or: bun add -g @narulabs/weaver
-# or a single static binary:  curl -fsSL https://sean35mm.github.io/weaver/install.sh | sh
+# or a standalone binary, no Node/npm needed (after a release is published):
+#   curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | sh
 ```
 
 **2. Enable on a project (once per repo).**

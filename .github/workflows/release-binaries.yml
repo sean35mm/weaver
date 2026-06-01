@@ -1,0 +1,29 @@
+name: release-binaries
+
+# When a GitHub release is published (by release-please), cross-compile standalone
+# binaries for each platform and attach them — this is what `install.sh` downloads.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - { name: weaver-darwin-arm64, bun: bun-darwin-arm64 }
+          - { name: weaver-darwin-x64, bun: bun-darwin-x64 }
+          - { name: weaver-linux-x64, bun: bun-linux-x64 }
+          - { name: weaver-linux-arm64, bun: bun-linux-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun build src/cli.ts --compile --target=${{ matrix.target.bun }} --outfile ${{ matrix.target.name }}
+      - run: gh release upload "${{ github.event.release.tag_name }}" "${{ matrix.target.name }}" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

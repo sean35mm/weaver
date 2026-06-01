@@ -26,6 +26,11 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
       - if: ${{ steps.release.outputs.release_created }}
-        run: npm ci && npm publish
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN not set — skipping npm publish (binaries are still released)."
+            exit 0
+          fi
+          npm ci && npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
