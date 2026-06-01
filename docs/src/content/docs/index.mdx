@@ -9,69 +9,72 @@ hero:
     - text: Get started
       link: /weaver/getting-started/install/
       icon: right-arrow
-    - text: Docs
+    - text: Read the docs
       link: /weaver/getting-started/quickstart/
       variant: minimal
 ---
 
-import { Card, CardGrid } from "@astrojs/starlight/components";
+import { LinkButton } from "@astrojs/starlight/components";
 
-<div style="max-width:560px;margin:0 auto 1.25rem;font-family:var(--sl-font-mono,ui-monospace,monospace)">
-  <div style="background:#06090c;border:1px solid #1c252d;border-radius:12px;overflow:hidden;text-align:left;box-shadow:0 12px 40px rgba(0,0,0,.35)">
-    <div style="display:flex;gap:6px;align-items:center;padding:10px 13px;border-bottom:1px solid #141c23">
-      <span style="width:9px;height:9px;border-radius:50%;background:#2a3640"></span>
-      <span style="width:9px;height:9px;border-radius:50%;background:#2a3640"></span>
-      <span style="width:9px;height:9px;border-radius:50%;background:#2a3640"></span>
-      <span style="margin-left:8px;color:#4a5a54;font-size:11px">~/myapp</span>
-    </div>
-    <div style="padding:15px 17px;font-size:12.5px;line-height:1.75">
-      <div style="color:#5fd3ad">$ weaver status</div>
-      <div style="color:#cfe0da">3 other active sessions</div>
-      <div style="color:#9fb3ab">&nbsp;&nbsp;<span style="color:#33c98f">claude-code</span> refactor the auth module&nbsp;&nbsp;<span style="color:#5a6a64">12s ago</span></div>
-      <div style="color:#9fb3ab">&nbsp;&nbsp;<span style="color:#33c98f">codex</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;add a Google OAuth provider&nbsp;&nbsp;<span style="color:#5a6a64">just now</span></div>
-      <div style="color:#9fb3ab">&nbsp;&nbsp;<span style="color:#33c98f">opencode</span>&nbsp;&nbsp;&nbsp;backfill auth unit tests&nbsp;&nbsp;<span style="color:#5a6a64">2m ago</span></div>
-      <div style="color:#e3b341">⚠ src/auth/** claimed by claude-code — coordinate or work elsewhere</div>
-    </div>
+<div class="wv-term">
+  <div class="wv-bar"><i></i><i></i><i></i><span>~/myapp</span></div>
+  <div class="wv-body">
+    <div class="p">$ weaver status</div>
+    <div>3 other active sessions</div>
+    <div>&nbsp;&nbsp;<span class="who">claude-code</span> refactor the auth module&nbsp;&nbsp;<span class="dim">12s ago</span></div>
+    <div>&nbsp;&nbsp;<span class="who">codex</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;add a Google OAuth provider&nbsp;&nbsp;<span class="dim">just now</span></div>
+    <div>&nbsp;&nbsp;<span class="who">opencode</span>&nbsp;&nbsp;&nbsp;backfill auth unit tests&nbsp;&nbsp;<span class="dim">2m ago</span></div>
+    <div class="warn">⚠ src/auth/** claimed by claude-code — coordinate or work elsewhere</div>
   </div>
 </div>
-
-## Install in one line
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | sh
 ```
 
-A single self-contained binary — **no Node, no npm, no dependencies**. Keep it current with
-`weaver upgrade`, remove it with `weaver uninstall`.
+<p style="text-align:center;color:var(--sl-color-gray-3);margin-top:-0.4rem">
+  A single self-contained binary — no Node, no npm. Update with <code>weaver upgrade</code>.
+</p>
 
-## Why Weaver?
+<div class="wv-eyebrow">The problem</div>
 
-When you run several coding agents on one codebase, they're blind to each other: different
-tools, different sessions, different memories. They edit the same files, redo each other's
-work, and share no picture of what's in flight. Weaver fixes that with a fast local CLI any
+Run several coding agents on one repo and they're blind to each other: different tools,
+sessions, and memories. They edit the same files, redo each other's work, and have no shared
+picture of what's in flight. **Weaver** is a fast, local, CLI-first coordination layer any
 agent can call.
 
-<CardGrid stagger>
-  <Card title="They see each other" icon="laptop">
-    Every session — across harnesses and windows — shows up with its intent, claimed areas,
-    and recent activity.
-  </Card>
-  <Card title="No silent collisions" icon="warning">
-    Before editing, an agent can `check` an area and get a clear conflict signal instead of
-    quietly overwriting another agent's work.
-  </Card>
-  <Card title="Shared memory" icon="open-book">
-    Durable `note`s capture gotchas and conventions that survive context compaction and new
-    sessions.
-  </Card>
-  <Card title="Watch it live" icon="rocket">
-    A real-time `dashboard` (web) and `watch` (terminal) show the whole commons as it changes.
-  </Card>
-</CardGrid>
+<div class="wv-eyebrow">How it works</div>
 
-## Built for agents first
+<div class="wv-grid cols3">
+  <div class="wv-card"><h3><span class="num">1 ·</span> install</h3><p>One curl line drops in a standalone binary — no runtime to manage.</p></div>
+  <div class="wv-card"><h3><span class="num">2 ·</span> weaver init</h3><p>Adds a short instruction block to <code>CLAUDE.md</code> / <code>AGENTS.md</code>.</p></div>
+  <div class="wv-card"><h3><span class="num">3 ·</span> just work</h3><p>Agents read it and coordinate on their own — announce, claim, check, note.</p></div>
+</div>
 
-Weaver is a **CLI** on purpose — the one interface every harness can call without an MCP
-server or protocol setup. The docs are written for agents too: see
-[Using Weaver from an agent](/weaver/guides/using-from-an-agent/) and the machine-readable
-[`/weaver/llms.txt`](/weaver/llms.txt).
+<div class="wv-eyebrow">What you get</div>
+
+<div class="wv-grid">
+  <div class="wv-card"><h3>They see each other</h3><p>Every session — across harnesses and windows — shows its intent, claimed areas, and recent activity.</p></div>
+  <div class="wv-card"><h3>No silent collisions</h3><p>An agent can <code>check</code> an area and get a clear conflict signal instead of quietly overwriting another's work.</p></div>
+  <div class="wv-card"><h3>Shared memory</h3><p>Durable <code>note</code>s capture gotchas and conventions that survive context compaction and new sessions.</p></div>
+  <div class="wv-card"><h3>Watch it live</h3><p>A real-time <code>dashboard</code> (web) and <code>watch</code> (terminal) show the whole commons as it changes.</p></div>
+</div>
+
+<div class="wv-eyebrow">Works with your agents</div>
+
+<div class="wv-chips">
+  <span class="chip">Claude Code</span>
+  <span class="chip">Codex</span>
+  <span class="chip">OpenCode</span>
+  <span class="chip">Pi</span>
+  <span class="chip">+ any shell</span>
+</div>
+
+It's a CLI, not an MCP server, on purpose — the one interface every harness can call with no
+setup. [Read why →](/weaver/concepts/why-cli-not-mcp/)
+
+<div class="wv-cta">
+  <h2>Stop your agents from colliding.</h2>
+  <LinkButton href="/weaver/getting-started/install/" icon="right-arrow">Get started</LinkButton>
+  <LinkButton href="/weaver/guides/using-from-an-agent/" variant="minimal">Using it from an agent</LinkButton>
+</div>
