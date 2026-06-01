@@ -14,6 +14,7 @@ export default defineConfig({
       logo: { src: "./src/assets/logo.svg" },
       favicon: "/favicon.svg",
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/sean35mm/weaver" }],
+      components: { SiteTitle: "./src/components/SiteTitle.astro" },
       customCss: ["./src/styles/theme.css"],
       editLink: { baseUrl: "https://github.com/sean35mm/weaver/edit/main/docs/" },
       plugins: [
