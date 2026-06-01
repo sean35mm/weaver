@@ -39,7 +39,7 @@ npm run typecheck   # tsc --noEmit
 ## Conventions
 
 - **Conventional Commits** (`feat:`, `fix:`, `chore:`, `docs:`, …) — they drive the changelog
-  and version bumps via `release-please`.
+  and version bumps via `release-please`. Releases follow **[RELEASING.md](./RELEASING.md)**.
 - **SemVer**, currently `0.x` (minor versions may break until `1.0`).
 - Keep the core **zero-runtime-dependency** where possible (picomatch is the only runtime dep).
 - Validation stays lenient at the CLI boundary; never throw a stack trace at an agent, and
