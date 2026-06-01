@@ -4,6 +4,22 @@ import { ago } from "../render.ts";
 
 export function run(ctx: Ctx): number {
   const rows = ctx.store.listRecentActivity(flagBool(ctx.args, "full") ? 200 : 20);
+
+  if (flagBool(ctx.args, "json")) {
+    ctx.out(
+      JSON.stringify(
+        rows.map((a) => ({
+          kind: a.kind,
+          target: a.target,
+          summary: a.summary,
+          by: ctx.store.getSession(a.sessionId)?.harness ?? null,
+          tsMsAgo: ctx.now - a.ts,
+        })),
+      ) + "\n",
+    );
+    return 0;
+  }
+
   if (!rows.length) {
     ctx.out("no activity yet\n");
     return 0;

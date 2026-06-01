@@ -327,7 +327,7 @@ area.
 **Optional (when useful):** `weaver check <path>` before touching a file you're unsure
 about; `weaver log <kind> <path> "<summary>"` after a notable change so others see it.
 
-Keep reasons/notes short and specific — other agents read them to coordinate.
+Keep reasons/notes short, specific, and free of secrets — other agents read them to coordinate.
 <!-- weaver:end -->
 ```
 
@@ -455,7 +455,8 @@ Then, **out of scope for v1**, in rough priority order:
 separate contexts into one fabric. (It's also a nod to the Dota 2 hero.) The bare npm name
 `weaver` is held by an abandoned 2016 package, so the package ships **scoped**
 (`@<scope>/weaver`) while the GitHub repo, the binary, and the brand are all simply
-**weaver**.
+**weaver**. (Pre-publish, `package.json` uses the local placeholder name `weaver`; it's
+renamed to the scoped name when the npm account is set up.)
 
 ## License & contributing
 

@@ -30,12 +30,12 @@ export function normalizeTarget(target: string, root: string, cwd: string): stri
     return squeeze(toPosix(path.relative(root, raw)));
   }
 
-  const glob = isGlob(raw);
   const rel = stripDotSlash(toPosix(raw));
   const prefix = repoRelPrefix(root, cwd);
   const joined = prefix ? `${prefix}/${rel}` : rel;
 
-  // Globs must not pass through path.normalize (it would mangle `**`); just squeeze slashes.
-  // Plain paths get POSIX-normalized to collapse `.`/`..`.
-  return glob ? squeeze(joined) : squeeze(path.posix.normalize(joined));
+  // POSIX-normalize collapses `.`/`..` and is safe for globs: it only rewrites `.`/`..`
+  // segments and slashes, leaving `*`, `**`, `{…}`, `[…]` tokens intact. This ensures e.g.
+  // `../api/**` from `src/auth` stores `src/api/**`, not `src/auth/../api/**`.
+  return squeeze(path.posix.normalize(joined));
 }

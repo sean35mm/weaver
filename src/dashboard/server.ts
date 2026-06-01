@@ -5,7 +5,7 @@
 
 import http from "node:http";
 import { DEFAULT_SESSION_TTL_MS } from "../store/reap.ts";
-import { type StatusData, statusJson } from "../render.ts";
+import { claimsByLiveHolders, type StatusData, statusJson } from "../render.ts";
 import type { Store } from "../store/store.ts";
 import { PAGE } from "./page.ts";
 
@@ -25,9 +25,10 @@ export interface StartOpts {
 
 function snapshot(store: Store, repoId: string, sessionTtlMs: number): string {
   const now = Date.now();
+  const sessions = store.listActiveSessions(now, sessionTtlMs);
   const data: StatusData = {
-    sessions: store.listActiveSessions(now, sessionTtlMs),
-    claims: store.listActiveClaims(now),
+    sessions,
+    claims: claimsByLiveHolders(store.listActiveClaims(now), sessions),
     activity: store.listRecentActivity(50),
     notes: store.listNotes(50),
   };

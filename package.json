@@ -30,8 +30,8 @@
     "build": "tsc",
     "demo": "node scripts/demo.ts",
     "prepublishOnly": "npm run build",
-    "test": "node --test test",
-    "test:bun": "bun test test",
+    "test": "node --test test/*.test.ts",
+    "test:bun": "bun test test/",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

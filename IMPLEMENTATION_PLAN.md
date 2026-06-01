@@ -9,9 +9,11 @@ keyed by repo identity, with all persistence behind a thin `Store` interface and
 identity behind a single `resolveSessionKey()` seam. No daemon, no MCP. Liveness via lazy
 TTL reaping at read time. Runtime-agnostic (Node and Bun).
 
-**Tech stack:** TypeScript · Node 18+ / Bun (runtime-agnostic) · SQLite (per-runtime
-binding adapter) · `picomatch` for glob matching · a minimal CLI arg parser · a tiny
-HTTP + SSE server and a single static page for the dashboard.
+**Tech stack:** TypeScript · Node ≥22.5 / Bun (runtime-agnostic) · SQLite via built-in
+bindings (`node:sqlite` / `bun:sqlite`, **no native dependency**) · `picomatch` for glob
+matching · a minimal CLI arg parser · a tiny HTTP + SSE server and a single static page for
+the dashboard. (`better-sqlite3` is a documented future fallback if older-Node support is
+requested; not bundled in v1.)
 
 > **Process note:** Per project convention this plan favors pragmatic, well-scoped tasks
 > over rigid test-first micro-steps. Tests are specified where they carry real risk
@@ -177,9 +179,10 @@ migrations.
 
 - [ ] **Scaffold the package.** `package.json` (`@<scope>/weaver`, `bin.weaver →
       dist/cli.js`, alphabetized deps), `tsconfig.json`, build script that targets both
-      Node and Bun. Add `picomatch`, a minimal arg parser, and `better-sqlite3` as the Node
-      fallback SQLite binding (prefer `optionalDependencies` if practical, loaded lazily so
-      Bun can use `bun:sqlite`).
+      Node and Bun. Add `picomatch` and a minimal arg parser. SQLite uses the built-in
+      `node:sqlite` (Node ≥22.5) / `bun:sqlite` — **no native dependency**. (Package name ships
+      as a placeholder `weaver` locally; rename to scoped `@<scope>/weaver` at publish time once
+      the npm account exists.)
 - [ ] **`repo/identity.ts` — `resolveRepoId()`.** First find the repo root with
       `git rev-parse --show-toplevel` (so it works from any subdir). Then try
       `git remote get-url origin` and **normalize it** (strip protocol, normalize `git@host:`
@@ -194,7 +197,8 @@ migrations.
       metacharacters without accidentally resolving glob patterns as literal files. *Test:*
       equivalent target spellings normalize to the same stored path/glob.
 - [ ] **`store/db.ts` — runtime-aware binding adapter.** Detect Bun → `bun:sqlite`; else
-      Node ≥22.5 → `node:sqlite`; else `better-sqlite3`. Expose a uniform `openDb(path)`
+      `node:sqlite` (Node ≥22.5). (`better-sqlite3` is a future fallback for older Node, not in
+      v1.) Expose a uniform `openDb(path)`
       returning `{ exec, prepare, transaction, close }`. Enable `PRAGMA journal_mode=WAL`,
       `PRAGMA foreign_keys=ON`, and a small `busy_timeout` for concurrent agent writes.
 - [ ] **`store/schema.ts` — DDL + migrations.** Create the five tables from the README;
@@ -408,9 +412,9 @@ and the documented new-user flow works.
 | **Identity on the tool-call path** — spike showed the immediate process often has no controlling tty | Resolve via harness-native session-id env var first (e.g. `CLAUDE_CODE_SESSION_ID`), then ancestry tty, then explicit `WEAVER_SESSION`; never a shared anonymous key (mutating cmds fail with a hint). Per-harness env-var registry confirmed in Phase 0. |
 | **Agents don't follow the instruction block** (CLI-first reliability) | Treat the block as a living, tuned artifact; keep it tight; hooks as the opt-in reliability upgrade (roadmap). |
 | **Point-in-time awareness** — without hooks an agent only sees the picture at task start; mid-task changes by others go unnoticed | Document the limitation honestly; the v1.1 `SessionStart` hook improves startup awareness only; instruction block nudges re-checking before risky edits; later `PreToolUse` hooks address mid-task changes. |
-| **Runtime SQLite binding differences** (Node vs Bun) | Single `openDb()` adapter; CI runs both; avoid binding-specific SQL; `better-sqlite3` is the Node fallback for runtimes without stable `node:sqlite`. |
+| **Runtime SQLite binding differences** (Node vs Bun) | Single `openDb()` adapter; CI runs both; avoid binding-specific SQL. Node uses built-in `node:sqlite` (≥22.5); `better-sqlite3` is a future fallback for older Node, not bundled in v1. |
 | **Path/glob mismatches from subdirs or OS separators** | Normalize every stored/matched target to repo-root-relative POSIX form in one `repo/paths.ts` seam before conflict detection. |
-| **Pure-WASM SQLite weak at multi-process WAL** | Require a real on-disk binding per runtime (`bun:sqlite` / `node:sqlite` / `better-sqlite3`); do not ship a WASM fallback as the multi-process store. |
+| **Pure-WASM SQLite weak at multi-process WAL** | Require a real on-disk binding per runtime (`bun:sqlite` / `node:sqlite`); do not ship a WASM fallback as the multi-process store. |
 | **Precise glob-vs-glob intersection is hard** | `check` uses precise path-vs-glob; claim-vs-claim uses a pragmatic overlap heuristic and, because co-claims are allowed, exactness is non-critical (both are surfaced anyway). |
 | **Dashboard server perceived as violating "serverless"** | It's read-only, on-demand, foreground, and never touched by agents; documented explicitly. |
 

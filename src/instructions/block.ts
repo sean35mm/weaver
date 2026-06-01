@@ -31,7 +31,7 @@ area.
 **Optional (when useful):** \`weaver check <path>\` before touching a file you're unsure
 about; \`weaver log <kind> <path> "<summary>"\` after a notable change so others see it.
 
-Keep reasons/notes short and specific — other agents read them to coordinate.
+Keep reasons/notes short, specific, and free of secrets — other agents read them to coordinate.
 <!-- weaver:end -->`;
 
 interface Range {
