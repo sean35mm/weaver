@@ -1,16 +1,33 @@
-/* Weaver accent — the dashboard teal. */
+/* Weaver — terminal-native theme. Accent: mid green #33c98f. */
+
 :root {
-  --sl-color-accent-low: #112e2a;
-  --sl-color-accent: #2b9e8b;
-  --sl-color-accent-high: #9fe8db;
-}
-:root[data-theme="light"] {
-  --sl-color-accent-low: #d6f3ec;
-  --sl-color-accent: #11806f;
-  --sl-color-accent-high: #0c3b34;
+  --sl-color-accent-low: #0f2e25;
+  --sl-color-accent: #33c98f;
+  --sl-color-accent-high: #a9f0d4;
 }
 
-/* A touch of warmth on the hero. */
+/* Dark (default brand) — near-black terminal tones. */
+:root[data-theme="dark"] {
+  --sl-color-bg: #0b0e12;
+  --sl-color-bg-nav: #0b0e12;
+  --sl-color-bg-sidebar: #0c1014;
+  --sl-color-bg-inline-code: #11161c;
+  --sl-color-hairline-shade: #1a222b;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #c8f0e0;
+  --sl-color-accent: #0e8c66;
+  --sl-color-accent-high: #07392b;
+}
+
+/* Mono wordmark in the header, to reinforce the terminal identity. */
+.weaver-header-left a[href$="/getting-started/install/"],
+.weaver-header-nav a {
+  font-family: var(--sl-font-mono, ui-monospace, monospace);
+}
+
+/* Hero headline a touch tighter. */
 .hero h1 {
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
