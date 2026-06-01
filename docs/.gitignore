@@ -1,3 +1,6 @@
 node_modules/
 dist/
 .astro/
+
+# generated from the root CHANGELOG.md at build time
+src/content/docs/changelog.md
