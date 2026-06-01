@@ -5,6 +5,19 @@ template: splash
 hero:
   title: Your agents, finally in sync.
   tagline: Shared situational awareness for every coding agent in your repo — Claude Code, Codex, OpenCode, Pi. No more stepping on each other.
+  image:
+    html: |
+      <div class="wv-term" aria-label="Example output from weaver status">
+        <div class="wv-bar"><i></i><i></i><i></i><span>~/myapp</span></div>
+        <div class="wv-body">
+          <div class="p">$ weaver status</div>
+          <div>3 other active sessions</div>
+          <div>&nbsp;&nbsp;<span class="who">claude-code</span> refactor the auth module&nbsp;&nbsp;<span class="dim">12s ago</span></div>
+          <div>&nbsp;&nbsp;<span class="who">codex</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;add a Google OAuth provider&nbsp;&nbsp;<span class="dim">just now</span></div>
+          <div>&nbsp;&nbsp;<span class="who">opencode</span>&nbsp;&nbsp;&nbsp;backfill auth unit tests&nbsp;&nbsp;<span class="dim">2m ago</span></div>
+          <div class="warn">&#9888; src/auth/** claimed by claude-code — coordinate or work elsewhere</div>
+        </div>
+      </div>
   actions:
     - text: Get started
       link: /weaver/getting-started/install/
@@ -15,18 +28,6 @@ hero:
 ---
 
 import { LinkButton } from "@astrojs/starlight/components";
-
-<div class="wv-term">
-  <div class="wv-bar"><i></i><i></i><i></i><span>~/myapp</span></div>
-  <div class="wv-body">
-    <div class="p">$ weaver status</div>
-    <div>3 other active sessions</div>
-    <div>&nbsp;&nbsp;<span class="who">claude-code</span> refactor the auth module&nbsp;&nbsp;<span class="dim">12s ago</span></div>
-    <div>&nbsp;&nbsp;<span class="who">codex</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;add a Google OAuth provider&nbsp;&nbsp;<span class="dim">just now</span></div>
-    <div>&nbsp;&nbsp;<span class="who">opencode</span>&nbsp;&nbsp;&nbsp;backfill auth unit tests&nbsp;&nbsp;<span class="dim">2m ago</span></div>
-    <div class="warn">⚠ src/auth/** claimed by claude-code — coordinate or work elsewhere</div>
-  </div>
-</div>
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | sh

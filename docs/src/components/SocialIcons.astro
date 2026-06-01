@@ -1,11 +1,12 @@
 ---
 // Override Starlight's SocialIcons (right side of the header) to add text nav links
-// (Docs, Changelog) before the social icons. This puts the nav on the RIGHT.
+// (Docs, Roadmap, Changelog) before the social icons. This puts the nav on the RIGHT.
 import Default from "@astrojs/starlight/components/SocialIcons.astro";
 ---
 
 <nav class="weaver-nav">
   <a href="/weaver/getting-started/install/">Docs</a>
+  <a href="/weaver/roadmap/">Roadmap</a>
   <a href="/weaver/changelog/">Changelog</a>
 </nav>
 <Default {...Astro.props}><slot /></Default>
