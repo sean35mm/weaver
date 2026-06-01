@@ -4,7 +4,7 @@
  * the SQLite store.
  */
 
-export const DEFAULT_SESSION_TTL_MS = 5 * 60 * 1000; // 5 min — presence staleness
+export const DEFAULT_SESSION_TTL_MS = 15 * 60 * 1000; // 15 min — presence staleness (agents often go quiet mid-task)
 export const DEFAULT_CLAIM_TTL_MS = 30 * 60 * 1000; // 30 min — claim expiry
 export const DEFAULT_RECENT_ACTIVITY_MS = 20 * 60 * 1000; // soft-conflict window
 

@@ -11,7 +11,7 @@ Weaver works with sensible defaults; a few timing knobs are tunable per repo.
 
 | Key                       | Default | What it controls |
 | ------------------------- | ------- | ---------------- |
-| `session_ttl_seconds`     | `300` (5 min)  | How long after its last command a session is considered live. |
+| `session_ttl_seconds`     | `900` (15 min) | How long after its last command (or `weaver check`) a session is considered live. |
 | `claim_ttl_seconds`       | `1800` (30 min) | Default lifetime of a claim (refreshed on activity; override per claim with `--ttl`). |
 | `recent_activity_seconds` | `1200` (20 min) | The window for "recent activity" used by `status` and soft-conflict detection. |
 
