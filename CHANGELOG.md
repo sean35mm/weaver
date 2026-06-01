@@ -28,3 +28,6 @@ breaking changes.
 - Tunable TTLs via `weaver_meta` and a `config` command (session / claim / recent-activity).
 - `scripts/demo.ts` seeded multi-agent demo, `CONTRIBUTING.md`, and npm publish prep
   (`publishConfig`, build-on-publish, keywords).
+- `weaver upgrade [--check]` — self-update the standalone binary from the latest release.
+- Distribution is the standalone binary via `curl | sh` (+ `weaver upgrade`); npm publishing
+  is optional and off by default. Released binaries are version-stamped at build time.

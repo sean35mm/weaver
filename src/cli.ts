@@ -17,15 +17,27 @@ import * as note from "./commands/note.ts";
 import * as status from "./commands/status.ts";
 import * as task from "./commands/task.ts";
 import * as toggle from "./commands/toggle.ts";
+import * as upgrade from "./commands/upgrade.ts";
 import type { Ctx } from "./context.ts";
 import { resolveIdentity } from "./identity/session.ts";
 import { resolveRepoId } from "./repo/identity.ts";
 import { ensureWeaverDir, storePathForRepo } from "./store/location.ts";
 import { openStore } from "./store/open.ts";
 import { CliError } from "./validate.ts";
+import { VERSION } from "./version.ts";
 
-const VERSION = "0.1.0";
-const BOOLEAN_FLAGS = new Set(["pin", "json", "full", "version", "help", "v", "purge", "exclusive", "no-open"]);
+const BOOLEAN_FLAGS = new Set([
+  "pin",
+  "json",
+  "full",
+  "version",
+  "help",
+  "v",
+  "purge",
+  "exclusive",
+  "no-open",
+  "check",
+]);
 // Mutating writes that are paused when the project is disabled (done/lifecycle still work).
 const WRITE_GATED = new Set(["task", "claim", "release", "note", "log"]);
 
@@ -56,6 +68,7 @@ const REGISTRY: Record<string, Handler> = {
   disable: { run: toggle.runDisable, agent: false },
   deinit: { run: deinit.run, agent: false },
   config: { run: config.run, agent: false },
+  upgrade: { run: upgrade.run, agent: false },
 };
 
 function printHelp(write: (s: string) => void): void {
@@ -79,6 +92,7 @@ function printHelp(write: (s: string) => void): void {
   write("  disable / enable                         pause / resume agent writes for this repo\n");
   write("  deinit [--purge]                         remove instructions (and optionally the store)\n");
   write("  config [<key> [<seconds>]]               view/set tunables (TTLs)\n");
+  write("  upgrade [--check]                        update the installed binary to the latest release\n");
 }
 
 async function main(): Promise<number> {

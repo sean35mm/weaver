@@ -1,0 +1,97 @@
+import fs from "node:fs";
+import path from "node:path";
+import { flagBool } from "../args.ts";
+import type { Ctx } from "../context.ts";
+import { VERSION } from "../version.ts";
+
+const REPO = "sean35mm/weaver";
+
+/** The release asset name for the current platform, or null if unsupported. */
+function platformAsset(): string | null {
+  const os = process.platform === "darwin" ? "darwin" : process.platform === "linux" ? "linux" : null;
+  const arch = process.arch === "arm64" ? "arm64" : process.arch === "x64" ? "x64" : null;
+  return os && arch ? `weaver-${os}-${arch}` : null;
+}
+
+/** True when running as the compiled standalone binary (not `node`/`bun` from source). */
+function isStandaloneBinary(): boolean {
+  const base = path.basename(process.execPath).toLowerCase();
+  return base !== "node" && base !== "bun" && base !== "node.exe" && base !== "bun.exe";
+}
+
+export async function run(ctx: Ctx): Promise<number> {
+  if (!isStandaloneBinary()) {
+    ctx.err("weaver: `upgrade` only applies to the standalone (curl-installed) binary.\n");
+    ctx.err("  You appear to be running from source. Install the binary with:\n");
+    ctx.err(`  curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh | sh\n`);
+    return 1;
+  }
+
+  const asset = platformAsset();
+  if (!asset) {
+    ctx.err(`weaver: unsupported platform ${process.platform}/${process.arch}\n`);
+    return 1;
+  }
+
+  let latest: string;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { "user-agent": "weaver-upgrade", accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    latest = ((await res.json()) as { tag_name?: string }).tag_name?.replace(/^v/, "") ?? "";
+  } catch (e) {
+    ctx.err(`weaver: couldn't check the latest version: ${(e as Error).message}\n`);
+    return 1;
+  }
+  if (!latest) {
+    ctx.err("weaver: no published release found\n");
+    return 1;
+  }
+
+  ctx.out(`current ${VERSION}  ·  latest ${latest}\n`);
+  if (latest === VERSION) {
+    ctx.out("✓ already up to date\n");
+    return 0;
+  }
+  if (flagBool(ctx.args, "check")) {
+    ctx.out(`a newer version (${latest}) is available — run 'weaver upgrade'\n`);
+    return 0;
+  }
+
+  ctx.out(`downloading ${asset} ${latest}…\n`);
+  let bytes: Uint8Array;
+  try {
+    const res = await fetch(`https://github.com/${REPO}/releases/latest/download/${asset}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    bytes = new Uint8Array(await res.arrayBuffer());
+  } catch (e) {
+    ctx.err(`weaver: download failed: ${(e as Error).message}\n`);
+    return 1;
+  }
+
+  // Atomic in-place replace: write next to the target, then rename over it. On Unix this
+  // works even while the binary is executing (the running process keeps the old inode).
+  const target = process.execPath;
+  const tmp = path.join(path.dirname(target), `.weaver-upgrade-${process.pid}`);
+  try {
+    fs.writeFileSync(tmp, bytes, { mode: 0o755 });
+    fs.renameSync(tmp, target);
+  } catch (e) {
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      /* ignore */
+    }
+    const code = (e as NodeJS.ErrnoException).code;
+    const hint =
+      code === "EACCES" || code === "EPERM"
+        ? `no write permission to ${target} — try \`sudo weaver upgrade\` or re-run install.sh`
+        : (e as Error).message;
+    ctx.err(`weaver: couldn't replace the binary: ${hint}\n`);
+    return 1;
+  }
+
+  ctx.out(`✓ upgraded to ${latest}\n`);
+  return 0;
+}

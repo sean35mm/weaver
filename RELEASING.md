@@ -36,8 +36,9 @@ So: to ship anything, land at least one `fix:` or `feat:` commit on `main`.
    - version bump in `package.json` + `CHANGELOG.md` update,
    - git tag `vX.Y.Z` + a published **GitHub Release**,
    - `.github/workflows/release-binaries.yml` cross-compiles standalone binaries
-     (`weaver-darwin-arm64`, `weaver-darwin-x64`, `weaver-linux-x64`, `weaver-linux-arm64`)
-     and attaches them to the release,
+     (`weaver-darwin-arm64`, `weaver-darwin-x64`, `weaver-linux-x64`, `weaver-linux-arm64`),
+     each **stamped with this release's version**, and attaches them to the release. These
+     binaries (served via `curl | sh` and `weaver upgrade`) are Weaver's primary distribution,
    - `npm publish` of `@narulabs/weaver` **only if** the `NPM_TOKEN` secret is set (otherwise
      it logs "skipping" and the release still succeeds).
 4. Nothing else to do. `curl … install.sh` serves the new version (it reads
