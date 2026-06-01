@@ -20,9 +20,9 @@ jobs:
         with:
           release-type: node
       # Optional npm publish — skips cleanly unless an NPM_TOKEN repo secret is set.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: ${{ steps.release.outputs.release_created }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: ${{ steps.release.outputs.release_created }}
         with:
           node-version: "24"
@@ -53,7 +53,7 @@ jobs:
           - { name: weaver-linux-x64, bun: bun-linux-x64 }
           - { name: weaver-linux-arm64, bun: bun-linux-arm64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       # Stamp the real version (from package.json, just bumped by release-please) into the binary.

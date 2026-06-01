@@ -24,7 +24,7 @@ jobs:
           - { name: weaver-linux-x64, bun: bun-linux-x64 }
           - { name: weaver-linux-arm64, bun: bun-linux-arm64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.tag }}
       - uses: oven-sh/setup-bun@v2
