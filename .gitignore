@@ -12,3 +12,6 @@ dist/
 *.log
 .env
 .env.*
+
+# Brainstorm companion scratch (local-only mockups)
+.superpowers/

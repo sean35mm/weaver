@@ -15,7 +15,11 @@ export default defineConfig({
       favicon: "/favicon.svg",
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/sean35mm/weaver" }],
       components: { SocialIcons: "./src/components/SocialIcons.astro" },
-      customCss: ["./src/styles/theme.css"],
+      customCss: [
+        "@fontsource-variable/inter/index.css",
+        "@fontsource-variable/jetbrains-mono/index.css",
+        "./src/styles/theme.css",
+      ],
       editLink: { baseUrl: "https://github.com/sean35mm/weaver/edit/main/docs/" },
       plugins: [
         starlightLlmsTxt({
@@ -32,6 +36,7 @@ export default defineConfig({
         {
           label: "Project",
           items: [
+            { label: "Roadmap", slug: "roadmap" },
             { label: "Changelog", slug: "changelog" },
             { label: "For LLMs & agents", slug: "for-llms" },
             { label: "Contributing", slug: "contributing" },
