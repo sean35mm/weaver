@@ -11,13 +11,15 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           release-type: node
-      # When a release is cut, publish to npm. Requires an NPM_TOKEN repo secret
-      # (Settings → Secrets and variables → Actions) with publish rights to @narulabs.
+      # Optional npm publish — skips cleanly unless an NPM_TOKEN repo secret is set.
       - uses: actions/checkout@v4
         if: ${{ steps.release.outputs.release_created }}
       - uses: actions/setup-node@v4
@@ -28,9 +30,35 @@ jobs:
       - if: ${{ steps.release.outputs.release_created }}
         run: |
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "NPM_TOKEN not set — skipping npm publish (binaries are still released)."
+            echo "NPM_TOKEN not set — skipping npm publish (binaries are the primary distribution)."
             exit 0
           fi
           npm ci && npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Build + attach standalone binaries in the SAME (push-triggered) run. This avoids the
+  # GitHub limitation where a release created by GITHUB_TOKEN does not fire `release:published`.
+  binaries:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        target:
+          - { name: weaver-darwin-arm64, bun: bun-darwin-arm64 }
+          - { name: weaver-darwin-x64, bun: bun-darwin-x64 }
+          - { name: weaver-linux-x64, bun: bun-linux-x64 }
+          - { name: weaver-linux-arm64, bun: bun-linux-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      # Stamp the real version (from package.json, just bumped by release-please) into the binary.
+      - run: node -e "require('fs').writeFileSync('src/version.ts','export const VERSION = '+JSON.stringify(require('./package.json').version)+';\n')"
+      - run: bun build src/cli.ts --compile --target=${{ matrix.target.bun }} --outfile ${{ matrix.target.name }}
+      - run: gh release upload "${{ needs.release-please.outputs.tag_name }}" "${{ matrix.target.name }}" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

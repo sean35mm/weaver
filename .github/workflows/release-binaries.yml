@@ -1,10 +1,14 @@
 name: release-binaries
 
-# When a GitHub release is published (by release-please), cross-compile standalone
-# binaries for each platform and attach them — this is what `install.sh` downloads.
+# Manual fallback: (re)build and attach standalone binaries for an existing release tag.
+# The normal path builds binaries automatically in the release-please workflow; use this only
+# to rebuild or to backfill a release made by hand.
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)build binaries for (e.g. v0.2.0)"
+        required: true
 
 permissions:
   contents: write
@@ -21,11 +25,12 @@ jobs:
           - { name: weaver-linux-arm64, bun: bun-linux-arm64 }
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: oven-sh/setup-bun@v2
       - run: bun install
-      # Stamp the real version (from package.json, already bumped by release-please) into the binary.
       - run: node -e "require('fs').writeFileSync('src/version.ts','export const VERSION = '+JSON.stringify(require('./package.json').version)+';\n')"
       - run: bun build src/cli.ts --compile --target=${{ matrix.target.bun }} --outfile ${{ matrix.target.name }}
-      - run: gh release upload "${{ github.event.release.tag_name }}" "${{ matrix.target.name }}" --clobber
+      - run: gh release upload "${{ inputs.tag }}" "${{ matrix.target.name }}" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
