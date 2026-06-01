@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.3.0](https://github.com/sean35mm/weaver/compare/v0.2.0...v0.3.0) (2026-06-01)
+
+
+### Features
+
+* add 'weaver uninstall' command ([268f15c](https://github.com/sean35mm/weaver/commit/268f15c49ae7be8928bb0813c3e5cbf64df3276c))
+
 ## [0.2.0](https://github.com/sean35mm/weaver/compare/v0.1.0...v0.2.0) (2026-06-01)
 
 
