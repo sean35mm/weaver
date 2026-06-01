@@ -1,9 +1,16 @@
 {
-  "name": "weaver",
+  "name": "@narulabs/weaver",
   "version": "0.1.0",
   "description": "Shared situational awareness for multiple coding agents working in the same repo.",
   "type": "module",
   "license": "MIT",
+  "author": "narulabs",
+  "homepage": "https://github.com/sean35mm/weaver#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sean35mm/weaver.git"
+  },
+  "bugs": "https://github.com/sean35mm/weaver/issues",
   "keywords": [
     "agents",
     "ai",
