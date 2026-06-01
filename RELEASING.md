@@ -7,6 +7,10 @@ Weaver uses **[release-please](https://github.com/googleapis/release-please) +
 [Conventional Commits](https://www.conventionalcommits.org/)**. You do not hand-pick version
 numbers or write the changelog — they're derived from commit messages.
 
+> **One-time prerequisite (already enabled):** repo **Settings → Actions → General →
+> "Allow GitHub Actions to create and approve pull requests"** must be ON, or release-please
+> cannot open the release PR.
+
 ## Mental model
 
 ```
@@ -35,10 +39,12 @@ So: to ship anything, land at least one `fix:` or `feat:` commit on `main`.
 3. When ready to release, **merge that PR.** Merging triggers, automatically:
    - version bump in `package.json` + `CHANGELOG.md` update,
    - git tag `vX.Y.Z` + a published **GitHub Release**,
-   - `.github/workflows/release-binaries.yml` cross-compiles standalone binaries
+   - the release-please workflow's **`binaries` job** cross-compiles standalone binaries
      (`weaver-darwin-arm64`, `weaver-darwin-x64`, `weaver-linux-x64`, `weaver-linux-arm64`),
-     each **stamped with this release's version**, and attaches them to the release. These
-     binaries (served via `curl | sh` and `weaver upgrade`) are Weaver's primary distribution,
+     each **stamped with this release's version**, and attaches them to the release. (It runs
+     in the same push-triggered run — not on the release event — because a release created by
+     the Actions token doesn't fire `release:published`.) These binaries (served via
+     `curl | sh` and `weaver upgrade`) are Weaver's primary distribution,
    - `npm publish` of `@narulabs/weaver` **only if** the `NPM_TOKEN` secret is set (otherwise
      it logs "skipping" and the release still succeeds).
 4. Nothing else to do. `curl … install.sh` serves the new version (it reads

@@ -4,4 +4,4 @@
  * lag package.json between releases, which only affects `--version` display (not `upgrade`,
  * which runs on stamped binaries only).
  */
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
