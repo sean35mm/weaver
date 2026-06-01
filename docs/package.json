@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
+    "gen:changelog": "node scripts/gen-changelog.mjs",
+    "dev": "node scripts/gen-changelog.mjs && astro dev",
+    "build": "node scripts/gen-changelog.mjs && astro build",
     "preview": "astro preview"
   },
   "dependencies": {

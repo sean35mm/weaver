@@ -32,6 +32,7 @@ export default defineConfig({
         {
           label: "Project",
           items: [
+            { label: "Changelog", slug: "changelog" },
             { label: "For LLMs & agents", slug: "for-llms" },
             { label: "Contributing", slug: "contributing" },
             { label: "Releasing", slug: "releasing" },
