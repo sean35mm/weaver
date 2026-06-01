@@ -23,6 +23,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install
+      # Stamp the real version (from package.json, already bumped by release-please) into the binary.
+      - run: node -e "require('fs').writeFileSync('src/version.ts','export const VERSION = '+JSON.stringify(require('./package.json').version)+';\n')"
       - run: bun build src/cli.ts --compile --target=${{ matrix.target.bun }} --outfile ${{ matrix.target.name }}
       - run: gh release upload "${{ github.event.release.tag_name }}" "${{ matrix.target.name }}" --clobber
         env:

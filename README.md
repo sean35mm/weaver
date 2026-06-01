@@ -82,13 +82,14 @@ Everything reduces to four primitives:
 
 ## How it works (new-user flow)
 
-**1. Install (once per machine).** Runtime-agnostic:
+**1. Install (once per machine)** — a standalone binary; no Node, npm, or other runtime needed:
 
 ```bash
-npm i -g @narulabs/weaver      # or: bun add -g @narulabs/weaver
-# or a standalone binary, no Node/npm needed (after a release is published):
-#   curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | sh
 ```
+
+Upgrade any time with **`weaver upgrade`**. (Hacking on Weaver itself? Run it from source with
+`bun src/cli.ts …` / `node src/cli.ts …` — see [CONTRIBUTING.md](./CONTRIBUTING.md).)
 
 **2. Enable on a project (once per repo).**
 
@@ -134,7 +135,7 @@ weaver done              # end MY session (presence + claims)
 weaver disable           # pause agent writes for this project (reads still inspect)
 weaver enable            # resume
 weaver deinit            # remove instruction block from CLAUDE.md/AGENTS.md (--purge to drop the DB)
-npm rm -g @narulabs/weaver  # uninstall entirely
+rm "$(command -v weaver)"   # uninstall entirely (removes the binary)
 ```
 
 ## Architecture
@@ -290,6 +291,7 @@ orphaned history.
 | `weaver deinit [--purge]`            | you              | remove instruction block (and optionally DB)   |
 | `weaver doctor`                      | you              | print resolved session key + source, repo-id, store path, runtime/binding — for debugging |
 | `weaver config [<key> [<secs>]]`     | you              | view/set tunables (session/claim/recent-activity TTLs) |
+| `weaver upgrade [--check]`            | you              | update the installed binary to the latest release |
 
 Read commands support `--json` for machine consumption. `status` is **silent when there's
 nothing relevant**: no other live sessions, no active claims, no pinned notes, and no recent
@@ -453,10 +455,9 @@ Then, **out of scope for v1**, in rough priority order:
 ## Naming
 
 *context* = Latin *con-* ("together") + *texere* ("to weave"). **Weaver** weaves your agents'
-separate contexts into one fabric. (It's also a nod to the Dota 2 hero.) The bare npm name
-`weaver` is held by an abandoned 2016 package, so the package ships **scoped**
-(`@narulabs/weaver`) while the GitHub repo, the binary, and the brand are all simply
-**weaver**.
+separate contexts into one fabric. (It's also a nod to the Dota 2 hero.) Weaver is distributed
+as a **standalone binary via `curl | sh`** and self-updates with `weaver upgrade` — it is not
+published to npm, so the GitHub repo, the binary, and the brand are all simply **weaver**.
 
 ## License & contributing
 
