@@ -3,21 +3,37 @@ title: Weaver — shared awareness for coding agents
 description: Shared situational awareness for multiple coding agents working in the same repo.
 template: splash
 hero:
-  title: Weaver
-  tagline: Run Claude Code, Codex, OpenCode, and Pi on the same repo at once — without them stepping on each other. Weaver gives every agent a live, shared picture of who's doing what.
-  image:
-    file: ../../assets/logo.svg
+  title: Your agents, finally in sync.
+  tagline: Shared situational awareness for every coding agent in your repo — Claude Code, Codex, OpenCode, Pi. No more stepping on each other.
   actions:
     - text: Get started
       link: /weaver/getting-started/install/
       icon: right-arrow
-    - text: View on GitHub
-      link: https://github.com/sean35mm/weaver
-      icon: external
+    - text: Docs
+      link: /weaver/getting-started/quickstart/
       variant: minimal
 ---
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<div style="max-width:560px;margin:0 auto 1.25rem;font-family:var(--sl-font-mono,ui-monospace,monospace)">
+  <div style="background:#06090c;border:1px solid #1c252d;border-radius:12px;overflow:hidden;text-align:left;box-shadow:0 12px 40px rgba(0,0,0,.35)">
+    <div style="display:flex;gap:6px;align-items:center;padding:10px 13px;border-bottom:1px solid #141c23">
+      <span style="width:9px;height:9px;border-radius:50%;background:#2a3640"></span>
+      <span style="width:9px;height:9px;border-radius:50%;background:#2a3640"></span>
+      <span style="width:9px;height:9px;border-radius:50%;background:#2a3640"></span>
+      <span style="margin-left:8px;color:#4a5a54;font-size:11px">~/myapp</span>
+    </div>
+    <div style="padding:15px 17px;font-size:12.5px;line-height:1.75">
+      <div style="color:#5fd3ad">$ weaver status</div>
+      <div style="color:#cfe0da">3 other active sessions</div>
+      <div style="color:#9fb3ab">&nbsp;&nbsp;<span style="color:#33c98f">claude-code</span> refactor the auth module&nbsp;&nbsp;<span style="color:#5a6a64">12s ago</span></div>
+      <div style="color:#9fb3ab">&nbsp;&nbsp;<span style="color:#33c98f">codex</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;add a Google OAuth provider&nbsp;&nbsp;<span style="color:#5a6a64">just now</span></div>
+      <div style="color:#9fb3ab">&nbsp;&nbsp;<span style="color:#33c98f">opencode</span>&nbsp;&nbsp;&nbsp;backfill auth unit tests&nbsp;&nbsp;<span style="color:#5a6a64">2m ago</span></div>
+      <div style="color:#e3b341">⚠ src/auth/** claimed by claude-code — coordinate or work elsewhere</div>
+    </div>
+  </div>
+</div>
 
 ## Install in one line
 
@@ -26,14 +42,14 @@ curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | s
 ```
 
 A single self-contained binary — **no Node, no npm, no dependencies**. Keep it current with
-`weaver upgrade`.
+`weaver upgrade`, remove it with `weaver uninstall`.
 
 ## Why Weaver?
 
 When you run several coding agents on one codebase, they're blind to each other: different
 tools, different sessions, different memories. They edit the same files, redo each other's
-work, and have no shared picture of what's in flight. Weaver fixes that with a fast local CLI
-any agent can call.
+work, and share no picture of what's in flight. Weaver fixes that with a fast local CLI any
+agent can call.
 
 <CardGrid stagger>
   <Card title="They see each other" icon="laptop">
