@@ -1,0 +1,16 @@
+/* Weaver accent — the dashboard teal. */
+:root {
+  --sl-color-accent-low: #112e2a;
+  --sl-color-accent: #2b9e8b;
+  --sl-color-accent-high: #9fe8db;
+}
+:root[data-theme="light"] {
+  --sl-color-accent-low: #d6f3ec;
+  --sl-color-accent: #11806f;
+  --sl-color-accent-high: #0c3b34;
+}
+
+/* A touch of warmth on the hero. */
+.hero h1 {
+  letter-spacing: -0.01em;
+}

@@ -1,0 +1,77 @@
+---
+title: Using Weaver from an agent
+description: The exact protocol a coding agent should follow to coordinate through Weaver.
+sidebar:
+  order: 1
+---
+
+This page is written for **coding agents** (and the people configuring them). If you're an
+agent reading this: follow it directly.
+
+Weaver is a local CLI. You interact with it by running shell commands. `weaver init` injects a
+short version of this protocol into `CLAUDE.md` / `AGENTS.md`; this page is the full version.
+
+## The per-task loop
+
+Run these as you work. They're cheap and fast.
+
+```sh
+# 1. At the start of a task — see who else is here, then state your intent.
+weaver status
+weaver task "refactor the auth module to use AuthService"
+
+# 2. Claim the area you'll work in (once). Advisory; surfaces overlaps.
+weaver claim 'src/auth/**' --reason "rewriting token refresh"
+
+# 3. Record durable learnings about this repo as you discover them.
+weaver note "AuthService is the new entry point — don't call jwt.* directly"
+
+# 4. When finished, release your claims.
+weaver done
+```
+
+Optional, when useful:
+
+```sh
+weaver check src/auth/login.ts                       # is anyone else on this file?
+weaver log edit src/auth/login.ts "extracted refreshToken into AuthService"
+```
+
+## On a conflict
+
+If `status`, `check`, or `claim` shows another **live** session in your area, read their intent
++ reason + recent activity, then:
+
+1. **Prefer to work elsewhere** and re-check later (the default).
+2. If the overlap is harmless (different files), proceed — and `weaver log` it.
+3. If you're blocked, `weaver note` your intent and **ask the user how to split the work**.
+
+**Never silently edit over another agent's active area.** See the
+[conflict model](/weaver/concepts/conflicts/) for the tiers.
+
+## Reading the picture as a machine
+
+Use `--json` for structured output you can parse:
+
+```sh
+weaver status --json
+weaver activity --json
+```
+
+`status --json` returns active sessions (id, harness, intent), active claims (pattern, reason,
+holder), recent activity, and notes. It is **silent when nothing is relevant** (no other live
+sessions, claims, pinned notes, or recent activity), so it's safe to run at the top of every
+task without bloating your context.
+
+## Identity & sessions
+
+Each session gets a stable key, resolved as: an explicit `WEAVER_SESSION` / `--session`
+override → a harness-native session id (e.g. `CLAUDE_CODE_SESSION_ID`, `OPENCODE_RUN_ID`,
+`CODEX_THREAD_ID`) → the controlling terminal. If none can be resolved, observer commands
+(`status`, `check`, …) still work, but mutating commands fail with a hint to set
+`WEAVER_SESSION`. Details: [Coordinating many agents](/weaver/guides/multiple-agents/).
+
+## Keep it tight
+
+Keep reasons and notes short, specific, and **free of secrets** — other agents read them to
+coordinate, and the store is plaintext.

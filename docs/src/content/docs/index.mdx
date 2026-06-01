@@ -1,0 +1,60 @@
+---
+title: Weaver
+description: Shared situational awareness for multiple coding agents working in the same repo.
+template: splash
+hero:
+  tagline: Run Claude Code, Codex, OpenCode, and Pi on the same repo at once — without them stepping on each other. Weaver gives every agent a live, shared picture of who's doing what.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Get started
+      link: /weaver/getting-started/install/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/sean35mm/weaver
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## Install in one line
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | sh
+```
+
+A single self-contained binary — **no Node, no npm, no dependencies**. Keep it current with
+`weaver upgrade`.
+
+## Why Weaver?
+
+When you run several coding agents on one codebase, they're blind to each other: different
+tools, different sessions, different memories. They edit the same files, redo each other's
+work, and have no shared picture of what's in flight. Weaver fixes that with a fast local CLI
+any agent can call.
+
+<CardGrid stagger>
+  <Card title="They see each other" icon="laptop">
+    Every session — across harnesses and windows — shows up with its intent, claimed areas,
+    and recent activity.
+  </Card>
+  <Card title="No silent collisions" icon="warning">
+    Before editing, an agent can `check` an area and get a clear conflict signal instead of
+    quietly overwriting another agent's work.
+  </Card>
+  <Card title="Shared memory" icon="open-book">
+    Durable `note`s capture gotchas and conventions that survive context compaction and new
+    sessions.
+  </Card>
+  <Card title="Watch it live" icon="rocket">
+    A real-time `dashboard` (web) and `watch` (terminal) show the whole commons as it changes.
+  </Card>
+</CardGrid>
+
+## Built for agents first
+
+Weaver is a **CLI** on purpose — the one interface every harness can call without an MCP
+server or protocol setup. The docs are written for agents too: see
+[Using Weaver from an agent](/weaver/guides/using-from-an-agent/) and the machine-readable
+[`/weaver/llms.txt`](/weaver/llms.txt).
