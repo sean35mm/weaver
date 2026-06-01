@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes.
 
+## [0.2.0](https://github.com/sean35mm/weaver/compare/v0.1.0...v0.2.0) (2026-06-01)
+
+
+### Features
+
+* add 'weaver upgrade' (self-updating binary) and make curl the primary install ([8b6d37d](https://github.com/sean35mm/weaver/commit/8b6d37d8cf6935bad27d310448b7778a990fc21c))
+
 ## [Unreleased]
 
 ### Added
