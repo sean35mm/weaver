@@ -38,7 +38,8 @@ the root-commit hash), stored under `~/.weaver/`. Because it's keyed by the *rep
 directory — every window **and** every git worktree of the same repo share one commons.
 
 There's no background process. Liveness is computed lazily: each command updates the caller's
-heartbeat, and reads treat anything past a TTL (~5 min) as stale. The store is self-healing —
+heartbeat (and `weaver check` refreshes it too), and reads treat anything past a TTL (~15 min)
+as stale. The store is self-healing —
 a crashed agent simply ages out.
 
 ## Advisory, never blocking
