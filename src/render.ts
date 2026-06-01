@@ -3,6 +3,12 @@
 import type { ConflictResult } from "./conflict.ts";
 import type { ActivityRow, ClaimRow, NoteRow, SessionRow, Store } from "./store/store.ts";
 
+/** Claims whose holder is currently live — so a crashed agent's claim doesn't look active. */
+export function claimsByLiveHolders(claims: ClaimRow[], live: SessionRow[]): ClaimRow[] {
+  const ids = new Set(live.map((s) => s.id));
+  return claims.filter((c) => ids.has(c.sessionId));
+}
+
 export function ago(ms: number): string {
   const v = Math.max(0, ms);
   const s = Math.round(v / 1000);

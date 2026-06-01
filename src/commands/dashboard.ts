@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { flagBool, flagStr } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { startDashboard } from "../dashboard/server.ts";
-import { formatStatus, type StatusData } from "../render.ts";
+import { claimsByLiveHolders, formatStatus, type StatusData } from "../render.ts";
 
 function waitForSignal(): Promise<void> {
   return new Promise((resolve) => {
@@ -47,9 +47,10 @@ export async function runDashboard(ctx: Ctx): Promise<number> {
 export async function runWatch(ctx: Ctx): Promise<number> {
   const draw = (): void => {
     const now = Date.now();
+    const sessions = ctx.store.listActiveSessions(now, ctx.config.sessionTtlMs);
     const data: StatusData = {
-      sessions: ctx.store.listActiveSessions(now, ctx.config.sessionTtlMs),
-      claims: ctx.store.listActiveClaims(now),
+      sessions,
+      claims: claimsByLiveHolders(ctx.store.listActiveClaims(now), sessions),
       activity: ctx.store.listRecentActivity(12),
       notes: ctx.store.listNotes(8),
     };
