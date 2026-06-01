@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.4.0](https://github.com/sean35mm/weaver/compare/v0.3.0...v0.4.0) (2026-06-01)
+
+
+### Features
+
+* 15-minute default session TTL and heartbeat refresh on check ([b99aeb9](https://github.com/sean35mm/weaver/commit/b99aeb9995e7995a7fd08335518f6b48cc7c440a))
+
 ## [0.3.0](https://github.com/sean35mm/weaver/compare/v0.2.0...v0.3.0) (2026-06-01)
 
 
