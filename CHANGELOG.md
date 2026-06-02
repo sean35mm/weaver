@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.5.1](https://github.com/sean35mm/weaver/compare/v0.5.0...v0.5.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* harden release and coordination flows ([f6cfd1f](https://github.com/sean35mm/weaver/commit/f6cfd1f3b0fc8a741c34b6a4f56814478f246f61))
+
 ## [0.5.0](https://github.com/sean35mm/weaver/compare/v0.4.0...v0.5.0) (2026-06-01)
 
 
