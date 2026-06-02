@@ -505,3 +505,15 @@ both fragment the cross-harness guarantee that is Weaver's core value.
    a clean TTY.
 5. ✅ **Phase-0 outcome** — harness env ids are primary for Claude Code, OpenCode, and Codex;
    Pi falls back to TTY/explicit identity.
+
+---
+
+## Post-v1 decision changes
+
+- **2026-06-02 — npm distribution dropped entirely.** Reverses Decision #1 above
+  (npm account/scope): Weaver will **not** be published to npm as a package. The standalone
+  binary (`curl | sh` + `weaver upgrade`, served from GitHub Releases) is the **sole**
+  distribution channel. The package was renamed from `@narulabs/weaver` to plain `weaver`, and
+  the npm-publish path was removed: `publishConfig` and `prepublishOnly` from `package.json`,
+  the `NPM_TOKEN` publish step in `.github/workflows/release-please.yml`, and the
+  "Enabling npm publishing" docs in `RELEASING.md` / `docs`.

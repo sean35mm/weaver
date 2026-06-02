@@ -16,7 +16,7 @@ arch="$(uname -m)"
 case "$os" in
   Darwin) os="darwin" ;;
   Linux) os="linux" ;;
-  *) echo "weaver: unsupported OS '$os' (use npm or build from source)" >&2; exit 1 ;;
+  *) echo "weaver: unsupported OS '$os' (build from source)" >&2; exit 1 ;;
 esac
 
 case "$arch" in

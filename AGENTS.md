@@ -39,7 +39,7 @@ node scripts/demo.ts       # seed a throwaway store, then `weaver watch` / `dash
 
 Don't hand-create releases. Land `feat:`/`fix:` commits on `main`, then **merge the
 "chore: release vX.Y.Z" PR** that release-please opens. That tags the release, builds + attaches
-the standalone binaries, and (if `NPM_TOKEN` is set) publishes to npm. Full details and the
+the standalone binaries. Full details and the
 pre-flight checklist are in **[RELEASING.md](./RELEASING.md)**.
 
 <!-- weaver:start — managed by Weaver; re-run `weaver init` to update, `weaver deinit` to remove -->

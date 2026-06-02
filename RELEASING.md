@@ -16,7 +16,7 @@ numbers or write the changelog — they're derived from commit messages.
 ```
 conventional commits on main  →  release-please opens a "release vX.Y.Z" PR
         →  you merge that PR  →  tag + GitHub Release created
-              →  binaries built & attached (always)  +  npm publish (only if NPM_TOKEN set)
+              →  binaries built & attached
 ```
 
 ## Version bumps come from commit types
@@ -44,24 +44,9 @@ So: to ship anything, land at least one `fix:` or `feat:` commit on `main`.
      each **stamped with this release's version**, and attaches them to the release. (It runs
      in the same push-triggered run — not on the release event — because a release created by
      the Actions token doesn't fire `release:published`.) These binaries (served via
-     `curl | sh` and `weaver upgrade`) are Weaver's primary distribution,
-   - `npm publish` of `@narulabs/weaver` **only if** the `NPM_TOKEN` secret is set (otherwise
-     it logs "skipping" and the release still succeeds).
+     `curl | sh` and `weaver upgrade`) are Weaver's primary distribution.
 4. Nothing else to do. `curl … install.sh` serves the new version (it reads
-   `releases/latest`), and `npm i -g @narulabs/weaver` works if npm publishing is enabled.
-
-## Enabling npm publishing (one-time, optional)
-
-npm publishing is intentionally optional. To turn it on:
-
-1. Create an **Automation** token at npmjs.com → Access Tokens (must have publish rights to
-   the `@narulabs` scope).
-2. Add it as a repo secret:
-   ```bash
-   gh secret set NPM_TOKEN   # paste the token when prompted
-   ```
-
-That's it — the next merged release PR will also publish to npm. No workflow changes needed.
+   `releases/latest`).
 
 ## Manual release (fallback — avoid if possible)
 

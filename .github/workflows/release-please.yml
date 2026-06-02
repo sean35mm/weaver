@@ -19,23 +19,6 @@ jobs:
         id: release
         with:
           release-type: node
-      # Optional npm publish — skips cleanly unless an NPM_TOKEN repo secret is set.
-      - uses: actions/checkout@v6
-        if: ${{ steps.release.outputs.release_created }}
-      - uses: actions/setup-node@v6
-        if: ${{ steps.release.outputs.release_created }}
-        with:
-          node-version: "24"
-          registry-url: "https://registry.npmjs.org"
-      - if: ${{ steps.release.outputs.release_created }}
-        run: |
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "NPM_TOKEN not set — skipping npm publish (binaries are the primary distribution)."
-            exit 0
-          fi
-          npm ci && npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # Build + attach standalone binaries in the SAME (push-triggered) run. This avoids the
   # GitHub limitation where a release created by GITHUB_TOKEN does not fire `release:published`.

@@ -11,5 +11,5 @@ function packageVersion(): string | null {
   }
 }
 
-/** Source/npm builds read package.json; standalone binaries fall back to the stamped constant. */
+/** Running from source reads package.json; standalone binaries fall back to the stamped constant. */
 export const VERSION = packageVersion() ?? STAMPED_VERSION;

@@ -11,14 +11,12 @@ the repo: [`RELEASING.md`](https://github.com/sean35mm/weaver/blob/main/RELEASIN
 1. Land `feat:` / `fix:` commits on `main`. (`fix:` → patch, `feat:` → minor.)
 2. release-please opens a **"chore: release vX.Y.Z"** PR with the version bump + changelog.
 3. **Merge that PR.** That tags the release, builds the standalone binaries for every platform
-   (each stamped with the version) and attaches them, and — if an `NPM_TOKEN` is configured —
-   publishes to npm (off by default).
+   (each stamped with the version) and attaches them.
 4. `install.sh` and `weaver upgrade` serve the new binaries automatically.
 
 You don't hand-pick versions or write the changelog — they come from the commit messages.
 
 ## Distribution
 
-Weaver's primary distribution is the **standalone binary** via `curl | sh` and
-`weaver upgrade`. npm publishing is optional and disabled by default. See
+Weaver is distributed as a **standalone binary** via `curl | sh` and `weaver upgrade`. See
 [Install](/weaver/getting-started/install/) and [Architecture](/weaver/reference/architecture/).
