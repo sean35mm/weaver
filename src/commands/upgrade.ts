@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { flagBool } from "../args.ts";
@@ -14,6 +15,15 @@ function platformAsset(): string | null {
   return os && arch ? `weaver-${os}-${arch}` : null;
 }
 
+export function parseSha256(text: string): string | null {
+  const hash = text.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  return /^[a-f0-9]{64}$/.test(hash) ? hash : null;
+}
+
+export function sha256Hex(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 export async function run(ctx: Ctx): Promise<number> {
   if (!isStandaloneBinary()) {
     ctx.err("weaver: `upgrade` only applies to the standalone (curl-installed) binary.\n");
@@ -28,18 +38,20 @@ export async function run(ctx: Ctx): Promise<number> {
     return 1;
   }
 
-  let latest: string;
+  let latest = "";
+  let latestTag = "";
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
       headers: { "user-agent": "weaver-upgrade", accept: "application/vnd.github+json" },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    latest = ((await res.json()) as { tag_name?: string }).tag_name?.replace(/^v/, "") ?? "";
+    latestTag = ((await res.json()) as { tag_name?: string }).tag_name ?? "";
+    latest = latestTag.replace(/^v/, "");
   } catch (e) {
     ctx.err(`weaver: couldn't check the latest version: ${(e as Error).message}\n`);
     return 1;
   }
-  if (!latest) {
+  if (!latest || !latestTag) {
     ctx.err("weaver: no published release found\n");
     return 1;
   }
@@ -56,12 +68,27 @@ export async function run(ctx: Ctx): Promise<number> {
 
   ctx.out(`downloading ${asset} ${latest}…\n`);
   let bytes: Uint8Array;
+  let expectedHash: string | null;
   try {
-    const res = await fetch(`https://github.com/${REPO}/releases/latest/download/${asset}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    bytes = new Uint8Array(await res.arrayBuffer());
+    const [assetRes, checksumRes] = await Promise.all([
+      fetch(`https://github.com/${REPO}/releases/download/${encodeURIComponent(latestTag)}/${asset}`),
+      fetch(`https://github.com/${REPO}/releases/download/${encodeURIComponent(latestTag)}/${asset}.sha256`),
+    ]);
+    if (!assetRes.ok) throw new Error(`binary HTTP ${assetRes.status}`);
+    if (!checksumRes.ok) throw new Error(`checksum HTTP ${checksumRes.status}`);
+    bytes = new Uint8Array(await assetRes.arrayBuffer());
+    expectedHash = parseSha256(await checksumRes.text());
   } catch (e) {
     ctx.err(`weaver: download failed: ${(e as Error).message}\n`);
+    return 1;
+  }
+  if (!expectedHash) {
+    ctx.err("weaver: download failed: invalid checksum file\n");
+    return 1;
+  }
+  const actualHash = sha256Hex(bytes);
+  if (actualHash !== expectedHash) {
+    ctx.err("weaver: download failed: checksum mismatch\n");
     return 1;
   }
 

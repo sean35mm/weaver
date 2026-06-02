@@ -1,8 +1,8 @@
 import { flagStr, rest } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { normalizeTarget } from "../repo/paths.ts";
-import { DEFAULT_ACTIVITY_MAX_AGE_DAYS, DEFAULT_ACTIVITY_MAX_EVENTS } from "../store/reap.ts";
 import { clamp, normalizeKind, requireIdentity } from "../validate.ts";
+import { pruneAfterWrite } from "./prune.ts";
 
 export function run(ctx: Ctx): number {
   const id = requireIdentity(ctx.identity);
@@ -15,8 +15,10 @@ export function run(ctx: Ctx): number {
   const summaryRaw = rest(ctx.args, 3) || flagStr(ctx.args, "summary") || "";
   const summary = summaryRaw ? clamp(summaryRaw) : null;
 
-  ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind, target, summary, meta: null });
-  ctx.store.pruneActivity({ maxEvents: DEFAULT_ACTIVITY_MAX_EVENTS, maxAgeDays: DEFAULT_ACTIVITY_MAX_AGE_DAYS, now: ctx.now });
+  ctx.store.transaction(() => {
+    ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind, target, summary, meta: null });
+    pruneAfterWrite(ctx.store, ctx.now);
+  });
 
   ctx.out(`✓ logged ${kind}${target ? ` ${target}` : ""}\n`);
   return 0;

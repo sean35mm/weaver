@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { parsePort } from "../src/commands/dashboard.ts";
 import { startDashboard } from "../src/dashboard/server.ts";
 import { openStore } from "../src/store/open.ts";
 
@@ -39,4 +40,13 @@ test("404 on unknown paths", async () => {
   await res.text();
   await srv.close();
   store.close();
+});
+
+test("parsePort rejects invalid values", () => {
+  assert.equal(parsePort(undefined), undefined);
+  assert.equal(parsePort("0"), 0);
+  assert.equal(parsePort("65535"), 65535);
+  assert.throws(() => parsePort("-1"), /between 0 and 65535/);
+  assert.throws(() => parsePort("1.5"), /between 0 and 65535/);
+  assert.throws(() => parsePort("65536"), /between 0 and 65535/);
 });

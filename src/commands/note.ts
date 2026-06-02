@@ -2,6 +2,7 @@ import { flagBool, flagStr, rest } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { normalizeTarget } from "../repo/paths.ts";
 import { clamp, requireArg, requireIdentity } from "../validate.ts";
+import { pruneAfterWrite } from "./prune.ts";
 
 export function runNote(ctx: Ctx): number {
   const id = requireIdentity(ctx.identity);
@@ -13,8 +14,11 @@ export function runNote(ctx: Ctx): number {
   const updateRaw = flagStr(ctx.args, "update");
   const supersedes = updateRaw && Number.isFinite(Number(updateRaw)) ? Number(updateRaw) : null;
 
-  ctx.store.addNote({ sessionId: id.key, harness: id.label, body, path, tags, pinned, createdAt: ctx.now, supersedes });
-  ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind: "note", target: path, summary: body, meta: null });
+  ctx.store.transaction(() => {
+    ctx.store.addNote({ sessionId: id.key, harness: id.label, body, path, tags, pinned, createdAt: ctx.now, supersedes });
+    ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind: "note", target: path, summary: body, meta: null });
+    pruneAfterWrite(ctx.store, ctx.now);
+  });
   ctx.out(`✓ noted${pinned ? " (pinned)" : ""}: ${body}\n`);
   return 0;
 }

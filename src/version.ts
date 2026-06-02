@@ -1,7 +1,15 @@
-/**
- * Single source of truth for the CLI version. Released binaries are stamped with the real
- * version at build time (see .github/workflows/release-binaries.yml); in dev this literal may
- * lag package.json between releases, which only affects `--version` display (not `upgrade`,
- * which runs on stamped binaries only).
- */
-export const VERSION = "0.2.0";
+import fs from "node:fs";
+import { STAMPED_VERSION } from "./version.generated.ts";
+
+function packageVersion(): string | null {
+  try {
+    const raw = fs.readFileSync(new URL("../package.json", import.meta.url), "utf8");
+    const parsed = JSON.parse(raw) as { version?: unknown };
+    return typeof parsed.version === "string" && parsed.version ? parsed.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Source/npm builds read package.json; standalone binaries fall back to the stamped constant. */
+export const VERSION = packageVersion() ?? STAMPED_VERSION;

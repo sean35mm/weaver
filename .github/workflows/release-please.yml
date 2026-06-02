@@ -54,11 +54,17 @@ jobs:
           - { name: weaver-linux-arm64, bun: bun-linux-arm64 }
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
-      # Stamp the real version (from package.json, just bumped by release-please) into the binary.
-      - run: node -e "require('fs').writeFileSync('src/version.ts','export const VERSION = '+JSON.stringify(require('./package.json').version)+';\n')"
+      - run: npm ci
+      # Stamp the real version (from package.json, just bumped by release-please) into the binary fallback.
+      - run: node scripts/write-version.ts
       - run: bun build src/cli.ts --compile --target=${{ matrix.target.bun }} --outfile ${{ matrix.target.name }}
-      - run: gh release upload "${{ needs.release-please.outputs.tag_name }}" "${{ matrix.target.name }}" --clobber
+      - run: sha256sum "${{ matrix.target.name }}" > "${{ matrix.target.name }}.sha256"
+      - run: gh release upload "${{ needs.release-please.outputs.tag_name }}" "${{ matrix.target.name }}" "${{ matrix.target.name }}.sha256" --clobber
         env:
           GH_TOKEN: ${{ github.token }}

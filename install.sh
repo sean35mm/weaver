@@ -27,15 +27,49 @@ esac
 
 asset="weaver-${os}-${arch}"
 url="https://github.com/${REPO}/releases/latest/download/${asset}"
+checksum_url="${url}.sha256"
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    echo "weaver: need sha256sum or shasum to verify the download" >&2
+    exit 1
+  fi
+}
 
 echo "weaver: downloading ${asset}…"
 mkdir -p "$BIN_DIR"
-if ! curl -fsSL "$url" -o "$BIN_DIR/weaver"; then
+tmp_bin="$(mktemp "$BIN_DIR/.weaver.XXXXXX")"
+tmp_sum="$(mktemp "$BIN_DIR/.weaver.XXXXXX.sha256")"
+trap 'rm -f "$tmp_bin" "$tmp_sum"' EXIT INT TERM
+
+if ! curl -fsSL "$url" -o "$tmp_bin"; then
   echo "weaver: download failed — is there a published release with binaries yet?" >&2
   echo "  $url" >&2
   exit 1
 fi
-chmod +x "$BIN_DIR/weaver"
+if ! curl -fsSL "$checksum_url" -o "$tmp_sum"; then
+  echo "weaver: checksum download failed" >&2
+  echo "  $checksum_url" >&2
+  exit 1
+fi
+
+expected="$(awk '{print tolower($1)}' "$tmp_sum")"
+actual="$(sha256_file "$tmp_bin")"
+if [ "${#expected}" -ne 64 ] || printf '%s' "$expected" | grep '[^0-9a-f]' >/dev/null 2>&1; then
+  echo "weaver: invalid checksum file" >&2
+  exit 1
+fi
+if [ "$actual" != "$expected" ]; then
+  echo "weaver: checksum mismatch" >&2
+  exit 1
+fi
+
+chmod +x "$tmp_bin"
+mv "$tmp_bin" "$BIN_DIR/weaver"
 
 echo "weaver: installed to $BIN_DIR/weaver"
 case ":$PATH:" in

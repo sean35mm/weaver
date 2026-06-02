@@ -36,8 +36,9 @@
   "scripts": {
     "build": "tsc",
     "demo": "node scripts/demo.ts",
+    "prebuild": "node scripts/write-version.ts",
     "prepublishOnly": "npm run build",
-    "test": "node --test test/*.test.ts",
+    "test": "node --test test/*.test.ts test/integration/*.test.ts",
     "test:bun": "bun test test/",
     "typecheck": "tsc --noEmit"
   },
