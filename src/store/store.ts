@@ -21,6 +21,7 @@ export const ACTIVITY_KINDS = [
 ] as const;
 
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
+export type SyncTransactionResult<T> = T extends PromiseLike<unknown> ? never : T;
 
 export interface SessionInput {
   id: string;
@@ -84,7 +85,15 @@ export interface PruneOptions {
   now: number;
 }
 
+export interface ClaimPruneOptions {
+  maxAgeDays: number;
+  now: number;
+}
+
 export interface Store {
+  /** Execute related writes atomically. Transactions are synchronous and non-nested. */
+  transaction<T>(fn: () => SyncTransactionResult<T>): SyncTransactionResult<T>;
+
   // sessions — presence registration happens only for agent/mutating commands
   upsertSession(input: SessionInput, now: number): void;
   touchSession(id: string, now: number): void;
@@ -93,6 +102,7 @@ export interface Store {
   getSession(id: string): SessionRow | undefined;
   /** Live = not ended and seen within `ttlMs`. */
   listActiveSessions(now: number, ttlMs: number): SessionRow[];
+  listRecentEndedSessions(limit: number, since?: number): SessionRow[];
 
   // claims (advisory, TTL'd, co-claims allowed)
   addClaim(input: ClaimInput): number;
@@ -102,6 +112,7 @@ export interface Store {
   listActiveClaims(now: number): ClaimRow[];
   /** Not released, regardless of expiry — used by conflict detection to surface stale holds. */
   listOpenClaims(): ClaimRow[];
+  pruneClaims(opts: ClaimPruneOptions): void;
 
   // notes (durable, repo-scoped)
   addNote(input: NoteInput): number;

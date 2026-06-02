@@ -1,5 +1,6 @@
 /** Terse human + JSON rendering for the read paths. Kept compact to stay token-cheap. */
 
+import { createHash } from "node:crypto";
 import type { ConflictResult } from "./conflict.ts";
 import type { ActivityRow, ClaimRow, NoteRow, SessionRow, Store } from "./store/store.ts";
 
@@ -22,9 +23,7 @@ export function ago(ms: number): string {
 
 /** Short, stable token for disambiguating same-harness sessions in output. */
 export function shortId(key: string): string {
-  const core = key.split("@")[0] ?? key;
-  const tail = core.split(":").pop() ?? core;
-  return tail.length > 6 ? tail.slice(-6) : tail;
+  return createHash("sha256").update(key).digest("hex").slice(0, 6);
 }
 
 function who(s: SessionRow): string {
@@ -46,6 +45,7 @@ export function formatConflict(result: ConflictResult, now: number): string {
 
 export interface StatusData {
   sessions: SessionRow[];
+  completed: SessionRow[];
   claims: ClaimRow[];
   activity: ActivityRow[];
   notes: NoteRow[];
@@ -53,9 +53,15 @@ export interface StatusData {
 
 export function formatStatus(d: StatusData, now: number, store: Store): string {
   const out: string[] = [];
-  out.push(`${d.sessions.length} other active session${d.sessions.length === 1 ? "" : "s"}`);
+  out.push(d.sessions.length ? `${d.sessions.length} other active session${d.sessions.length === 1 ? "" : "s"}` : "weaver: no other active agents");
   for (const s of d.sessions) {
     out.push(`  ${who(s).padEnd(22)} ${s.intent ?? "(no intent)"}   ${ago(now - s.lastSeen)}`);
+  }
+  if (d.completed.length) {
+    out.push("recently done:");
+    for (const s of d.completed) {
+      out.push(`  ${who(s).padEnd(22)} ${s.intent ?? "(no intent)"}   ${ago(now - (s.endedAt ?? s.lastSeen))}`);
+    }
   }
   if (d.claims.length) {
     out.push("claims:");
@@ -83,11 +89,18 @@ export function statusJson(repoId: string, d: StatusData, now: number, store: St
   return {
     repo: repoId,
     sessions: d.sessions.map((s) => ({
-      id: s.id,
+      shortId: shortId(s.id),
       harness: s.harness,
       source: s.idSource,
       intent: s.intent,
       lastSeenMsAgo: now - s.lastSeen,
+    })),
+    completed: d.completed.map((s) => ({
+      shortId: shortId(s.id),
+      harness: s.harness,
+      source: s.idSource,
+      intent: s.intent,
+      endedMsAgo: now - (s.endedAt ?? s.lastSeen),
     })),
     claims: d.claims.map((c) => ({
       pattern: c.pattern,

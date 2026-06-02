@@ -5,6 +5,7 @@ import { ageCutoff } from "./reap.ts";
 import type {
   ActivityInput,
   ActivityRow,
+  ClaimPruneOptions,
   ClaimInput,
   ClaimRow,
   NoteInput,
@@ -13,6 +14,7 @@ import type {
   SessionInput,
   SessionRow,
   Store,
+  SyncTransactionResult,
 } from "./store.ts";
 
 interface RawSession {
@@ -104,6 +106,10 @@ export class SqliteStore implements Store {
     this.db = db;
   }
 
+  transaction<T>(fn: () => SyncTransactionResult<T>): SyncTransactionResult<T> {
+    return this.db.transaction(fn);
+  }
+
   upsertSession(input: SessionInput, now: number): void {
     // Insert on first sight; on re-entry refresh heartbeat + identity fields but keep
     // started_at/intent and clear any prior ended_at (the session is live again).
@@ -153,6 +159,17 @@ export class SqliteStore implements Store {
       .map(toSession);
   }
 
+  listRecentEndedSessions(limit: number, since?: number): SessionRow[] {
+    if (since !== undefined) {
+      return this.db
+        .all<RawSession>("SELECT * FROM sessions WHERE ended_at IS NOT NULL AND ended_at >= ? ORDER BY ended_at DESC, started_at DESC LIMIT ?", since, limit)
+        .map(toSession);
+    }
+    return this.db
+      .all<RawSession>("SELECT * FROM sessions WHERE ended_at IS NOT NULL ORDER BY ended_at DESC, started_at DESC LIMIT ?", limit)
+      .map(toSession);
+  }
+
   addClaim(input: ClaimInput): number {
     return this.db.run(
       `INSERT INTO claims (session_id, pattern, reason, created_at, expires_at, released_at)
@@ -195,6 +212,12 @@ export class SqliteStore implements Store {
     return this.db
       .all<RawClaim>("SELECT * FROM claims WHERE released_at IS NULL ORDER BY created_at")
       .map(toClaim);
+  }
+
+  pruneClaims(opts: ClaimPruneOptions): void {
+    const cutoff = ageCutoff(opts.now, opts.maxAgeDays);
+    this.db.run("DELETE FROM claims WHERE released_at IS NOT NULL AND released_at < ?", cutoff);
+    this.db.run("DELETE FROM claims WHERE released_at IS NULL AND expires_at < ?", cutoff);
   }
 
   addNote(input: NoteInput): number {

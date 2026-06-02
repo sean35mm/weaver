@@ -104,6 +104,7 @@ async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const out = (s: string): void => void process.stdout.write(s);
   const err = (s: string): void => void process.stderr.write(s);
+  let store: Ctx["store"] | null = null;
 
   const first = argv[0];
   if (!first || first === "--help" || first === "-h" || first === "help") {
@@ -122,26 +123,26 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const args = parseArgs(argv, BOOLEAN_FLAGS);
-  const repo = resolveRepoId();
-  ensureWeaverDir();
-  const store = await openStore(storePathForRepo(repo.repoId));
-  const identity = resolveIdentity();
-  const now = Date.now();
-  const ctx: Ctx = {
-    store,
-    identity,
-    repo,
-    config: loadConfig(store),
-    cwd: process.cwd(),
-    now,
-    env: process.env as Record<string, string | undefined>,
-    args,
-    out,
-    err,
-  };
-
   try {
+    const args = parseArgs(argv, BOOLEAN_FLAGS);
+    const repo = resolveRepoId();
+    ensureWeaverDir();
+    store = await openStore(storePathForRepo(repo.repoId));
+    const identity = resolveIdentity();
+    const now = Date.now();
+    const ctx: Ctx = {
+      store,
+      identity,
+      repo,
+      config: loadConfig(store),
+      cwd: process.cwd(),
+      now,
+      env: process.env as Record<string, string | undefined>,
+      args,
+      out,
+      err,
+    };
+
     const enabled = (store.getMeta("enabled") ?? "1") !== "0";
     if (!enabled && WRITE_GATED.has(first)) {
       err("weaver: disabled for this project (`weaver enable` to resume)\n");
@@ -168,7 +169,7 @@ async function main(): Promise<number> {
     return 1;
   } finally {
     try {
-      store.close();
+      store?.close();
     } catch {
       /* may already be closed by `deinit --purge` */
     }
@@ -178,6 +179,6 @@ async function main(): Promise<number> {
 main()
   .then((code) => process.exit(code))
   .catch((e) => {
-    process.stderr.write(`weaver: fatal: ${e?.message ?? e}\n`);
+    process.stderr.write(`weaver: unexpected error: ${e?.message ?? e}\n`);
     process.exit(1);
   });

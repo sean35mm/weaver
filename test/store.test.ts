@@ -34,6 +34,22 @@ test("sessions: round-trip, intent, active filtering, end", async () => {
   store.close();
 });
 
+test("sessions: recent ended sessions honor cutoff", async () => {
+  const store = await openStore(tmpDb());
+
+  store.upsertSession({ id: "old", harness: "claude-code", idSource: "harness", pid: null, cwd: null }, NOW);
+  store.endSession("old", NOW + 1);
+  store.upsertSession({ id: "recent", harness: "claude-code", idSource: "harness", pid: null, cwd: null }, NOW + 10);
+  store.endSession("recent", NOW + 20);
+
+  assert.deepEqual(
+    store.listRecentEndedSessions(10, NOW + 10).map((s) => s.id),
+    ["recent"],
+  );
+
+  store.close();
+});
+
 test("claims: active, expiry, release", async () => {
   const store = await openStore(tmpDb());
   store.upsertSession({ id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
@@ -52,6 +68,62 @@ test("claims: active, expiry, release", async () => {
   store.releaseClaim("s1", "src/auth/**", NOW + 1);
   assert.equal(store.listActiveClaims(NOW + 1).length, 0);
 
+  store.close();
+});
+
+test("claims: prune old expired claims but keep recent stale claims", async () => {
+  const store = await openStore(tmpDb());
+  store.upsertSession({ id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
+  const day = 24 * 60 * 60 * 1000;
+
+  store.addClaim({ sessionId: "s1", pattern: "old/**", reason: null, createdAt: NOW - 10 * day, expiresAt: NOW - 8 * day });
+  store.addClaim({ sessionId: "s1", pattern: "recent/**", reason: null, createdAt: NOW - 2 * day, expiresAt: NOW - day });
+  store.addClaim({ sessionId: "s1", pattern: "active/**", reason: null, createdAt: NOW, expiresAt: NOW + day });
+
+  store.pruneClaims({ maxAgeDays: 7, now: NOW });
+
+  assert.deepEqual(
+    store.listOpenClaims().map((c) => c.pattern),
+    ["recent/**", "active/**"],
+  );
+
+  store.close();
+});
+
+test("transaction rolls back related writes", async () => {
+  const store = await openStore(tmpDb());
+
+  assert.throws(() => {
+    store.transaction(() => {
+      store.upsertSession({ id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
+      throw new Error("boom");
+    });
+  }, /boom/);
+
+  assert.equal(store.getSession("s1"), undefined);
+  store.close();
+});
+
+test("transaction rejects nested and async callbacks", async () => {
+  const store = await openStore(tmpDb());
+  let asyncInvoked = false;
+
+  assert.throws(() => {
+    store.transaction(() => store.transaction(() => undefined));
+  }, /nested transactions/);
+  assert.throws(() => {
+    store.transaction(() => Promise.resolve("later"));
+  }, /async transactions/);
+  assert.throws(() => {
+    store.transaction(async () => {
+      asyncInvoked = true;
+      await Promise.resolve();
+      store.upsertSession({ id: "late", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
+    });
+  }, /async transactions/);
+
+  assert.equal(asyncInvoked, false);
+  assert.equal(store.getSession("late"), undefined);
   store.close();
 });
 

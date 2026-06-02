@@ -1,6 +1,7 @@
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { claimsByLiveHolders, formatStatus, statusJson, type StatusData } from "../render.ts";
+import { DEFAULT_COMPLETED_SESSION_RECENT_MS } from "../store/reap.ts";
 
 // Observer: shows the picture of OTHER sessions; never registers presence.
 export function run(ctx: Ctx): number {
@@ -9,8 +10,10 @@ export function run(ctx: Ctx): number {
 
   const live = ctx.store.listActiveSessions(ctx.now, ctx.config.sessionTtlMs);
   const recentCutoff = ctx.now - ctx.config.recentMs;
+  const completedCutoff = ctx.now - DEFAULT_COMPLETED_SESSION_RECENT_MS;
   const data: StatusData = {
     sessions: live.filter((s) => s.id !== self),
+    completed: ctx.store.listRecentEndedSessions(full ? 20 : 3, completedCutoff).filter((s) => s.id !== self),
     // only claims held by a live session, excluding our own
     claims: claimsByLiveHolders(ctx.store.listActiveClaims(ctx.now), live).filter((c) => c.sessionId !== self),
     // only genuinely recent activity, excluding our own
@@ -27,7 +30,7 @@ export function run(ctx: Ctx): number {
 
   // Silent when there's nothing worth an agent's tokens.
   const pinned = data.notes.filter((n) => n.pinned);
-  if (!data.sessions.length && !data.claims.length && !pinned.length && !data.activity.length) {
+  if (!data.sessions.length && !data.claims.length && !pinned.length && !data.activity.length && !data.completed.length) {
     ctx.out("weaver: no other active agents\n");
     return 0;
   }
