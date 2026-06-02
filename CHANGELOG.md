@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.5.0](https://github.com/sean35mm/weaver/compare/v0.4.0...v0.5.0) (2026-06-01)
+
+
+### Features
+
+* **docs:** add roadmap page, split hero, and font system ([50bed26](https://github.com/sean35mm/weaver/commit/50bed266f5afa9fe37965662753a287360840bee))
+
 ## [0.4.0](https://github.com/sean35mm/weaver/compare/v0.3.0...v0.4.0) (2026-06-01)
 
 
