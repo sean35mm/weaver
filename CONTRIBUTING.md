@@ -1,8 +1,7 @@
 # Contributing to Weaver
 
 Thanks for your interest! Weaver is a CLI-first, serverless coordination layer for multiple
-coding agents working in the same repo. The guiding constraints are in
-[`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) — please skim them before a substantial
+coding agents working in the same repo. Please skim the README and docs before a substantial
 change.
 
 ## Setup

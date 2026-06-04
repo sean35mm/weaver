@@ -1,13 +1,11 @@
 # AGENTS.md — for agents (and humans) working on the Weaver repo
 
 Weaver is a CLI-first, serverless coordination layer that gives multiple coding agents shared
-situational awareness in the same repo. This file orients you; the deep docs are linked below.
+situational awareness in the same repo. This file orients you; the public docs are linked below.
 
 ## Project docs
 
 - **[README.md](./README.md)** — what Weaver is, the data model, commands, conflict model.
-- **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)** — architecture, phases, guiding
-  constraints. Read the constraints before substantial changes.
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — setup, where things live, the bar for changes.
 - **[RELEASING.md](./RELEASING.md)** — how to cut/publish a release. **Always follow this for
   releases.**

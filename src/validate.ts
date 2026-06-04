@@ -1,6 +1,6 @@
 /**
  * CLI-boundary validation. Lenient + warn: friendly errors (never stack traces), coerce
- * questionable-but-harmless input, cap sizes. No schema library — see IMPLEMENTATION_PLAN.
+ * questionable-but-harmless input, cap sizes. No schema library at the CLI boundary.
  */
 
 import type { Identity } from "./identity/session.ts";

@@ -15,3 +15,7 @@ dist/
 
 # Brainstorm companion scratch (local-only mockups)
 .superpowers/
+/launch-kit.html
+
+# private local planning
+.private/
