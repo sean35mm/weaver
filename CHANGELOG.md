@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.7.0](https://github.com/sean35mm/weaver/compare/v0.6.0...v0.7.0) (2026-06-05)
+
+
+### Features
+
+* add soft terminal colors ([e9c4e03](https://github.com/sean35mm/weaver/commit/e9c4e03d56a6da0d0425324caf2f69257bab4442))
+
 ## [0.6.0](https://github.com/sean35mm/weaver/compare/v0.5.1...v0.6.0) (2026-06-05)
 
 
