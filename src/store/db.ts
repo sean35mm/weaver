@@ -78,19 +78,26 @@ function wrap(raw: RawDatabase, binding: Db["binding"]): Db {
 
 const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
 
-export async function openDb(path: string): Promise<Db> {
+export interface OpenDbOptions {
+  readOnly?: boolean;
+}
+
+export async function openDb(path: string, opts: OpenDbOptions = {}): Promise<Db> {
+  const readOnly = opts.readOnly ?? false;
   let db: Db;
   if (isBun) {
     // @ts-ignore - bun:sqlite is provided by the Bun runtime
     const { Database } = await import("bun:sqlite");
-    db = wrap(new Database(path, { create: true }) as unknown as RawDatabase, "bun:sqlite");
+    db = wrap(new Database(path, readOnly ? { readonly: true, create: false } : { create: true }) as unknown as RawDatabase, "bun:sqlite");
   } else {
     // @ts-ignore - node:sqlite is a built-in module (Node >= 22.5)
     const { DatabaseSync } = await import("node:sqlite");
-    db = wrap(new DatabaseSync(path) as unknown as RawDatabase, "node:sqlite");
+    db = wrap(new DatabaseSync(path, readOnly ? { readOnly: true } : {}) as unknown as RawDatabase, "node:sqlite");
   }
-  db.exec("PRAGMA journal_mode = WAL");
-  db.exec("PRAGMA foreign_keys = ON");
+  if (!readOnly) {
+    db.exec("PRAGMA journal_mode = WAL");
+    db.exec("PRAGMA foreign_keys = ON");
+  }
   db.exec("PRAGMA busy_timeout = 5000");
   return db;
 }

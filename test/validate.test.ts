@@ -26,6 +26,8 @@ test("clamp: trims and caps length", () => {
 
 test("isBroadGlob", () => {
   assert.ok(isBroadGlob("**"));
+  assert.ok(isBroadGlob("**/*"));
+  assert.ok(isBroadGlob("./**/*"));
   assert.ok(isBroadGlob("/"));
   assert.ok(!isBroadGlob("src/auth/**"));
 });

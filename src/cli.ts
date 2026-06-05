@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /** Weaver CLI entry: parse → bootstrap (repo + store + identity) → dispatch → exit. */
 
-import { parseArgs } from "./args.ts";
+import fs from "node:fs";
+import { flagBool, parseArgs, type ParsedArgs } from "./args.ts";
 import { loadConfig } from "./config.ts";
 import * as activity from "./commands/activity.ts";
 import * as claim from "./commands/claim.ts";
@@ -14,6 +15,7 @@ import * as done from "./commands/done.ts";
 import * as init from "./commands/init.ts";
 import * as log from "./commands/log.ts";
 import * as note from "./commands/note.ts";
+import * as preflight from "./commands/preflight.ts";
 import * as status from "./commands/status.ts";
 import * as task from "./commands/task.ts";
 import * as toggle from "./commands/toggle.ts";
@@ -22,6 +24,7 @@ import * as upgrade from "./commands/upgrade.ts";
 import type { Ctx } from "./context.ts";
 import { resolveIdentity } from "./identity/session.ts";
 import { resolveRepoId } from "./repo/identity.ts";
+import { EmptyStore } from "./store/empty.ts";
 import { ensureWeaverDir, storePathForRepo } from "./store/location.ts";
 import { openStore } from "./store/open.ts";
 import { CliError } from "./validate.ts";
@@ -40,6 +43,9 @@ const BOOLEAN_FLAGS = new Set([
   "check",
   "yes",
   "keep-data",
+  "no-touch",
+  "staged",
+  "upstream",
 ]);
 // Mutating writes that are paused when the project is disabled (done/lifecycle still work).
 const WRITE_GATED = new Set(["task", "claim", "release", "note", "log"]);
@@ -48,32 +54,62 @@ interface Handler {
   run: (ctx: Ctx) => number | Promise<number>;
   /** Agent/mutating commands require identity and register presence; observers don't. */
   agent: boolean;
+  /** `read` never creates a store, `touch` writes only when one exists, `create` creates/migrates. */
+  store: StoreMode | ((args: ParsedArgs) => StoreMode);
+}
+
+type StoreMode = "read" | "touch" | "create";
+
+function isMissingSchemaError(e: unknown): boolean {
+  return /no such table:/i.test((e as Error)?.message ?? "");
 }
 
 const REGISTRY: Record<string, Handler> = {
-  task: { run: task.run, agent: true },
-  claim: { run: claim.runClaim, agent: true },
-  release: { run: claim.runRelease, agent: true },
-  note: { run: note.runNote, agent: true },
-  log: { run: log.run, agent: true },
-  done: { run: done.run, agent: true },
-  status: { run: status.run, agent: false },
-  notes: { run: note.runNotes, agent: false },
-  activity: { run: activity.run, agent: false },
-  check: { run: check.run, agent: false },
-  doctor: { run: doctor.run, agent: false },
-  dashboard: { run: dashboard.runDashboard, agent: false },
-  view: { run: dashboard.runDashboard, agent: false },
-  ui: { run: dashboard.runDashboard, agent: false },
-  watch: { run: dashboard.runWatch, agent: false },
-  init: { run: init.run, agent: false },
-  enable: { run: toggle.runEnable, agent: false },
-  disable: { run: toggle.runDisable, agent: false },
-  deinit: { run: deinit.run, agent: false },
-  config: { run: config.run, agent: false },
-  upgrade: { run: upgrade.run, agent: false },
-  uninstall: { run: uninstall.run, agent: false },
+  task: { run: task.run, agent: true, store: "create" },
+  claim: { run: claim.runClaim, agent: true, store: "create" },
+  release: { run: claim.runRelease, agent: true, store: "create" },
+  note: { run: note.runNote, agent: true, store: "create" },
+  log: { run: log.run, agent: true, store: "create" },
+  done: { run: done.run, agent: true, store: "create" },
+  status: { run: status.run, agent: false, store: "read" },
+  notes: { run: note.runNotes, agent: false, store: "read" },
+  activity: { run: activity.run, agent: false, store: "read" },
+  check: { run: check.run, agent: false, store: (args) => (flagBool(args, "no-touch") ? "read" : "touch") },
+  preflight: { run: preflight.run, agent: false, store: "read" },
+  doctor: { run: doctor.run, agent: false, store: "read" },
+  dashboard: { run: dashboard.runDashboard, agent: false, store: "create" },
+  view: { run: dashboard.runDashboard, agent: false, store: "create" },
+  ui: { run: dashboard.runDashboard, agent: false, store: "create" },
+  watch: { run: dashboard.runWatch, agent: false, store: "create" },
+  init: { run: init.run, agent: false, store: "create" },
+  enable: { run: toggle.runEnable, agent: false, store: "create" },
+  disable: { run: toggle.runDisable, agent: false, store: "create" },
+  deinit: { run: deinit.run, agent: false, store: "create" },
+  config: { run: config.run, agent: false, store: "create" },
+  upgrade: { run: upgrade.run, agent: false, store: "create" },
+  uninstall: { run: uninstall.run, agent: false, store: "create" },
 };
+
+async function openStoreForMode(repoId: string, mode: StoreMode): Promise<Ctx["store"]> {
+  const dbPath = storePathForRepo(repoId);
+  if (mode === "read") {
+    if (!fs.existsSync(dbPath)) return new EmptyStore();
+    const opened = await openStore(dbPath, { readOnly: true, migrate: false });
+    try {
+      opened.getMeta("schema_version");
+    } catch (e) {
+      opened.close();
+      if (isMissingSchemaError(e)) return new EmptyStore();
+      throw e;
+    }
+    return opened;
+  }
+  if (mode === "touch") {
+    return fs.existsSync(dbPath) ? openStore(dbPath) : new EmptyStore();
+  }
+  ensureWeaverDir();
+  return openStore(dbPath);
+}
 
 function printHelp(write: (s: string) => void): void {
   write(`weaver ${VERSION} — shared context for coding agents\n\n`);
@@ -82,7 +118,8 @@ function printHelp(write: (s: string) => void): void {
   write("  task <intent…>                           announce what you're working on\n");
   write("  claim <glob> [--reason …] [--ttl 30m]    stake out an area (surfaces overlaps)\n");
   write("  release <glob>                           free an area\n");
-  write("  check <path>                             is anyone else here? (exit 1 on conflict)\n");
+  write("  check <path> [--no-touch]                is anyone else here? (exit 1 on conflict)\n");
+  write("  preflight [paths…|--staged|--upstream|--base REF]  bounded commit/push/PR risk check\n");
   write("  note <text…> [--pin] [--path …] [--tag …]  record a durable learning\n");
   write("  notes [--full]                           list notes\n");
   write("  log <kind> <path> <summary…>             record an activity event\n");
@@ -126,8 +163,8 @@ async function main(): Promise<number> {
   try {
     const args = parseArgs(argv, BOOLEAN_FLAGS);
     const repo = resolveRepoId();
-    ensureWeaverDir();
-    store = await openStore(storePathForRepo(repo.repoId));
+    const mode = typeof handler.store === "function" ? handler.store(args) : handler.store;
+    store = await openStoreForMode(repo.repoId, mode);
     const identity = resolveIdentity();
     const now = Date.now();
     const ctx: Ctx = {

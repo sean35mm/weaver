@@ -16,17 +16,21 @@ short version of this protocol into `CLAUDE.md` / `AGENTS.md`; this page is the 
 Run these as you work. They're cheap and fast.
 
 ```sh
-# 1. At the start of a task — see who else is here, then state your intent.
+# 1. At the start of a task — see who else is here.
 weaver status
+
+# For read-only / plan-only work, stop there.
+
+# 2. Once implementation or other writes are approved, state your intent.
 weaver task "refactor the auth module to use AuthService"
 
-# 2. Claim the area you'll work in (once). Advisory; surfaces overlaps.
+# 3. Claim the area you'll work in (once). Advisory; surfaces overlaps.
 weaver claim 'src/auth/**' --reason "rewriting token refresh"
 
-# 3. Record durable learnings about this repo as you discover them.
+# 4. Record durable learnings about this repo as you discover them.
 weaver note "AuthService is the new entry point — don't call jwt.* directly"
 
-# 4. When finished, release your claims.
+# 5. When finished, release your claims.
 weaver done
 ```
 
@@ -36,6 +40,21 @@ Optional, when useful:
 weaver check src/auth/login.ts                       # is anyone else on this file?
 weaver log edit src/auth/login.ts "extracted refreshToken into AuthService"
 ```
+
+## Before commit, push, or PR
+
+Use a bounded preflight check when available:
+
+```sh
+weaver preflight --staged --operation commit
+weaver preflight --upstream --operation push
+weaver preflight --base main --operation pr
+```
+
+`preflight` checks only relevant paths, does not refresh heartbeats, and never waits. If it
+reports a relevant soft/hard overlap, pause and ask the user whether to continue, wait briefly,
+or coordinate first. Do not silently poll for another session to run `weaver done` unless the
+user explicitly asks you to wait.
 
 ## On a conflict
 
@@ -56,12 +75,13 @@ Use `--json` for structured output you can parse:
 ```sh
 weaver status --json
 weaver activity --json
+weaver preflight --staged --json
 ```
 
-`status --json` returns active sessions (id, harness, intent), active claims (pattern, reason,
-holder), recent activity, and notes. It is **silent when nothing is relevant** (no other live
-sessions, claims, pinned notes, or recent activity), so it's safe to run at the top of every
-task without bloating your context.
+`status --json` returns active sessions (`shortId`, harness, intent), active claims (pattern,
+reason, holder), recent activity, and notes. JSON mode always emits structured arrays; the human
+`status` output is the one that stays terse when nothing is relevant. Both are safe to run at the
+top of every task without bloating your context.
 
 ## Identity & sessions
 

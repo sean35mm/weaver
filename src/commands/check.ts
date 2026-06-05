@@ -1,3 +1,4 @@
+import { flagBool } from "../args.ts";
 import { detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
 import { normalizeTarget } from "../repo/paths.ts";
@@ -9,7 +10,7 @@ import { requireArg } from "../validate.ts";
 // but it never CREATES a session, so a human or unregistered caller still doesn't appear.
 export function run(ctx: Ctx): number {
   const id = ctx.identity;
-  if (id) {
+  if (id && !flagBool(ctx.args, "no-touch")) {
     const existing = ctx.store.getSession(id.key);
     if (existing && existing.endedAt === null) ctx.store.touchSession(id.key, ctx.now);
   }

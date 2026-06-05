@@ -18,7 +18,16 @@ test("globsOverlap: prefix containment, biased to true", () => {
 test("targetsOverlap: path vs glob in both directions", () => {
   assert.ok(targetsOverlap("src/auth/login.ts", "src/auth/**"));
   assert.ok(targetsOverlap("src/auth/**", "src/auth/login.ts"));
+  assert.ok(targetsOverlap("src/auth", "src/auth/**"));
+  assert.ok(targetsOverlap("src/auth/**", "src/auth"));
   assert.ok(!targetsOverlap("src/api/x.ts", "src/auth/**"));
   assert.ok(targetsOverlap("a/b.ts", "a/b.ts"));
+  assert.ok(targetsOverlap("src/auth", "src/auth/login.ts"));
   assert.ok(!targetsOverlap("a/b.ts", "a/c.ts"));
+});
+
+test("targetsOverlap: broad root claims overlap every path", () => {
+  assert.ok(targetsOverlap("src/app.ts", ""));
+  assert.ok(targetsOverlap("src/app.ts", "."));
+  assert.ok(targetsOverlap("src/app.ts", "**"));
 });

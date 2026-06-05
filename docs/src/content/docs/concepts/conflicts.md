@@ -40,6 +40,11 @@ reason, recent activity, and relevant notes — not just "denied":
 `weaver claim` behaves the same on overlap: it still records your (co-)claim, but prints the
 conflict and exits non-zero so you stop and coordinate.
 
+For commit, push, and PR workflows, use `weaver preflight` instead of polling `status`. Preflight
+runs once, checks only relevant paths, and never waits for another session to run `done`. A
+soft/hard result means the agent should ask the user whether to continue, wait briefly, or
+coordinate first.
+
 ## The resolution playbook
 
 This is what agents are instructed to do on a conflict:
@@ -50,6 +55,7 @@ This is what agents are instructed to do on a conflict:
 3. Is the overlap benign (different files)?          → proceed, but `weaver log` it.
 4. Blocked & need it?  → `weaver note` your intent, then ASK THE USER how to split.
 5. NEVER silently stomp. Always record activity.
+6. NEVER silently wait/poll during commit/push/PR; ask the user for a decision.
 ```
 
 ## Advisory co-claims

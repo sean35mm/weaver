@@ -51,7 +51,26 @@ when nothing is relevant.** `--json` for machine consumption; `--full` removes t
 
 ### `weaver check <path>`
 Is anyone else working on this path/area? Exits `0` if clear, `1` on a conflict, and prints the
-conflicting session's context. Observer-safe — works even without a resolved session.
+conflicting session's context. Observer-safe — works even without a resolved session. By default
+it refreshes the caller's heartbeat if the caller already has a live session; use `--no-touch`
+for strict read-only checks.
+
+### `weaver preflight [paths…|--staged|--upstream|--base <ref>]`
+A bounded commit/push/PR risk check. It checks only the supplied or inferred paths, never polls,
+never waits for another session to run `done`, and never refreshes heartbeats. Relevant soft/hard
+overlaps are a pause signal for the agent to ask the user what to do.
+```sh
+weaver preflight --staged --operation commit
+weaver preflight --upstream --operation push
+weaver preflight --base main --operation pr --json
+```
+
+Exit policy defaults to `--fail-on soft`: exit `1` for relevant soft or hard overlaps, `0` for
+clear/stale/unrelated sessions, and `2` for tooling/input errors. Use `--fail-on hard` to pause
+only on active claims, or `--fail-on never` for report-only automation.
+
+Human and JSON output are capped by default; `--json` includes `counts` and `truncated` metadata.
+Use `--full` to include every checked path and overlap.
 
 ### `weaver notes [--full]`
 List durable notes (pinned first, newest first).
@@ -87,8 +106,13 @@ Update the installed binary to the latest release (`--check` only checks). See
 
 | Flag | Applies to | Meaning |
 | --- | --- | --- |
-| `--json` | `status`, `activity` | machine-readable output |
-| `--full` | `status`, `notes`, `activity` | remove output caps |
+| `--json` | `status`, `activity`, `preflight` | machine-readable output |
+| `--full` | `status`, `notes`, `activity`, `preflight` | remove output caps |
+| `--staged` | `preflight` | check staged paths |
+| `--upstream` | `preflight` | check `@{upstream}...HEAD` paths |
+| `--base` | `preflight` | check `<ref>...HEAD` paths |
+| `--fail-on` | `preflight` | exit threshold: `soft`, `hard`, or `never` |
+| `--no-touch` | `check` | do not refresh heartbeat |
 | `--reason` | `claim` | why you're claiming the area |
 | `--ttl` | `claim` | claim lifetime (`90s`, `30m`, `2h`, `1d`) |
 | `--pin` | `note` | surface the note prominently |

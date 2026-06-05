@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { test } from "node:test";
+import { resolveRepoId } from "../../src/repo/identity.ts";
 
 const repoRoot = path.resolve(new URL("../..", import.meta.url).pathname);
 const cliPath = path.join(repoRoot, "src/cli.ts");
@@ -87,13 +88,72 @@ test("multiple sessions coordinate through one store", () => {
   assert.equal(selfParsed.completed.some((s) => s.intent === "build auth flow"), false);
 });
 
-test("bootstrap failures use the friendly error boundary", () => {
+test("observer status with missing store does not create Weaver home", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = path.join(root, "missing-home");
+
+  const result = run(root, home, null, ["status", "--json"]);
+  assert.equal(result.status, 0);
+  assert.equal(fs.existsSync(home), false);
+  const parsed = JSON.parse(result.stdout) as { sessions: unknown[]; claims: unknown[] };
+  assert.deepEqual(parsed.sessions, []);
+  assert.deepEqual(parsed.claims, []);
+});
+
+test("observer status treats schema-less existing store as empty", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  const repoId = resolveRepoId(root).repoId;
+  fs.writeFileSync(path.join(home, `${repoId}.db`), "");
+
+  const result = run(root, home, null, ["status", "--json"]);
+  assert.equal(result.status, 0);
+  const parsed = JSON.parse(result.stdout) as { sessions: unknown[]; claims: unknown[] };
+  assert.deepEqual(parsed.sessions, []);
+  assert.deepEqual(parsed.claims, []);
+});
+
+test("preflight with missing store does not create Weaver home", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = path.join(root, "missing-home");
+
+  const result = run(root, home, null, ["preflight", "src/app.ts", "--fail-on", "never", "--json"]);
+  assert.equal(result.status, 0);
+  assert.equal(fs.existsSync(home), false);
+  const parsed = JSON.parse(result.stdout) as { severity: string; conflicts: unknown[] };
+  assert.equal(parsed.severity, "clear");
+  assert.deepEqual(parsed.conflicts, []);
+});
+
+test("write bootstrap failures use the friendly error boundary", () => {
   const root = tmpDir("weaver-repo-");
   const home = path.join(root, "not-a-dir");
   fs.writeFileSync(home, "x");
 
-  const result = run(root, home, null, ["status"]);
+  const result = run(root, home, "agent-a", ["task", "x"]);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /^weaver: unexpected error:/);
   assert.doesNotMatch(result.stderr, /fatal/);
+});
+
+test("preflight --staged reports relevant hard overlaps without polling", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  execFileSync("git", ["init"], { cwd: root, stdio: "ignore" });
+  fs.mkdirSync(path.join(root, "src", "auth"), { recursive: true });
+  fs.writeFileSync(path.join(root, "src", "auth", "login.ts"), "export const login = true;\n");
+  execFileSync("git", ["add", "src/auth/login.ts"], { cwd: root, stdio: "ignore" });
+
+  assert.equal(run(root, home, "agent-a", ["task", "refactor auth"]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["claim", "src/auth/**", "--reason", "login flow"]).status, 0);
+
+  const result = run(root, home, "agent-b", ["preflight", "--staged", "--operation", "commit", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout) as { severity: string; recommendation: string; conflicts: Array<{ path: string; tier: string }> };
+  assert.equal(parsed.severity, "hard");
+  assert.equal(parsed.recommendation, "ask-user");
+  assert.deepEqual(parsed.conflicts.map((c) => [c.path, c.tier]), [["src/auth/login.ts", "hard"]]);
+
+  const reportOnly = run(root, home, "agent-b", ["preflight", "--staged", "--operation", "commit", "--fail-on", "never"]);
+  assert.equal(reportOnly.status, 0);
 });

@@ -34,6 +34,15 @@ Observer commands (`status`, `check`) work without identity.
 It isn't — claims from stale sessions are treated as free (they show as `stale`, not active) and
 expire on their TTL. See the [conflict model](/weaver/concepts/conflicts/).
 
+### Preflight paused a commit or push
+`weaver preflight` should only pause on relevant soft/hard overlaps with the paths being committed
+or pushed. Unrelated active sessions are informational. If preflight reports a relevant overlap,
+ask the user whether to continue, wait briefly, or coordinate first; do not silently poll for the
+other session to run `weaver done` unless the user explicitly asked to wait.
+
+If preflight reports your own work as another session, the hook or agent likely lost its session
+identity. Set `WEAVER_SESSION` consistently, or run `weaver doctor` to inspect identity resolution.
+
 ### `weaver upgrade` says it's not applicable
 `upgrade` only works on the standalone (curl-installed) binary. If you're running from source or
 a dev link, that's expected — re-install via `install.sh` to get an upgradeable binary.

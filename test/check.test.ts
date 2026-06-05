@@ -42,6 +42,14 @@ test("check refreshes an existing live session's heartbeat", async () => {
   store.close();
 });
 
+test("check --no-touch does not refresh an existing live session's heartbeat", async () => {
+  const store = await openStore(tmpDb());
+  store.upsertSession({ id: "me", harness: "x", idSource: "explicit", pid: null, cwd: null }, 1000);
+  check.run(ctxFor(store, "me", 1000 + 60_000, ["check", "src/a.ts", "--no-touch"]));
+  assert.equal(store.getSession("me")?.lastSeen, 1000);
+  store.close();
+});
+
 test("check never creates a session for an unregistered caller", async () => {
   const store = await openStore(tmpDb());
   check.run(ctxFor(store, "ghost", 2000, ["check", "src/a.ts"]));

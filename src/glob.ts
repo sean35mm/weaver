@@ -38,6 +38,10 @@ function isPathPrefix(prefix: string, full: string): boolean {
   return full === prefix || full.startsWith(`${prefix}/`);
 }
 
+function isBroadTarget(target: string): boolean {
+  return target === "" || target === "." || target === "**" || target === "*" || target === "/" || target === "./**";
+}
+
 /** Heuristic overlap between two globs via literal-prefix containment (biased to true). */
 export function globsOverlap(a: string, b: string): boolean {
   if (a === b) return true;
@@ -49,10 +53,17 @@ export function globsOverlap(a: string, b: string): boolean {
 
 /** Overlap between a checked `target` and a stored `candidate`; either may be a path or glob. */
 export function targetsOverlap(target: string, candidate: string): boolean {
+  if (isBroadTarget(target) || isBroadTarget(candidate)) return true;
   const tGlob = isGlob(target);
   const cGlob = isGlob(candidate);
   if (tGlob && cGlob) return globsOverlap(target, candidate);
-  if (tGlob) return matchesPath(target, candidate);
-  if (cGlob) return matchesPath(candidate, target);
-  return target === candidate;
+  if (tGlob) {
+    const prefix = literalPrefix(target);
+    return matchesPath(target, candidate) || isPathPrefix(prefix, candidate) || isPathPrefix(candidate, prefix);
+  }
+  if (cGlob) {
+    const prefix = literalPrefix(candidate);
+    return matchesPath(candidate, target) || isPathPrefix(prefix, target) || isPathPrefix(target, prefix);
+  }
+  return isPathPrefix(target, candidate) || isPathPrefix(candidate, target);
 }
