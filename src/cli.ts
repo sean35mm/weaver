@@ -43,6 +43,8 @@ const BOOLEAN_FLAGS = new Set([
   "check",
   "yes",
   "keep-data",
+  "color",
+  "no-color",
   "no-touch",
   "staged",
   "upstream",
@@ -135,6 +137,8 @@ function printHelp(write: (s: string) => void): void {
   write("  config [<key> [<seconds>]]               view/set tunables (TTLs)\n");
   write("  upgrade [--check]                        update the installed binary to the latest release\n");
   write("  uninstall [--yes] [--keep-data]          remove the binary and ~/.weaver\n");
+  write("\n");
+  write("global flags: --color[=always|auto|never], --no-color\n");
 }
 
 async function main(): Promise<number> {

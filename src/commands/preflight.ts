@@ -6,6 +6,7 @@ import { normalizeTarget } from "../repo/paths.ts";
 import { hasBroadClaim, runPreflight, type PreflightResult, type PreflightSeverity } from "../preflight.ts";
 import type { ConflictHit } from "../conflict.ts";
 import type { SessionRow } from "../store/store.ts";
+import { themeFromCtx, type TerminalTheme } from "../terminal/color.ts";
 import { CliError } from "../validate.ts";
 
 type Source = "paths" | "staged" | "upstream" | "base";
@@ -110,15 +111,15 @@ function who(session: SessionRow): string {
   return `${session.harness}#${shortId(session.id)}`;
 }
 
-function hitSummary(hit: ConflictHit, now: number): string {
-  const broad = hasBroadClaim(hit) ? " [broad]" : "";
+function hitSummary(hit: ConflictHit, now: number, theme: TerminalTheme): string {
+  const broad = hasBroadClaim(hit) ? ` ${theme.warn("[broad]")}` : "";
   if (hit.claim) {
-    return `${who(hit.session)} claims ${hit.claim.pattern}${broad}${hit.claim.reason ? ` — ${hit.claim.reason}` : ""}; active ${ago(now - hit.session.lastSeen)}`;
+    return `${theme.accent(who(hit.session))} ${theme.dim("claims")} ${theme.path(hit.claim.pattern)}${broad}${hit.claim.reason ? ` ${theme.dim("—")} ${hit.claim.reason}` : ""}; ${theme.dim(`active ${ago(now - hit.session.lastSeen)}`)}`;
   }
   if (hit.activity) {
-    return `${who(hit.session)} recent ${hit.activity.kind} ${hit.activity.target ?? ""}${hit.activity.summary ? ` — ${hit.activity.summary}` : ""}; active ${ago(now - hit.session.lastSeen)}`;
+    return `${theme.accent(who(hit.session))} ${theme.dim("recent")} ${theme.kind(hit.activity.kind)} ${hit.activity.target ? theme.path(hit.activity.target) : ""}${hit.activity.summary ? ` ${theme.dim("—")} ${hit.activity.summary}` : ""}; ${theme.dim(`active ${ago(now - hit.session.lastSeen)}`)}`;
   }
-  return `${who(hit.session)} — ${hit.session.intent ?? "(no stated intent)"}; active ${ago(now - hit.session.lastSeen)}`;
+  return `${theme.accent(who(hit.session))} ${theme.dim("—")} ${hit.session.intent ?? theme.dim("(no stated intent)")}; ${theme.dim(`active ${ago(now - hit.session.lastSeen)}`)}`;
 }
 
 function capped<T>(items: T[], full: boolean): T[] {
@@ -129,40 +130,40 @@ function truncatedCount(items: unknown[], full: boolean): number {
   return full ? 0 : Math.max(0, items.length - OUTPUT_LIMIT);
 }
 
-function formatHuman(result: PreflightResult, opts: RenderOpts, now: number): string {
+function formatHuman(result: PreflightResult, opts: RenderOpts, now: number, theme: TerminalTheme): string {
   const lines: string[] = [];
   const label = result.severity === "hard" ? "hard overlap" : result.severity === "soft" ? "soft overlap" : result.severity === "info" ? "info" : "no relevant overlaps";
-  lines.push(`weaver preflight: ${label} before ${opts.operation}`);
-  lines.push(`checked ${result.paths.length} path${result.paths.length === 1 ? "" : "s"} from ${opts.source}`);
+  lines.push(`${theme.accent("weaver preflight:")} ${theme.severity(result.severity, label)} ${theme.dim("before")} ${opts.operation}`);
+  lines.push(`${theme.dim("checked")} ${theme.accent(String(result.paths.length))} ${theme.dim(`path${result.paths.length === 1 ? "" : "s"} from ${opts.source}`)}`);
 
-  for (const warning of result.warnings) lines.push(`warning: ${warning}`);
+  for (const warning of result.warnings) lines.push(`${theme.warn("warning:")} ${warning}`);
 
   for (const conflict of capped(result.conflicts, opts.full)) {
     lines.push("");
-    lines.push(`${conflict.path}`);
-    for (const hit of conflict.hits) lines.push(`  ${conflict.tier}: ${hitSummary(hit, now)}`);
+    lines.push(theme.path(conflict.path));
+    for (const hit of conflict.hits) lines.push(`  ${theme.severity(conflict.tier, conflict.tier)}: ${hitSummary(hit, now, theme)}`);
   }
-  if (!opts.full && result.conflicts.length > 20) lines.push(`... ${result.conflicts.length - 20} more conflicting path(s); rerun with --full`);
+  if (!opts.full && result.conflicts.length > 20) lines.push(theme.dim(`... ${result.conflicts.length - 20} more conflicting path(s); rerun with --full`));
 
   if (result.stale.length) {
     lines.push("");
-    lines.push("stale overlaps treated as free:");
-    for (const stale of capped(result.stale, opts.full)) lines.push(`  ${stale.path}`);
-    if (!opts.full && result.stale.length > 20) lines.push(`  ... ${result.stale.length - 20} more stale path(s); rerun with --full`);
+    lines.push(theme.heading("stale overlaps treated as free:"));
+    for (const stale of capped(result.stale, opts.full)) lines.push(`  ${theme.path(stale.path)}`);
+    if (!opts.full && result.stale.length > 20) lines.push(theme.dim(`  ... ${result.stale.length - 20} more stale path(s); rerun with --full`));
   }
 
   if (result.unrelatedSessions.length) {
     lines.push("");
-    lines.push(`${result.unrelatedSessions.length} other active session${result.unrelatedSessions.length === 1 ? "" : "s"} do not overlap checked paths.`);
+    lines.push(`${theme.accent(String(result.unrelatedSessions.length))} other active session${result.unrelatedSessions.length === 1 ? "" : "s"} ${theme.dim("do not overlap checked paths.")}`);
   }
 
   lines.push("");
   if (result.recommendation === "ask-user") {
-    lines.push("Recommendation: ask the user whether to continue, wait briefly, or coordinate first. Do not silently wait for another session.");
+    lines.push(`${theme.warn("Recommendation:")} ask the user whether to continue, wait briefly, or coordinate first. ${theme.dim("Do not silently wait for another session.")}`);
   } else {
-    lines.push("Recommendation: continue; no relevant active overlap was found.");
+    lines.push(`${theme.success("Recommendation:")} continue; no relevant active overlap was found.`);
   }
-  lines.push(`exit policy: fail-on=${opts.failOn}`);
+  lines.push(theme.dim(`exit policy: fail-on=${opts.failOn}`));
   return lines.join("\n") + "\n";
 }
 
@@ -230,6 +231,6 @@ export function run(ctx: Ctx): number {
     recentMs: ctx.config.recentMs,
   });
   const renderOpts = { operation, source: pathSource.source, failOn, full: flagBool(ctx.args, "full") };
-  ctx.out(flagBool(ctx.args, "json") ? formatJson(result, renderOpts, ctx.now) : formatHuman(result, renderOpts, ctx.now));
+  ctx.out(flagBool(ctx.args, "json") ? formatJson(result, renderOpts, ctx.now) : formatHuman(result, renderOpts, ctx.now, themeFromCtx(ctx)));
   return shouldFail(result.severity, failOn) ? 1 : 0;
 }

@@ -2,11 +2,13 @@ import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { claimsByLiveHolders, formatStatus, statusJson, type StatusData } from "../render.ts";
 import { DEFAULT_COMPLETED_SESSION_RECENT_MS } from "../store/reap.ts";
+import { themeFromCtx } from "../terminal/color.ts";
 
 // Observer: shows the picture of OTHER sessions; never registers presence.
 export function run(ctx: Ctx): number {
   const self = ctx.identity?.key ?? null;
   const full = flagBool(ctx.args, "full");
+  const theme = themeFromCtx(ctx);
 
   const live = ctx.store.listActiveSessions(ctx.now, ctx.config.sessionTtlMs);
   const recentCutoff = ctx.now - ctx.config.recentMs;
@@ -31,10 +33,10 @@ export function run(ctx: Ctx): number {
   // Silent when there's nothing worth an agent's tokens.
   const pinned = data.notes.filter((n) => n.pinned);
   if (!data.sessions.length && !data.claims.length && !pinned.length && !data.activity.length && !data.completed.length) {
-    ctx.out("weaver: no other active agents\n");
+    ctx.out(`${theme.success("weaver:")} no other active agents\n`);
     return 0;
   }
 
-  ctx.out(formatStatus(data, ctx.now, ctx.store));
+  ctx.out(formatStatus(data, ctx.now, ctx.store, theme));
   return 0;
 }

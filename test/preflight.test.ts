@@ -9,6 +9,7 @@ import type { Ctx } from "../src/context.ts";
 import { hasBroadClaim, runPreflight } from "../src/preflight.ts";
 import { openStore } from "../src/store/open.ts";
 import type { IdSource, Store } from "../src/store/store.ts";
+import { stripAnsi } from "../src/terminal/color.ts";
 import { CliError } from "../src/validate.ts";
 
 function tmpDb(): string {
@@ -32,7 +33,7 @@ function ctxFor(store: Store, idKey: string | null, now: number, argv: string[])
     cwd: "/repo",
     now,
     env: {},
-    args: parseArgs(argv, new Set(["json", "full", "staged", "upstream"])),
+    args: parseArgs(argv, new Set(["color", "json", "full", "no-color", "staged", "upstream"])),
     out: () => {},
     err: () => {},
   };
@@ -220,6 +221,21 @@ test("preflight json is capped unless --full is passed", async () => {
   assert.equal(fullJson.conflicts.length, 21);
   assert.equal(fullJson.truncated.paths, 0);
   assert.equal(fullJson.truncated.conflicts, 0);
+  s.close();
+});
+
+test("preflight json does not include ansi even when color is forced", async () => {
+  const s = await store();
+  let output = "";
+  const ctx = ctxFor(s, "me", NOW + 1000, ["preflight", "src/app.ts", "--json", "--color", "--fail-on", "never"]);
+  ctx.env = { FORCE_COLOR: "1" };
+  ctx.out = (text) => {
+    output += text;
+  };
+
+  assert.equal(runCommand(ctx), 0);
+  assert.equal(stripAnsi(output), output);
+  assert.equal(JSON.parse(output).severity, "clear");
   s.close();
 });
 

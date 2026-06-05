@@ -108,6 +108,8 @@ Update the installed binary to the latest release (`--check` only checks). See
 | --- | --- | --- |
 | `--json` | `status`, `activity`, `preflight` | machine-readable output |
 | `--full` | `status`, `notes`, `activity`, `preflight` | remove output caps |
+| `--color` | supported human output | force ANSI colors (`--color=always`, `auto`, or `never`) |
+| `--no-color` | supported human output | disable ANSI colors |
 | `--staged` | `preflight` | check staged paths |
 | `--upstream` | `preflight` | check `@{upstream}...HEAD` paths |
 | `--base` | `preflight` | check `<ref>...HEAD` paths |

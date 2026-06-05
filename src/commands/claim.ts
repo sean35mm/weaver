@@ -3,11 +3,13 @@ import { detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
 import { normalizeTarget } from "../repo/paths.ts";
 import { formatConflict } from "../render.ts";
+import { themeFromCtx } from "../terminal/color.ts";
 import { clamp, isBroadGlob, parseTtl, requireArg, requireIdentity } from "../validate.ts";
 import { pruneAfterWrite } from "./prune.ts";
 
 export function runClaim(ctx: Ctx): number {
   const id = requireIdentity(ctx.identity);
+  const theme = themeFromCtx(ctx);
   const pattern = normalizeTarget(requireArg(ctx.args._[1], "glob"), ctx.repo.root, ctx.cwd);
   const reasonRaw = flagStr(ctx.args, "reason");
   const reason = reasonRaw ? clamp(reasonRaw) : null;
@@ -31,11 +33,11 @@ export function runClaim(ctx: Ctx): number {
     pruneAfterWrite(ctx.store, ctx.now);
   });
 
-  if (isBroadGlob(pattern)) ctx.err(`⚠ '${pattern}' is very broad — you're claiming most/all of the repo.\n`);
-  ctx.out(`✓ claimed ${pattern}${reason ? ` — ${reason}` : ""}\n`);
+  if (isBroadGlob(pattern)) ctx.err(`⚠ ${theme.warn(`'${pattern}' is very broad`)} — you're claiming most/all of the repo.\n`);
+  ctx.out(`${theme.success("✓ claimed")} ${theme.path(pattern)}${reason ? ` ${theme.dim("—")} ${reason}` : ""}\n`);
 
   if (conflict.tier === "hard" || conflict.tier === "soft") {
-    ctx.out("\n" + formatConflict(conflict, ctx.now));
+    ctx.out("\n" + formatConflict(conflict, ctx.now, theme));
     return 1; // non-zero so the agent stops and coordinates instead of silently proceeding
   }
   return 0;
@@ -43,12 +45,13 @@ export function runClaim(ctx: Ctx): number {
 
 export function runRelease(ctx: Ctx): number {
   const id = requireIdentity(ctx.identity);
+  const theme = themeFromCtx(ctx);
   const pattern = normalizeTarget(requireArg(ctx.args._[1], "glob"), ctx.repo.root, ctx.cwd);
   ctx.store.transaction(() => {
     ctx.store.releaseClaim(id.key, pattern, ctx.now);
     ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind: "release", target: pattern, summary: null, meta: null });
     pruneAfterWrite(ctx.store, ctx.now);
   });
-  ctx.out(`✓ released ${pattern}\n`);
+  ctx.out(`${theme.success("✓ released")} ${theme.path(pattern)}\n`);
   return 0;
 }

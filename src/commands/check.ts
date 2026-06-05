@@ -3,6 +3,7 @@ import { detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
 import { normalizeTarget } from "../repo/paths.ts";
 import { formatConflict } from "../render.ts";
+import { themeFromCtx } from "../terminal/color.ts";
 import { requireArg } from "../validate.ts";
 
 // Observer-safe. It refreshes the caller's heartbeat *if they already have a live session*
@@ -10,6 +11,7 @@ import { requireArg } from "../validate.ts";
 // but it never CREATES a session, so a human or unregistered caller still doesn't appear.
 export function run(ctx: Ctx): number {
   const id = ctx.identity;
+  const theme = themeFromCtx(ctx);
   if (id && !flagBool(ctx.args, "no-touch")) {
     const existing = ctx.store.getSession(id.key);
     if (existing && existing.endedAt === null) ctx.store.touchSession(id.key, ctx.now);
@@ -27,9 +29,9 @@ export function run(ctx: Ctx): number {
 
   if (conflict.tier === "clear" || conflict.tier === "stale") {
     const note = conflict.tier === "stale" ? " (a stale claim exists; treated as free)" : "";
-    ctx.out(`✓ clear: ${target}${note}\n`);
+    ctx.out(`${theme.success("✓ clear:")} ${theme.path(target)}${theme.dim(note)}\n`);
     return 0;
   }
-  ctx.out(formatConflict(conflict, ctx.now));
+  ctx.out(formatConflict(conflict, ctx.now, theme));
   return 1;
 }

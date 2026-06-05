@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ago, claimsByLiveHolders, formatStatus, statusJson } from "../src/render.ts";
 import type { ClaimRow, SessionRow, Store } from "../src/store/store.ts";
+import { createTheme, stripAnsi } from "../src/terminal/color.ts";
 
 const session = (id: string): SessionRow => ({
   id,
@@ -60,4 +61,13 @@ test("formatStatus shows recently completed sessions", () => {
   assert.match(body, /weaver: no other active agents/);
   assert.match(body, /recently done:/);
   assert.match(body, /ship fixes/);
+});
+
+test("formatStatus colors without changing visible text", () => {
+  const active = { ...session("explicit:active123456@host.local"), intent: "ship colors" };
+  const data = { sessions: [active], completed: [], claims: [], activity: [], notes: [] };
+  const plain = formatStatus(data, 1000, {} as Store);
+  const colored = formatStatus(data, 1000, {} as Store, createTheme({ isTTY: true }));
+  assert.notEqual(colored, plain);
+  assert.equal(stripAnsi(colored), plain);
 });

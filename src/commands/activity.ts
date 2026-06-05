@@ -1,9 +1,11 @@
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { ago } from "../render.ts";
+import { themeFromCtx } from "../terminal/color.ts";
 
 export function run(ctx: Ctx): number {
   const rows = ctx.store.listRecentActivity(flagBool(ctx.args, "full") ? 200 : 20);
+  const theme = themeFromCtx(ctx);
 
   if (flagBool(ctx.args, "json")) {
     ctx.out(
@@ -21,13 +23,13 @@ export function run(ctx: Ctx): number {
   }
 
   if (!rows.length) {
-    ctx.out("no activity yet\n");
+    ctx.out(`${theme.dim("no activity yet")}\n`);
     return 0;
   }
   for (const a of rows) {
     const s = ctx.store.getSession(a.sessionId);
     ctx.out(
-      `${ago(ctx.now - a.ts).padStart(7)}  ${(s?.harness ?? "?").padEnd(11)} ${a.kind} ${a.target ?? ""}${a.summary ? ` — ${a.summary}` : ""}\n`,
+      `${theme.dim(ago(ctx.now - a.ts).padStart(7))}  ${theme.accent((s?.harness ?? "?").padEnd(11))} ${theme.kind(a.kind)} ${a.target ? theme.path(a.target) : ""}${a.summary ? ` ${theme.dim("—")} ${a.summary}` : ""}\n`,
     );
   }
   return 0;

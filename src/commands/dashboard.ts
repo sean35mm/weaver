@@ -4,6 +4,7 @@ import type { Ctx } from "../context.ts";
 import { startDashboard } from "../dashboard/server.ts";
 import { claimsByLiveHolders, formatStatus, type StatusData } from "../render.ts";
 import { DEFAULT_COMPLETED_SESSION_RECENT_MS } from "../store/reap.ts";
+import { themeFromCtx } from "../terminal/color.ts";
 import { CliError } from "../validate.ts";
 
 function waitForSignal(): Promise<void> {
@@ -42,6 +43,7 @@ export function parsePort(raw: string | undefined): number | undefined {
 
 export async function runDashboard(ctx: Ctx): Promise<number> {
   const port = parsePort(flagStr(ctx.args, "port"));
+  const theme = themeFromCtx(ctx);
 
   const server = await startDashboard({
     store: ctx.store,
@@ -49,16 +51,17 @@ export async function runDashboard(ctx: Ctx): Promise<number> {
     port,
     sessionTtlMs: ctx.config.sessionTtlMs,
   });
-  ctx.out(`weaver dashboard → ${server.url}   (Ctrl-C to stop)\n`);
+  ctx.out(`${theme.accent("weaver dashboard")} ${theme.dim("→")} ${theme.path(server.url)}   ${theme.dim("(Ctrl-C to stop)")}\n`);
   if (!flagBool(ctx.args, "no-open")) openBrowser(server.url);
 
   await waitForSignal();
   await server.close();
-  ctx.out("\n✓ dashboard stopped\n");
+  ctx.out(`\n${theme.success("✓ dashboard stopped")}\n`);
   return 0;
 }
 
 export async function runWatch(ctx: Ctx): Promise<number> {
+  const theme = themeFromCtx(ctx);
   const draw = (): void => {
     const now = Date.now();
     const sessions = ctx.store.listActiveSessions(now, ctx.config.sessionTtlMs);
@@ -70,9 +73,9 @@ export async function runWatch(ctx: Ctx): Promise<number> {
       notes: ctx.store.listNotes(8),
     };
     const empty = !data.sessions.length && !data.completed.length && !data.claims.length && !data.activity.length && !data.notes.length;
-    const body = empty ? "no activity\n" : formatStatus(data, now, ctx.store);
+    const body = empty ? `${theme.dim("no activity")}\n` : formatStatus(data, now, ctx.store, theme);
     process.stdout.write("\x1b[2J\x1b[H"); // clear screen + cursor home
-    process.stdout.write(`🧵 weaver watch — ${ctx.repo.repoId}   (Ctrl-C to stop)\n\n${body}`);
+    process.stdout.write(`🧵 ${theme.accent("weaver watch")} ${theme.dim("—")} ${theme.dim(ctx.repo.repoId)}   ${theme.dim("(Ctrl-C to stop)")}\n\n${body}`);
   };
 
   draw();

@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import type { ConflictResult } from "./conflict.ts";
 import type { ActivityRow, ClaimRow, NoteRow, SessionRow, Store } from "./store/store.ts";
+import { plainTheme, type TerminalTheme } from "./terminal/color.ts";
 
 /** Claims whose holder is currently live — so a crashed agent's claim doesn't look active. */
 export function claimsByLiveHolders(claims: ClaimRow[], live: SessionRow[]): ClaimRow[] {
@@ -30,16 +31,16 @@ function who(s: SessionRow): string {
   return `${s.harness}#${shortId(s.id)}`;
 }
 
-export function formatConflict(result: ConflictResult, now: number): string {
+export function formatConflict(result: ConflictResult, now: number, theme: TerminalTheme = plainTheme): string {
   const label = result.tier === "hard" ? "CONFLICT (active claim)" : result.tier === "soft" ? "HEADS-UP (recent activity)" : "stale";
-  const lines: string[] = [`⚠ ${label} on this area:`];
+  const lines: string[] = [`⚠ ${theme.severity(result.tier, label)} ${theme.dim("on this area:")}`];
   for (const h of result.hits) {
-    lines.push(`  • ${who(h.session)} — ${h.session.intent ?? "(no stated intent)"}`);
-    if (h.claim) lines.push(`      claim: ${h.claim.pattern}${h.claim.reason ? ` — ${h.claim.reason}` : ""} (${ago(now - h.claim.createdAt)})`);
-    if (h.activity) lines.push(`      recent: ${h.activity.kind} ${h.activity.target ?? ""}${h.activity.summary ? ` — ${h.activity.summary}` : ""} (${ago(now - h.activity.ts)})`);
-    lines.push(`      active ${ago(now - h.session.lastSeen)}`);
+    lines.push(`  ${theme.dim("•")} ${theme.accent(who(h.session))} ${theme.dim("—")} ${h.session.intent ?? theme.dim("(no stated intent)")}`);
+    if (h.claim) lines.push(`      ${theme.dim("claim:")} ${theme.path(h.claim.pattern)}${h.claim.reason ? ` ${theme.dim("—")} ${h.claim.reason}` : ""} ${theme.dim(`(${ago(now - h.claim.createdAt)})`)}`);
+    if (h.activity) lines.push(`      ${theme.dim("recent:")} ${theme.kind(h.activity.kind)} ${h.activity.target ? theme.path(h.activity.target) : ""}${h.activity.summary ? ` ${theme.dim("—")} ${h.activity.summary}` : ""} ${theme.dim(`(${ago(now - h.activity.ts)})`)}`);
+    lines.push(`      ${theme.dim(`active ${ago(now - h.session.lastSeen)}`)}`);
   }
-  lines.push("  → coordinate, work elsewhere, or ask the user how to split. Don't silently overwrite.");
+  lines.push(theme.dim("  → coordinate, work elsewhere, or ask the user how to split. Don't silently overwrite."));
   return lines.join("\n") + "\n";
 }
 
@@ -51,36 +52,36 @@ export interface StatusData {
   notes: NoteRow[];
 }
 
-export function formatStatus(d: StatusData, now: number, store: Store): string {
+export function formatStatus(d: StatusData, now: number, store: Store, theme: TerminalTheme = plainTheme): string {
   const out: string[] = [];
-  out.push(d.sessions.length ? `${d.sessions.length} other active session${d.sessions.length === 1 ? "" : "s"}` : "weaver: no other active agents");
+  out.push(d.sessions.length ? `${theme.accent(String(d.sessions.length))} other active session${d.sessions.length === 1 ? "" : "s"}` : `${theme.success("weaver:")} no other active agents`);
   for (const s of d.sessions) {
-    out.push(`  ${who(s).padEnd(22)} ${s.intent ?? "(no intent)"}   ${ago(now - s.lastSeen)}`);
+    out.push(`  ${theme.accent(who(s).padEnd(22))} ${s.intent ?? theme.dim("(no intent)")}   ${theme.dim(ago(now - s.lastSeen))}`);
   }
   if (d.completed.length) {
-    out.push("recently done:");
+    out.push(theme.heading("recently done:"));
     for (const s of d.completed) {
-      out.push(`  ${who(s).padEnd(22)} ${s.intent ?? "(no intent)"}   ${ago(now - (s.endedAt ?? s.lastSeen))}`);
+      out.push(`  ${theme.dim(who(s).padEnd(22))} ${s.intent ?? theme.dim("(no intent)")}   ${theme.dim(ago(now - (s.endedAt ?? s.lastSeen)))}`);
     }
   }
   if (d.claims.length) {
-    out.push("claims:");
+    out.push(theme.heading("claims:"));
     for (const c of d.claims) {
       const holder = store.getSession(c.sessionId);
-      out.push(`  ${c.pattern.padEnd(24)} ${holder ? who(holder) : "?"}${c.reason ? ` — ${c.reason}` : ""}`);
+      out.push(`  ${theme.path(c.pattern.padEnd(24))} ${holder ? theme.accent(who(holder)) : theme.dim("?")}${c.reason ? ` ${theme.dim("—")} ${c.reason}` : ""}`);
     }
   }
   if (d.activity.length) {
-    out.push("recent:");
+    out.push(theme.heading("recent:"));
     for (const a of d.activity) {
       const holder = store.getSession(a.sessionId);
-      out.push(`  ${ago(now - a.ts).padStart(7)}  ${(holder?.harness ?? "?").padEnd(11)} ${a.kind} ${a.target ?? ""}${a.summary ? ` — ${a.summary}` : ""}`);
+      out.push(`  ${theme.dim(ago(now - a.ts).padStart(7))}  ${theme.accent((holder?.harness ?? "?").padEnd(11))} ${theme.kind(a.kind)} ${a.target ? theme.path(a.target) : ""}${a.summary ? ` ${theme.dim("—")} ${a.summary}` : ""}`);
     }
   }
   const notes = d.notes;
   if (notes.length) {
-    out.push(`notes (${notes.length}):`);
-    for (const n of notes) out.push(`  ${n.pinned ? "📌" : "•"} ${n.body}${n.path ? ` [${n.path}]` : ""}`);
+    out.push(theme.heading(`notes (${notes.length}):`));
+    for (const n of notes) out.push(`  ${n.pinned ? theme.pin("📌") : theme.dim("•")} ${n.body}${n.path ? ` ${theme.dim("[")}${theme.path(n.path)}${theme.dim("]")}` : ""}`);
   }
   return out.join("\n") + "\n";
 }
