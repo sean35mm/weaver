@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.6.0](https://github.com/sean35mm/weaver/compare/v0.5.1...v0.6.0) (2026-06-05)
+
+
+### Features
+
+* add bounded preflight checks ([c03ccfc](https://github.com/sean35mm/weaver/commit/c03ccfc3035522538f3ff46cbcb578441a22ef52))
+
 ## [0.5.1](https://github.com/sean35mm/weaver/compare/v0.5.0...v0.5.1) (2026-06-02)
 
 
