@@ -23,6 +23,11 @@ $ weaver status
 ⚠ src/auth/** claimed by claude-code — coordinate or work elsewhere
 ```
 
+**Who runs what:** Weaver is built to be called *by your agents*. `weaver init` drops the
+commands into `CLAUDE.md` / `AGENTS.md`, and they announce intent, claim areas, and leave notes
+on their own as they work. As a human you mostly **watch** — `weaver status`, `weaver dashboard`,
+or `weaver watch` — and step in only when there's a conflict to resolve.
+
 ## Install
 
 ```sh

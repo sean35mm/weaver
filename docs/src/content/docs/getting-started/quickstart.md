@@ -39,6 +39,12 @@ WEAVER_SESSION=bob weaver check src/auth/login.ts   # ⚠ conflict, exit 1
 ```
 :::
 
+:::tip[Who types what]
+`weaver init` (step 1) is the only thing you run by hand. Your agents run `task`, `claim`,
+`note`, and `check` themselves. Day to day, you just run `status`, `watch`, or `dashboard` to
+see what they're doing.
+:::
+
 ## 3. Watch the commons live
 
 ```sh

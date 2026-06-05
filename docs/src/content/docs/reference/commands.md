@@ -11,6 +11,9 @@ only — they never make you appear as a participant), and **lifecycle/maintenan
 
 ## Agent commands
 
+Run automatically *by your agents* — the `weaver init` block tells them how. You'll rarely type
+these yourself, except to simulate an agent.
+
 ### `weaver task "<intent>"`
 Announce what you're working on. Sets your session's intent.
 ```sh
@@ -44,6 +47,8 @@ weaver log edit src/auth/login.ts "extracted refreshToken into AuthService"
 End your session and release its claims.
 
 ## Observer commands
+
+The commands **you** run as a human. Read-only — they never register you as a participant.
 
 ### `weaver status [--json] [--full]`
 The current picture: other live sessions, active claims, recent activity, and notes. **Silent
