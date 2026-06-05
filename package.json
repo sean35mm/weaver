@@ -21,16 +21,12 @@
     "codex",
     "opencode"
   ],
-  "bin": {
-    "weaver": "./dist/cli.js"
-  },
   "engines": {
     "node": ">=22.5.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build:local": "node scripts/write-version.ts && bun build src/cli.ts --compile --outfile $HOME/.local/bin/weaver",
     "demo": "node scripts/demo.ts",
-    "prebuild": "node scripts/write-version.ts",
     "test": "node --test test/*.test.ts test/integration/*.test.ts",
     "test:bun": "bun test test/",
     "typecheck": "tsc --noEmit"
