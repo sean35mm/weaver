@@ -7,6 +7,7 @@ import { hasBroadClaim, runPreflight, type PreflightResult, type PreflightSeveri
 import type { ConflictHit } from "../conflict.ts";
 import type { SessionRow } from "../store/store.ts";
 import { themeFromCtx, type TerminalTheme } from "../terminal/color.ts";
+import { terminalWidth, wrapWithPrefix } from "../terminal/format.ts";
 import { CliError } from "../validate.ts";
 
 type Source = "paths" | "staged" | "upstream" | "base";
@@ -23,6 +24,7 @@ interface RenderOpts {
   source: Source;
   failOn: FailOn;
   full: boolean;
+  width?: number;
 }
 
 function git(cwd: string, args: string[], message: string): string {
@@ -130,18 +132,19 @@ function truncatedCount(items: unknown[], full: boolean): number {
   return full ? 0 : Math.max(0, items.length - OUTPUT_LIMIT);
 }
 
-function formatHuman(result: PreflightResult, opts: RenderOpts, now: number, theme: TerminalTheme): string {
+export function formatHuman(result: PreflightResult, opts: RenderOpts, now: number, theme: TerminalTheme): string {
+  const width = terminalWidth(opts.width);
   const lines: string[] = [];
   const label = result.severity === "hard" ? "hard overlap" : result.severity === "soft" ? "soft overlap" : result.severity === "info" ? "info" : "no relevant overlaps";
   lines.push(`${theme.accent("weaver preflight:")} ${theme.severity(result.severity, label)} ${theme.dim("before")} ${opts.operation}`);
   lines.push(`${theme.dim("checked")} ${theme.accent(String(result.paths.length))} ${theme.dim(`path${result.paths.length === 1 ? "" : "s"} from ${opts.source}`)}`);
 
-  for (const warning of result.warnings) lines.push(`${theme.warn("warning:")} ${warning}`);
+  for (const warning of result.warnings) lines.push(...wrapWithPrefix(`${theme.warn("warning:")} `, warning, width));
 
   for (const conflict of capped(result.conflicts, opts.full)) {
     lines.push("");
     lines.push(theme.path(conflict.path));
-    for (const hit of conflict.hits) lines.push(`  ${theme.severity(conflict.tier, conflict.tier)}: ${hitSummary(hit, now, theme)}`);
+    for (const hit of conflict.hits) lines.push(...wrapWithPrefix(`  ${theme.severity(conflict.tier, conflict.tier)}: `, hitSummary(hit, now, theme), width, "    "));
   }
   if (!opts.full && result.conflicts.length > 20) lines.push(theme.dim(`... ${result.conflicts.length - 20} more conflicting path(s); rerun with --full`));
 
@@ -154,14 +157,14 @@ function formatHuman(result: PreflightResult, opts: RenderOpts, now: number, the
 
   if (result.unrelatedSessions.length) {
     lines.push("");
-    lines.push(`${theme.accent(String(result.unrelatedSessions.length))} other active session${result.unrelatedSessions.length === 1 ? "" : "s"} ${theme.dim("do not overlap checked paths.")}`);
+    lines.push(...wrapWithPrefix(`${theme.accent(String(result.unrelatedSessions.length))} `, `other active session${result.unrelatedSessions.length === 1 ? "" : "s"} ${theme.dim("do not overlap checked paths.")}`, width));
   }
 
   lines.push("");
   if (result.recommendation === "ask-user") {
-    lines.push(`${theme.warn("Recommendation:")} ask the user whether to continue, wait briefly, or coordinate first. ${theme.dim("Do not silently wait for another session.")}`);
+    lines.push(...wrapWithPrefix(`${theme.warn("Recommendation:")} `, `ask the user whether to continue, wait briefly, or coordinate first. ${theme.dim("Do not silently wait for another session.")}`, width));
   } else {
-    lines.push(`${theme.success("Recommendation:")} continue; no relevant active overlap was found.`);
+    lines.push(...wrapWithPrefix(`${theme.success("Recommendation:")} `, "continue; no relevant active overlap was found.", width));
   }
   lines.push(theme.dim(`exit policy: fail-on=${opts.failOn}`));
   return lines.join("\n") + "\n";

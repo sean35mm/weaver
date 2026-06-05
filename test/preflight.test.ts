@@ -4,12 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { parseArgs } from "../src/args.ts";
-import { parseNameStatus, run as runCommand } from "../src/commands/preflight.ts";
+import { formatHuman, parseNameStatus, run as runCommand } from "../src/commands/preflight.ts";
 import type { Ctx } from "../src/context.ts";
 import { hasBroadClaim, runPreflight } from "../src/preflight.ts";
 import { openStore } from "../src/store/open.ts";
 import type { IdSource, Store } from "../src/store/store.ts";
-import { stripAnsi } from "../src/terminal/color.ts";
+import { createTheme, stripAnsi } from "../src/terminal/color.ts";
 import { CliError } from "../src/validate.ts";
 
 function tmpDb(): string {
@@ -236,6 +236,31 @@ test("preflight json does not include ansi even when color is forced", async () 
   assert.equal(runCommand(ctx), 0);
   assert.equal(stripAnsi(output), output);
   assert.equal(JSON.parse(output).severity, "clear");
+  s.close();
+});
+
+test("preflight human output wraps long hit summaries", async () => {
+  const s = await store();
+  s.upsertSession({ id: "other", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
+  s.addClaim({
+    sessionId: "other",
+    pattern: "src/auth/**",
+    reason: "reviewing the authentication flow and coordinating a potentially overlapping terminal rendering change",
+    createdAt: NOW,
+    expiresAt: NOW + 60_000,
+  });
+  const result = runPreflight({ store: s, paths: ["src/auth/login.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const opts = { operation: "commit", source: "paths" as const, failOn: "never" as const, full: true, width: 64 };
+
+  const plain = formatHuman(result, opts, NOW + 1000, createTheme({ isTTY: false }));
+  const colored = formatHuman(result, opts, NOW + 1000, createTheme({ isTTY: true }));
+  const lines = plain.trimEnd().split("\n");
+  const hitLine = lines.findIndex((line) => line.includes("hard:"));
+
+  assert.equal(stripAnsi(colored), plain);
+  assert.notEqual(hitLine, -1);
+  assert.equal(lines[hitLine + 1]?.startsWith("    "), true);
+  assert.equal(lines.every((line) => line.length <= 64), true);
   s.close();
 });
 

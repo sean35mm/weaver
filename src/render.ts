@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { ConflictResult } from "./conflict.ts";
 import type { ActivityRow, ClaimRow, NoteRow, SessionRow, Store } from "./store/store.ts";
 import { plainTheme, type TerminalTheme } from "./terminal/color.ts";
+import { padEndVisible, terminalWidth, truncateVisible, visibleLength, wrapWithPrefix } from "./terminal/format.ts";
 
 /** Claims whose holder is currently live — so a crashed agent's claim doesn't look active. */
 export function claimsByLiveHolders(claims: ClaimRow[], live: SessionRow[]): ClaimRow[] {
@@ -27,20 +28,64 @@ export function shortId(key: string): string {
   return createHash("sha256").update(key).digest("hex").slice(0, 6);
 }
 
+interface FormatOptions {
+  width?: number;
+}
+
+const NOTE_WIDTH = 100;
+const NOTE_CONTINUATION_INDENT = "      ";
+
 function who(s: SessionRow): string {
   return `${s.harness}#${shortId(s.id)}`;
 }
 
-export function formatConflict(result: ConflictResult, now: number, theme: TerminalTheme = plainTheme): string {
+function appendWrapped(lines: string[], prefix: string, text: string, width: number, continuationIndent?: string): void {
+  lines.push(...wrapWithPrefix(prefix, text, width, continuationIndent));
+}
+
+function pushSection(lines: string[], heading: string): void {
+  if (lines.length && lines.at(-1) !== "") lines.push("");
+  lines.push(heading);
+}
+
+function compactRow(label: string, body: string, suffix: string, width: number): string {
+  const maxBody = Math.max(8, width - visibleLength(label) - visibleLength(suffix));
+  return `${label}${truncateVisible(body, maxBody)}${suffix}`;
+}
+
+function truncateWithSuffix(text: string, width: number, suffix: string): string {
+  if (visibleLength(text) <= width) return text;
+  const suffixText = ` ${suffix}`;
+  const suffixWidth = visibleLength(suffixText);
+  if (suffixWidth >= width - 8) return truncateVisible(text, width);
+  return `${truncateVisible(text, width - suffixWidth)}${suffixText}`;
+}
+
+export function formatConflict(result: ConflictResult, now: number, theme: TerminalTheme = plainTheme, opts: FormatOptions = {}): string {
+  const width = terminalWidth(opts.width);
   const label = result.tier === "hard" ? "CONFLICT (active claim)" : result.tier === "soft" ? "HEADS-UP (recent activity)" : "stale";
   const lines: string[] = [`⚠ ${theme.severity(result.tier, label)} ${theme.dim("on this area:")}`];
   for (const h of result.hits) {
-    lines.push(`  ${theme.dim("•")} ${theme.accent(who(h.session))} ${theme.dim("—")} ${h.session.intent ?? theme.dim("(no stated intent)")}`);
-    if (h.claim) lines.push(`      ${theme.dim("claim:")} ${theme.path(h.claim.pattern)}${h.claim.reason ? ` ${theme.dim("—")} ${h.claim.reason}` : ""} ${theme.dim(`(${ago(now - h.claim.createdAt)})`)}`);
-    if (h.activity) lines.push(`      ${theme.dim("recent:")} ${theme.kind(h.activity.kind)} ${h.activity.target ? theme.path(h.activity.target) : ""}${h.activity.summary ? ` ${theme.dim("—")} ${h.activity.summary}` : ""} ${theme.dim(`(${ago(now - h.activity.ts)})`)}`);
+    appendWrapped(lines, `  ${theme.dim("•")} ${theme.accent(who(h.session))} ${theme.dim("—")} `, h.session.intent ?? theme.dim("(no stated intent)"), width, "      ");
+    if (h.claim) {
+      appendWrapped(
+        lines,
+        `      ${theme.dim("claim:")} `,
+        `${theme.path(h.claim.pattern)}${h.claim.reason ? ` ${theme.dim("—")} ${h.claim.reason}` : ""} ${theme.dim(`(${ago(now - h.claim.createdAt)})`)}`,
+        width,
+      );
+    }
+    if (h.activity) {
+      appendWrapped(
+        lines,
+        `      ${theme.dim("recent:")} `,
+        `${theme.kind(h.activity.kind)} ${h.activity.target ? theme.path(h.activity.target) : ""}${h.activity.summary ? ` ${theme.dim("—")} ${h.activity.summary}` : ""} ${theme.dim(`(${ago(now - h.activity.ts)})`)}`,
+        width,
+      );
+    }
     lines.push(`      ${theme.dim(`active ${ago(now - h.session.lastSeen)}`)}`);
   }
-  lines.push(theme.dim("  → coordinate, work elsewhere, or ask the user how to split. Don't silently overwrite."));
+  appendWrapped(lines, theme.dim("  → "), theme.dim("coordinate, work elsewhere, or ask the user how to split. Don't silently overwrite."), width);
   return lines.join("\n") + "\n";
 }
 
@@ -52,36 +97,58 @@ export interface StatusData {
   notes: NoteRow[];
 }
 
-export function formatStatus(d: StatusData, now: number, store: Store, theme: TerminalTheme = plainTheme): string {
+export function formatStatus(d: StatusData, now: number, store: Store, theme: TerminalTheme = plainTheme, opts: FormatOptions = {}): string {
+  const width = terminalWidth(opts.width);
   const out: string[] = [];
   out.push(d.sessions.length ? `${theme.accent(String(d.sessions.length))} other active session${d.sessions.length === 1 ? "" : "s"}` : `${theme.success("weaver:")} no other active agents`);
   for (const s of d.sessions) {
-    out.push(`  ${theme.accent(who(s).padEnd(22))} ${s.intent ?? theme.dim("(no intent)")}   ${theme.dim(ago(now - s.lastSeen))}`);
+    const label = `  ${padEndVisible(theme.accent(who(s)), 22)} `;
+    out.push(compactRow(label, s.intent ?? theme.dim("(no intent)"), `   ${theme.dim(ago(now - s.lastSeen))}`, width));
   }
-  if (d.completed.length) {
-    out.push(theme.heading("recently done:"));
-    for (const s of d.completed) {
-      out.push(`  ${theme.dim(who(s).padEnd(22))} ${s.intent ?? theme.dim("(no intent)")}   ${theme.dim(ago(now - (s.endedAt ?? s.lastSeen)))}`);
+  if (d.activity.length) {
+    pushSection(out, theme.heading("recent:"));
+    for (const a of d.activity) {
+      const holder = store.getSession(a.sessionId);
+      const prefix = `  ${theme.dim(ago(now - a.ts).padStart(7))}  ${padEndVisible(theme.accent(holder?.harness ?? "?"), 11)} ${theme.kind(a.kind)} `;
+      const body = `${a.target ? theme.path(a.target) : ""}${a.summary ? `${a.target ? " " : ""}${theme.dim("—")} ${a.summary}` : ""}`;
+      if (a.kind === "note") {
+        const maxBody = Math.max(8, width - visibleLength(prefix));
+        out.push(body ? `${prefix}${truncateWithSuffix(body, maxBody, theme.dim("(see notes)"))}` : prefix.trimEnd());
+        continue;
+      }
+      appendWrapped(out, prefix, body, width);
     }
   }
   if (d.claims.length) {
-    out.push(theme.heading("claims:"));
+    pushSection(out, theme.heading("claims:"));
     for (const c of d.claims) {
       const holder = store.getSession(c.sessionId);
-      out.push(`  ${theme.path(c.pattern.padEnd(24))} ${holder ? theme.accent(who(holder)) : theme.dim("?")}${c.reason ? ` ${theme.dim("—")} ${c.reason}` : ""}`);
+      const base = `  ${padEndVisible(theme.path(c.pattern), 24)} ${holder ? theme.accent(who(holder)) : theme.dim("?")}`;
+      if (c.reason) appendWrapped(out, `${base} ${theme.dim("—")} `, c.reason, width);
+      else out.push(base);
     }
   }
-  if (d.activity.length) {
-    out.push(theme.heading("recent:"));
-    for (const a of d.activity) {
-      const holder = store.getSession(a.sessionId);
-      out.push(`  ${theme.dim(ago(now - a.ts).padStart(7))}  ${theme.accent((holder?.harness ?? "?").padEnd(11))} ${theme.kind(a.kind)} ${a.target ? theme.path(a.target) : ""}${a.summary ? ` ${theme.dim("—")} ${a.summary}` : ""}`);
+  if (d.completed.length) {
+    pushSection(out, theme.heading("recently done:"));
+    for (const s of d.completed) {
+      const label = `  ${padEndVisible(theme.dim(who(s)), 22)} `;
+      out.push(compactRow(label, s.intent ?? theme.dim("(no intent)"), `   ${theme.dim(ago(now - (s.endedAt ?? s.lastSeen)))}`, width));
     }
   }
   const notes = d.notes;
   if (notes.length) {
-    out.push(theme.heading(`notes (${notes.length}):`));
-    for (const n of notes) out.push(`  ${n.pinned ? theme.pin("📌") : theme.dim("•")} ${n.body}${n.path ? ` ${theme.dim("[")}${theme.path(n.path)}${theme.dim("]")}` : ""}`);
+    pushSection(out, theme.heading(`notes (${notes.length}):`));
+    const noteWidth = Math.min(width, NOTE_WIDTH);
+    const rendered = notes.map((n) => {
+      const prefix = `  ${n.pinned ? theme.pin("📌") : theme.dim("•")} `;
+      const body = `${n.body}${n.path ? ` ${theme.dim("[")}${theme.path(n.path)}${theme.dim("]")}` : ""}`;
+      return wrapWithPrefix(prefix, body, noteWidth, NOTE_CONTINUATION_INDENT);
+    });
+    const spaceNotes = rendered.some((lines) => lines.length > 1);
+    for (let i = 0; i < rendered.length; i++) {
+      if (i > 0 && spaceNotes) out.push("");
+      out.push(...rendered[i]!);
+    }
   }
   return out.join("\n") + "\n";
 }

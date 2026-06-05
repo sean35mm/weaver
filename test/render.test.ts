@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ago, claimsByLiveHolders, formatStatus, statusJson } from "../src/render.ts";
-import type { ClaimRow, SessionRow, Store } from "../src/store/store.ts";
-import { createTheme, stripAnsi } from "../src/terminal/color.ts";
+import type { ActivityRow, ClaimRow, NoteRow, SessionRow, Store } from "../src/store/store.ts";
+import { createTheme, plainTheme, stripAnsi } from "../src/terminal/color.ts";
 
 const session = (id: string): SessionRow => ({
   id,
@@ -23,6 +23,15 @@ const claim = (sessionId: string): ClaimRow => ({
   createdAt: 0,
   expiresAt: 0,
   releasedAt: null,
+});
+const activity = (sessionId: string): ActivityRow => ({
+  id: 1,
+  sessionId,
+  ts: 900,
+  kind: "note",
+  target: null,
+  summary: "recent note",
+  meta: null,
 });
 
 test("claimsByLiveHolders drops claims from non-live holders", () => {
@@ -70,4 +79,115 @@ test("formatStatus colors without changing visible text", () => {
   const colored = formatStatus(data, 1000, {} as Store, createTheme({ isTTY: true }));
   assert.notEqual(colored, plain);
   assert.equal(stripAnsi(colored), plain);
+});
+
+test("formatStatus truncates long session intents to the configured width", () => {
+  const active = { ...session("explicit:active123456@host.local"), intent: "ship a very long terminal rendering polish change with many details" };
+  const body = formatStatus({ sessions: [active], completed: [], claims: [], activity: [], notes: [] }, 1000, {} as Store, plainTheme, { width: 54 });
+  const row = body.trimEnd().split("\n")[1] ?? "";
+
+  assert.equal(row.length <= 54, true);
+  assert.match(row, /\.\.\.   1s ago$/);
+});
+
+test("formatStatus shows recent activity before recently completed sessions", () => {
+  const holder = session("explicit:active123456@host.local");
+  const done = { ...session("explicit:done123456@host.local"), intent: "ship fixes", endedAt: 900 };
+  const body = formatStatus(
+    { sessions: [], completed: [done], claims: [], activity: [activity(holder.id)], notes: [] },
+    1000,
+    { getSession: (id) => (id === holder.id ? holder : undefined) } as Store,
+  );
+
+  assert.equal(body.indexOf("recent:") < body.indexOf("recently done:"), true);
+});
+
+test("formatStatus truncates recent note activity but keeps full note body", () => {
+  const holder = session("explicit:active123456@host.local");
+  const longBody = "one two three four five six seven eight nine ten eleven twelve unique-tail";
+  const note: NoteRow = {
+    id: 1,
+    sessionId: holder.id,
+    harness: holder.harness,
+    body: longBody,
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: 0,
+    supersedes: null,
+  };
+  const recent = { ...activity(holder.id), summary: longBody };
+  const body = formatStatus(
+    { sessions: [], completed: [], claims: [], activity: [recent], notes: [note] },
+    1000,
+    { getSession: (id) => (id === holder.id ? holder : undefined) } as Store,
+    plainTheme,
+    { width: 64 },
+  );
+  const lines = body.trimEnd().split("\n");
+  const recentLine = lines.find((line) => line.includes(" note ")) ?? "";
+
+  assert.match(recentLine, /\.\.\. \(see notes\)$/);
+  assert.equal(recentLine.includes("unique-tail"), false);
+  assert.equal(recentLine.length <= 64, true);
+  assert.equal(body.includes("unique-tail"), true);
+});
+
+test("formatStatus wraps notes with continuation indentation", () => {
+  const note: NoteRow = {
+    id: 1,
+    sessionId: null,
+    harness: null,
+    body: "one two three four five six seven eight nine ten eleven twelve",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: 0,
+    supersedes: null,
+  };
+  const body = formatStatus({ sessions: [], completed: [], claims: [], activity: [], notes: [note] }, 1000, {} as Store, plainTheme, { width: 40 });
+  const lines = body.trimEnd().split("\n");
+
+  assert.equal(lines[3], "  • one two three four five six seven");
+  assert.equal(lines[4], "      eight nine ten eleven twelve");
+});
+
+test("formatStatus caps note width on wide terminals", () => {
+  const note: NoteRow = {
+    id: 1,
+    sessionId: null,
+    harness: null,
+    body: "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: 0,
+    supersedes: null,
+  };
+  const body = formatStatus({ sessions: [], completed: [], claims: [], activity: [], notes: [note] }, 1000, {} as Store, plainTheme, { width: 140 });
+  const noteLines = body.trimEnd().split("\n").slice(3);
+
+  assert.equal(noteLines.length > 1, true);
+  assert.equal(noteLines.every((line) => line.length <= 100), true);
+  assert.equal(noteLines[1]?.startsWith("      "), true);
+});
+
+test("formatStatus spaces wrapped notes apart", () => {
+  const first: NoteRow = {
+    id: 1,
+    sessionId: null,
+    harness: null,
+    body: "one two three four five six seven eight nine ten eleven twelve",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: 0,
+    supersedes: null,
+  };
+  const second = { ...first, id: 2, body: "short note" };
+  const body = formatStatus({ sessions: [], completed: [], claims: [], activity: [], notes: [first, second] }, 1000, {} as Store, plainTheme, { width: 40 });
+  const lines = body.trimEnd().split("\n");
+
+  assert.equal(lines[5], "");
+  assert.equal(lines[6], "  • short note");
 });
