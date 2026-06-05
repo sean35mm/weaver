@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.8.0](https://github.com/sean35mm/weaver/compare/v0.7.0...v0.8.0) (2026-06-05)
+
+
+### Features
+
+* improve terminal output layout ([a96ef65](https://github.com/sean35mm/weaver/commit/a96ef654fae7bf63a89e95296af0ad8297a892a9))
+
 ## [0.7.0](https://github.com/sean35mm/weaver/compare/v0.6.0...v0.7.0) (2026-06-05)
 
 
