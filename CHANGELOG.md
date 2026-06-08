@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.9.0](https://github.com/sean35mm/weaver/compare/v0.8.0...v0.9.0) (2026-06-08)
+
+
+### Features
+
+* add global init instruction scope ([0b7312b](https://github.com/sean35mm/weaver/commit/0b7312bb536912b7975f31d59aed86b6a27acbd1))
+
 ## [0.8.0](https://github.com/sean35mm/weaver/compare/v0.7.0...v0.8.0) (2026-06-05)
 
 
