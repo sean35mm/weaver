@@ -15,9 +15,14 @@ From the root of any git repo:
 weaver init
 ```
 
-`init` creates a local store for the repo and appends a short instruction block to your
-`CLAUDE.md` and `AGENTS.md` so any agent that reads them knows the Weaver commands. That's the
-whole setup — **you don't run anything else by hand.**
+`init` creates a local store for the repo and asks where to append a short instruction block:
+project files (`./CLAUDE.md`, `./AGENTS.md`) or global files (`~/.claude/CLAUDE.md`,
+`~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`). Project files are the first/default choice.
+For scripts, use `weaver init --project` or `weaver init --global`. That's the whole setup — **you
+don't run anything else by hand.**
+
+Choose project files for one repo. Choose global files when you want your agents to use Weaver in
+every repo where they read global instructions.
 
 ## 2. Use your agents normally
 
@@ -66,7 +71,8 @@ node scripts/demo.ts        # seeds a throwaway store and prints how to view it
 ```sh
 weaver disable      # pause agent writes for this repo
 weaver enable       # resume
-weaver deinit       # remove the instruction block (add --purge to delete the store)
+weaver deinit       # remove the project instruction block (add --purge to delete the store)
+weaver deinit --global  # remove the global instruction block
 ```
 
 Next: learn [how it works](/weaver/concepts/how-it-works/) or jump to the

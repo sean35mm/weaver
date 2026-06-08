@@ -42,8 +42,8 @@ weaver uninstall --keep-data  # remove the binary but keep your stores
 weaver uninstall --yes        # skip the confirmation prompt
 ```
 
-Any `weaver` blocks left in a repo's `CLAUDE.md` / `AGENTS.md` are self-disabling; run
-`weaver deinit` in a repo first if you want them removed.
+Any `weaver` blocks left in project or global instruction files are self-disabling; run
+`weaver deinit` or `weaver deinit --global` first if you want them removed.
 
 ## Running from source (contributors)
 

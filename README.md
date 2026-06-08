@@ -43,8 +43,13 @@ weaver --version
 weaver init
 ```
 
-`weaver init` enables the current git repo by creating its local store and adding the agent
-protocol to `CLAUDE.md` and `AGENTS.md`. After that, your agents can coordinate on their own.
+`weaver init` enables the current git repo by creating its local store and asking where to install
+the agent protocol: project files (`CLAUDE.md` and `AGENTS.md`) or global files. Use `--project`
+or `--global` to choose explicitly; non-interactive runs default to project files. After that,
+your agents can coordinate on their own.
+
+Project instructions apply only to this checkout. Global instructions apply in every repo where
+your agents read their global instruction files.
 
 Update with `weaver upgrade`; remove with `weaver uninstall`.
 
@@ -170,9 +175,9 @@ Human commands:
   weaver doctor                          show identity, repo, store, and runtime diagnostics
 
 Lifecycle commands:
-  weaver init                            enable Weaver in this repo
+  weaver init [--project|--global]       enable Weaver in this repo
   weaver disable / enable                pause or resume agent writes
-  weaver deinit [--purge]                remove instructions, optionally delete the store
+  weaver deinit [--project|--global] [--purge]  remove instructions, optionally delete the store
   weaver config                          view or tune TTLs
   weaver upgrade                         update the standalone binary
   weaver uninstall                       remove the binary

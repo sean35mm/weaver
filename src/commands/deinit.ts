@@ -1,22 +1,25 @@
 import fs from "node:fs";
-import path from "node:path";
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { removeBlock } from "../instructions/block.ts";
+import { instructionTargets, scopeFromFlags } from "../instructions/targets.ts";
 import { storePathForRepo } from "../store/location.ts";
 
-const TARGET_FILES = ["CLAUDE.md", "AGENTS.md"];
-
 export function run(ctx: Ctx): number {
+  const flagged = scopeFromFlags(ctx);
+  if (flagged === "conflict") {
+    ctx.err("weaver: choose either --project or --global, not both.\n");
+    return 1;
+  }
+  const scope = flagged ?? "project";
   const cleaned: string[] = [];
-  for (const name of TARGET_FILES) {
-    const file = path.join(ctx.repo.root, name);
-    if (!fs.existsSync(file)) continue;
-    const existing = fs.readFileSync(file, "utf8");
+  for (const target of instructionTargets(ctx, scope)) {
+    if (!fs.existsSync(target.file)) continue;
+    const existing = fs.readFileSync(target.file, "utf8");
     const next = removeBlock(existing);
     if (next !== existing) {
-      fs.writeFileSync(file, next);
-      cleaned.push(name);
+      fs.writeFileSync(target.file, next);
+      cleaned.push(target.label);
     }
   }
   ctx.out(`✓ removed Weaver instructions${cleaned.length ? ` from ${cleaned.join(", ")}` : " (none found)"}\n`);

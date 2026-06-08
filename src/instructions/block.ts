@@ -1,5 +1,5 @@
 /**
- * The fenced instruction block injected into CLAUDE.md / AGENTS.md. In the CLI-first model
+ * The fenced instruction block injected into agent instruction files. In the CLI-first model
  * this text is the activation mechanism, so it's kept tight and is the main tuning target.
  * Inject/remove are idempotent via the start/end markers.
  */
@@ -7,7 +7,7 @@
 export const BLOCK_START_MARKER = "<!-- weaver:start";
 export const BLOCK_END_MARKER = "<!-- weaver:end -->";
 
-export const INSTRUCTION_BLOCK = `<!-- weaver:start — managed by Weaver; re-run \`weaver init\` to update, \`weaver deinit\` to remove -->
+export const INSTRUCTION_BLOCK = `<!-- weaver:start — managed by Weaver; re-run \`weaver init\` to update; use \`weaver deinit\` for project files or \`weaver deinit --global\` for global files -->
 ## Weaver — shared agent context
 
 Other agents may be working in this repo right now. Weaver is a local CLI that keeps you

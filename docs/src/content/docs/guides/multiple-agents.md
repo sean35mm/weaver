@@ -35,8 +35,8 @@ session-mutating commands fail with a concise hint to set `WEAVER_SESSION`.
 ## Supported harnesses
 
 Anything that can run a shell command works. First-class, tested targets: **Claude Code,
-OpenCode, Codex, Pi**. `weaver init` writes the instruction block to both `CLAUDE.md` and
-`AGENTS.md` (the emerging cross-tool standard), which covers most others for free.
+OpenCode, Codex, Pi**. `weaver init` can write the instruction block to project files
+(`CLAUDE.md`, `AGENTS.md`) or global files for Claude Code, OpenCode, and Codex.
 
 :::tip[Sandboxed harnesses]
 Codex runs tool commands in a sandbox with no visible TTY or process ancestry — which is

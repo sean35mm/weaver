@@ -89,16 +89,21 @@ state, active session count.
 
 ## Lifecycle & maintenance
 
-### `weaver init`
-Enable Weaver in the current repo: create the store and inject the instruction block into
-`CLAUDE.md` and `AGENTS.md`. Idempotent.
+### `weaver init [--project|--global]`
+Enable Weaver in the current repo: create the store and inject the instruction block into either
+project files (`./CLAUDE.md`, `./AGENTS.md`) or global files (`~/.claude/CLAUDE.md`,
+`~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`). On a TTY, `init` prompts with project files
+as the first/default choice. Non-interactive runs default to project files. `--project` and
+`--global` are mutually exclusive. Global instructions apply in every repo where your agents read
+their global instruction files.
 
 ### `weaver disable` / `weaver enable`
 Pause / resume agent writes for this repo. While disabled, mutating commands no-op quietly
 (reads and `done` still work).
 
-### `weaver deinit [--purge]`
-Remove the instruction block from `CLAUDE.md` / `AGENTS.md`. `--purge` also deletes the store.
+### `weaver deinit [--project|--global] [--purge]`
+Remove the instruction block from project files by default, or from global files with `--global`.
+`--purge` also deletes the current repo's store.
 
 ### `weaver config [<key> [<seconds>]]`
 View or set tunable TTLs. See [Configuration](/weaver/guides/configuration/).
@@ -119,6 +124,8 @@ Update the installed binary to the latest release (`--check` only checks). See
 | `--upstream` | `preflight` | check `@{upstream}...HEAD` paths |
 | `--base` | `preflight` | check `<ref>...HEAD` paths |
 | `--fail-on` | `preflight` | exit threshold: `soft`, `hard`, or `never` |
+| `--project` | `init`, `deinit` | use project instruction files |
+| `--global` | `init`, `deinit` | use global instruction files |
 | `--no-touch` | `check` | do not refresh heartbeat |
 | `--reason` | `claim` | why you're claiming the area |
 | `--ttl` | `claim` | claim lifetime (`90s`, `30m`, `2h`, `1d`) |

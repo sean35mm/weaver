@@ -71,7 +71,7 @@ export async function run(ctx: Ctx): Promise<number> {
     return 1;
   }
 
-  ctx.out("\nweaver uninstalled. Any `weaver` blocks left in CLAUDE.md / AGENTS.md are\n");
-  ctx.out("self-disabling; run `weaver deinit` in a repo beforehand if you want them gone.\n");
+  ctx.out("\nweaver uninstalled. Any `weaver` blocks left in project or global instruction files are\n");
+  ctx.out("self-disabling; run `weaver deinit` or `weaver deinit --global` beforehand if you want them gone.\n");
   return 0;
 }

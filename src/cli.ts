@@ -43,6 +43,8 @@ const BOOLEAN_FLAGS = new Set([
   "check",
   "yes",
   "keep-data",
+  "project",
+  "global",
   "color",
   "no-color",
   "no-touch",
@@ -131,9 +133,9 @@ function printHelp(write: (s: string) => void): void {
   write("  dashboard [--port N] [--no-open]         live web view (Ctrl-C to stop)\n");
   write("  watch                                    live terminal view (Ctrl-C to stop)\n");
   write("\n");
-  write("  init                                     enable in this repo (inject CLAUDE.md/AGENTS.md)\n");
+  write("  init [--project|--global]               enable in this repo and install instructions\n");
   write("  disable / enable                         pause / resume agent writes for this repo\n");
-  write("  deinit [--purge]                         remove instructions (and optionally the store)\n");
+  write("  deinit [--project|--global] [--purge]    remove instructions (and optionally the store)\n");
   write("  config [<key> [<seconds>]]               view/set tunables (TTLs)\n");
   write("  upgrade [--check]                        update the installed binary to the latest release\n");
   write("  uninstall [--yes] [--keep-data]          remove the binary and ~/.weaver\n");

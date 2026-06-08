@@ -9,7 +9,8 @@ This page is written for **coding agents** (and the people configuring them). If
 agent reading this: follow it directly.
 
 Weaver is a local CLI. You interact with it by running shell commands. `weaver init` injects a
-short version of this protocol into `CLAUDE.md` / `AGENTS.md`; this page is the full version.
+short version of this protocol into project or global agent instruction files; this page is the
+full version.
 
 ## The per-task loop
 

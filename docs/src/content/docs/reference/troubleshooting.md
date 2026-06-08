@@ -25,7 +25,8 @@ export WEAVER_SESSION=my-session
 Observer commands (`status`, `check`) work without identity.
 
 ### Agents aren't coordinating
-- Did you run `weaver init` in the repo? Check that the block exists in `CLAUDE.md`/`AGENTS.md`.
+- Did you run `weaver init` in the repo? Check that the block exists in the project or global
+  instruction files you selected.
 - Is it disabled? `weaver doctor` shows `enabled`. Re-enable with `weaver enable`.
 - Are the agents actually in the **same repo**? `weaver doctor` shows the `repo` id — it should
   match across sessions.
