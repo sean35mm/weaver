@@ -23,6 +23,7 @@ export interface ColorOptions {
   isTTY?: boolean;
 }
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escapes is the point
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
 const plain = (text: string): string => text;
 

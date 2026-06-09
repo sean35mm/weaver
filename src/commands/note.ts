@@ -1,7 +1,7 @@
 import { flagBool, flagStr, rest } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { normalizeTarget } from "../repo/paths.ts";
-import { clamp, CliError, requireArg, requireIdentity } from "../validate.ts";
+import { CliError, clamp, requireArg, requireIdentity } from "../validate.ts";
 import { pruneAfterWrite } from "./prune.ts";
 
 export function runNote(ctx: Ctx): number {
@@ -28,12 +28,23 @@ export function runNote(ctx: Ctx): number {
   const pinned = flagBool(ctx.args, "pin") || (superseded?.pinned ?? false);
 
   const noteId = ctx.store.transaction(() => {
-    const created = ctx.store.addNote({ sessionId: id.key, harness: id.label, body, path, tags, pinned, createdAt: ctx.now, supersedes });
+    const created = ctx.store.addNote({
+      sessionId: id.key,
+      harness: id.label,
+      body,
+      path,
+      tags,
+      pinned,
+      createdAt: ctx.now,
+      supersedes,
+    });
     ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind: "note", target: path, summary: body, meta: null });
     pruneAfterWrite(ctx.store, ctx.now);
     return created;
   });
-  ctx.out(`✓ noted #${noteId}${pinned ? " (pinned)" : ""}${supersedes ? ` (supersedes #${supersedes})` : ""}: ${body}\n`);
+  ctx.out(
+    `✓ noted #${noteId}${pinned ? " (pinned)" : ""}${supersedes ? ` (supersedes #${supersedes})` : ""}: ${body}\n`,
+  );
   return 0;
 }
 

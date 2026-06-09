@@ -96,7 +96,8 @@ export function resolveIdentity(opts: ResolveOpts = {}): Identity | null {
 
   // 3. controlling TTY (self → nearest ancestor)
   const tty = (opts.ttyResolver ?? resolveTtyDevice)(opts.pid ?? process.pid);
-  if (tty) return { key: `tty:${tty.device}@${host}`, source: tty.viaAncestry ? "ancestry" : "tty", label: detectLabel(env) };
+  if (tty)
+    return { key: `tty:${tty.device}@${host}`, source: tty.viaAncestry ? "ancestry" : "tty", label: detectLabel(env) };
 
   // 4. none — caller decides (observer reads ok; mutating commands fail with a hint)
   return null;

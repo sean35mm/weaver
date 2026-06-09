@@ -76,8 +76,20 @@ test("claims: prune old expired claims but keep recent stale claims", async () =
   store.upsertSession({ id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
   const day = 24 * 60 * 60 * 1000;
 
-  store.addClaim({ sessionId: "s1", pattern: "old/**", reason: null, createdAt: NOW - 10 * day, expiresAt: NOW - 8 * day });
-  store.addClaim({ sessionId: "s1", pattern: "recent/**", reason: null, createdAt: NOW - 2 * day, expiresAt: NOW - day });
+  store.addClaim({
+    sessionId: "s1",
+    pattern: "old/**",
+    reason: null,
+    createdAt: NOW - 10 * day,
+    expiresAt: NOW - 8 * day,
+  });
+  store.addClaim({
+    sessionId: "s1",
+    pattern: "recent/**",
+    reason: null,
+    createdAt: NOW - 2 * day,
+    expiresAt: NOW - day,
+  });
   store.addClaim({ sessionId: "s1", pattern: "active/**", reason: null, createdAt: NOW, expiresAt: NOW + day });
 
   store.pruneClaims({ maxAgeDays: 7, now: NOW });
@@ -131,8 +143,26 @@ test("notes: pinned first, newest first", async () => {
   const store = await openStore(tmpDb());
   store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
 
-  store.addNote({ sessionId: "s1", harness: "opencode", body: "pinned-one", path: null, tags: null, pinned: true, createdAt: NOW, supersedes: null });
-  store.addNote({ sessionId: "s1", harness: "opencode", body: "newer-plain", path: null, tags: null, pinned: false, createdAt: NOW + 5, supersedes: null });
+  store.addNote({
+    sessionId: "s1",
+    harness: "opencode",
+    body: "pinned-one",
+    path: null,
+    tags: null,
+    pinned: true,
+    createdAt: NOW,
+    supersedes: null,
+  });
+  store.addNote({
+    sessionId: "s1",
+    harness: "opencode",
+    body: "newer-plain",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: NOW + 5,
+    supersedes: null,
+  });
 
   const notes = store.listNotes(10);
   assert.equal(notes.length, 2);
@@ -146,10 +176,46 @@ test("notes: superseded notes are hidden, only the latest in a chain survives", 
   const store = await openStore(tmpDb());
   store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
 
-  const a = store.addNote({ sessionId: "s1", harness: "opencode", body: "v1", path: null, tags: null, pinned: false, createdAt: NOW, supersedes: null });
-  const b = store.addNote({ sessionId: "s1", harness: "opencode", body: "v2", path: null, tags: null, pinned: false, createdAt: NOW + 1, supersedes: a });
-  const c = store.addNote({ sessionId: "s1", harness: "opencode", body: "v3", path: null, tags: null, pinned: false, createdAt: NOW + 2, supersedes: b });
-  store.addNote({ sessionId: "s1", harness: "opencode", body: "unrelated", path: null, tags: null, pinned: false, createdAt: NOW + 3, supersedes: null });
+  const a = store.addNote({
+    sessionId: "s1",
+    harness: "opencode",
+    body: "v1",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: NOW,
+    supersedes: null,
+  });
+  const b = store.addNote({
+    sessionId: "s1",
+    harness: "opencode",
+    body: "v2",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: NOW + 1,
+    supersedes: a,
+  });
+  const c = store.addNote({
+    sessionId: "s1",
+    harness: "opencode",
+    body: "v3",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: NOW + 2,
+    supersedes: b,
+  });
+  store.addNote({
+    sessionId: "s1",
+    harness: "opencode",
+    body: "unrelated",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: NOW + 3,
+    supersedes: null,
+  });
 
   const notes = store.listNotes(10);
   assert.deepEqual(notes.map((n) => n.body).sort(), ["unrelated", "v3"]);

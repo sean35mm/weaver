@@ -14,7 +14,13 @@ const NOW = 1_000_000;
 test("hard: live session holds an overlapping claim", async () => {
   const s = await openStore(tmpDb());
   s.upsertSession({ id: "other", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
-  s.addClaim({ sessionId: "other", pattern: "src/auth/**", reason: "tokens", createdAt: NOW, expiresAt: NOW + 1_000_000 });
+  s.addClaim({
+    sessionId: "other",
+    pattern: "src/auth/**",
+    reason: "tokens",
+    createdAt: NOW,
+    expiresAt: NOW + 1_000_000,
+  });
 
   const r = detectConflict({ store: s, target: "src/auth/login.ts", selfId: "me", now: NOW + 1000 });
   assert.equal(r.tier, "hard");
@@ -35,7 +41,13 @@ test("self is excluded", async () => {
 test("stale: claim valid but holder went stale", async () => {
   const s = await openStore(tmpDb());
   s.upsertSession({ id: "other", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
-  s.addClaim({ sessionId: "other", pattern: "src/auth/**", reason: null, createdAt: NOW, expiresAt: NOW + 10 * 60 * 60 * 1000 });
+  s.addClaim({
+    sessionId: "other",
+    pattern: "src/auth/**",
+    reason: null,
+    createdAt: NOW,
+    expiresAt: NOW + 10 * 60 * 60 * 1000,
+  });
 
   const r = detectConflict({ store: s, target: "src/auth/x.ts", selfId: "me", now: NOW + 60 * 60 * 1000 });
   assert.equal(r.tier, "stale");

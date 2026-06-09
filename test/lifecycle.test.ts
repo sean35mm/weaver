@@ -15,11 +15,7 @@ function tmpDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-async function ctxFor(
-  root: string,
-  argv: string[] = [],
-  env: Record<string, string | undefined> = {},
-): Promise<Ctx> {
+async function ctxFor(root: string, argv: string[] = [], env: Record<string, string | undefined> = {}): Promise<Ctx> {
   const store = await openStore(path.join(tmpDir("weaver-store-"), "s.db"));
   return {
     store,
@@ -66,9 +62,7 @@ test("init --global injects the block into global instruction files only", async
   await init.run(ctx);
 
   assert.ok(hasBlock(fs.readFileSync(path.join(home, ".claude", "CLAUDE.md"), "utf8")));
-  assert.ok(
-    hasBlock(fs.readFileSync(path.join(home, ".config", "opencode", "AGENTS.md"), "utf8")),
-  );
+  assert.ok(hasBlock(fs.readFileSync(path.join(home, ".config", "opencode", "AGENTS.md"), "utf8")));
   assert.ok(hasBlock(fs.readFileSync(path.join(codexHome, "AGENTS.md"), "utf8")));
   assert.equal(fs.existsSync(path.join(root, "CLAUDE.md")), false);
   assert.equal(fs.existsSync(path.join(root, "AGENTS.md")), false);

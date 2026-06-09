@@ -2,11 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Ctx } from "../context.ts";
 import { injectBlock } from "../instructions/block.ts";
-import {
-  instructionTargets,
-  scopeFromFlags,
-  type InstructionScope,
-} from "../instructions/targets.ts";
+import { type InstructionScope, instructionTargets, scopeFromFlags } from "../instructions/targets.ts";
 import { storePathForRepo } from "../store/location.ts";
 
 function readAnswer(): Promise<string> {

@@ -4,12 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { loadConfig } from "../src/config.ts";
-import {
-  DEFAULT_CLAIM_TTL_MS,
-  DEFAULT_RECENT_ACTIVITY_MS,
-  DEFAULT_SESSION_TTL_MS,
-} from "../src/store/reap.ts";
 import { openStore } from "../src/store/open.ts";
+import { DEFAULT_CLAIM_TTL_MS, DEFAULT_RECENT_ACTIVITY_MS, DEFAULT_SESSION_TTL_MS } from "../src/store/reap.ts";
 
 function tmpDb(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), "weaver-cfg-")), "s.db");

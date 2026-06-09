@@ -2,11 +2,10 @@
 /** Weaver CLI entry: parse → bootstrap (repo + store + identity) → dispatch → exit. */
 
 import fs from "node:fs";
-import { flagBool, parseArgs, type ParsedArgs } from "./args.ts";
-import { loadConfig } from "./config.ts";
+import { flagBool, type ParsedArgs, parseArgs } from "./args.ts";
 import * as activity from "./commands/activity.ts";
-import * as claim from "./commands/claim.ts";
 import * as check from "./commands/check.ts";
+import * as claim from "./commands/claim.ts";
 import * as config from "./commands/config.ts";
 import * as dashboard from "./commands/dashboard.ts";
 import * as deinit from "./commands/deinit.ts";
@@ -21,6 +20,7 @@ import * as task from "./commands/task.ts";
 import * as toggle from "./commands/toggle.ts";
 import * as uninstall from "./commands/uninstall.ts";
 import * as upgrade from "./commands/upgrade.ts";
+import { loadConfig } from "./config.ts";
 import type { Ctx } from "./context.ts";
 import { resolveIdentity } from "./identity/session.ts";
 import { resolveRepoId } from "./repo/identity.ts";

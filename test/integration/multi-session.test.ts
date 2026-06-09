@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { resolveRepoId } from "../../src/repo/identity.ts";
 
@@ -23,7 +23,12 @@ function env(home: string, session: string | null): NodeJS.ProcessEnv {
   return out;
 }
 
-function run(cwd: string, home: string, session: string | null, args: string[]): { status: number; stdout: string; stderr: string } {
+function run(
+  cwd: string,
+  home: string,
+  session: string | null,
+  args: string[],
+): { status: number; stdout: string; stderr: string } {
   const result = spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
     env: env(home, session),
@@ -77,15 +82,27 @@ test("multiple sessions coordinate through one store", () => {
     completed: Array<{ intent: string | null; shortId?: string; id?: string }>;
     claims: Array<{ pattern: string }>;
   };
-  assert.equal(parsed.sessions.some((s) => s.id), false);
-  assert.equal(parsed.completed.some((s) => s.id), false);
+  assert.equal(
+    parsed.sessions.some((s) => s.id),
+    false,
+  );
+  assert.equal(
+    parsed.completed.some((s) => s.id),
+    false,
+  );
   assert.ok(parsed.sessions.some((s) => s.shortId));
   assert.ok(parsed.completed.some((s) => s.intent === "build auth flow"));
-  assert.equal(parsed.claims.some((c) => c.pattern === "src/disabled/**"), false);
+  assert.equal(
+    parsed.claims.some((c) => c.pattern === "src/disabled/**"),
+    false,
+  );
 
   const selfStatus = cli("agent-a", ["status", "--json", "--full"]);
   const selfParsed = JSON.parse(selfStatus.stdout) as { completed: Array<{ intent: string | null }> };
-  assert.equal(selfParsed.completed.some((s) => s.intent === "build auth flow"), false);
+  assert.equal(
+    selfParsed.completed.some((s) => s.intent === "build auth flow"),
+    false,
+  );
 });
 
 test("note --update supersedes, inherits pin, and rejects unknown ids", () => {
@@ -189,11 +206,25 @@ test("preflight --staged reports relevant hard overlaps without polling", () => 
 
   const result = run(root, home, "agent-b", ["preflight", "--staged", "--operation", "commit", "--json"]);
   assert.equal(result.status, 1);
-  const parsed = JSON.parse(result.stdout) as { severity: string; recommendation: string; conflicts: Array<{ path: string; tier: string }> };
+  const parsed = JSON.parse(result.stdout) as {
+    severity: string;
+    recommendation: string;
+    conflicts: Array<{ path: string; tier: string }>;
+  };
   assert.equal(parsed.severity, "hard");
   assert.equal(parsed.recommendation, "ask-user");
-  assert.deepEqual(parsed.conflicts.map((c) => [c.path, c.tier]), [["src/auth/login.ts", "hard"]]);
+  assert.deepEqual(
+    parsed.conflicts.map((c) => [c.path, c.tier]),
+    [["src/auth/login.ts", "hard"]],
+  );
 
-  const reportOnly = run(root, home, "agent-b", ["preflight", "--staged", "--operation", "commit", "--fail-on", "never"]);
+  const reportOnly = run(root, home, "agent-b", [
+    "preflight",
+    "--staged",
+    "--operation",
+    "commit",
+    "--fail-on",
+    "never",
+  ]);
   assert.equal(reportOnly.status, 0);
 });

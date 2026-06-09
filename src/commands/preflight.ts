@@ -1,12 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { flagBool, flagStr } from "../args.ts";
+import type { ConflictHit } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
+import { hasBroadClaim, type PreflightResult, type PreflightSeverity, runPreflight } from "../preflight.ts";
 import { ago, shortId } from "../render.ts";
 import { normalizeTarget } from "../repo/paths.ts";
-import { hasBroadClaim, runPreflight, type PreflightResult, type PreflightSeverity } from "../preflight.ts";
-import type { ConflictHit } from "../conflict.ts";
 import type { SessionRow } from "../store/store.ts";
-import { themeFromCtx, type TerminalTheme } from "../terminal/color.ts";
+import { type TerminalTheme, themeFromCtx } from "../terminal/color.ts";
 import { terminalWidth, wrapWithPrefix } from "../terminal/format.ts";
 import { CliError } from "../validate.ts";
 
@@ -63,7 +63,12 @@ function diffPaths(ctx: Ctx, refArgs: string[], message: string): string[] {
 }
 
 function sourceCount(ctx: Ctx): number {
-  return [ctx.args._.length > 1, flagBool(ctx.args, "staged"), flagBool(ctx.args, "upstream"), ctx.args.flags.base !== undefined].filter(Boolean).length;
+  return [
+    ctx.args._.length > 1,
+    flagBool(ctx.args, "staged"),
+    flagBool(ctx.args, "upstream"),
+    ctx.args.flags.base !== undefined,
+  ].filter(Boolean).length;
 }
 
 function normalizePreflightTarget(target: string, ctx: Ctx, cwd: string = ctx.cwd): string {
@@ -88,7 +93,11 @@ function collectPaths(ctx: Ctx): PathSource {
     return { source: "staged", paths: diffPaths(ctx, ["--cached"], "could not inspect staged changes") };
   }
   if (flagBool(ctx.args, "upstream")) {
-    git(ctx.repo.root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], "could not resolve upstream; use --base <ref> or explicit paths");
+    git(
+      ctx.repo.root,
+      ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+      "could not resolve upstream; use --base <ref> or explicit paths",
+    );
     return { source: "upstream", paths: diffPaths(ctx, ["@{upstream}...HEAD"], "could not inspect upstream diff") };
   }
 
@@ -135,36 +144,75 @@ function truncatedCount(items: unknown[], full: boolean): number {
 export function formatHuman(result: PreflightResult, opts: RenderOpts, now: number, theme: TerminalTheme): string {
   const width = terminalWidth(opts.width);
   const lines: string[] = [];
-  const label = result.severity === "hard" ? "hard overlap" : result.severity === "soft" ? "soft overlap" : result.severity === "info" ? "info" : "no relevant overlaps";
-  lines.push(`${theme.accent("weaver preflight:")} ${theme.severity(result.severity, label)} ${theme.dim("before")} ${opts.operation}`);
-  lines.push(`${theme.dim("checked")} ${theme.accent(String(result.paths.length))} ${theme.dim(`path${result.paths.length === 1 ? "" : "s"} from ${opts.source}`)}`);
+  const label =
+    result.severity === "hard"
+      ? "hard overlap"
+      : result.severity === "soft"
+        ? "soft overlap"
+        : result.severity === "info"
+          ? "info"
+          : "no relevant overlaps";
+  lines.push(
+    `${theme.accent("weaver preflight:")} ${theme.severity(result.severity, label)} ${theme.dim("before")} ${opts.operation}`,
+  );
+  lines.push(
+    `${theme.dim("checked")} ${theme.accent(String(result.paths.length))} ${theme.dim(`path${result.paths.length === 1 ? "" : "s"} from ${opts.source}`)}`,
+  );
 
   for (const warning of result.warnings) lines.push(...wrapWithPrefix(`${theme.warn("warning:")} `, warning, width));
 
   for (const conflict of capped(result.conflicts, opts.full)) {
     lines.push("");
     lines.push(theme.path(conflict.path));
-    for (const hit of conflict.hits) lines.push(...wrapWithPrefix(`  ${theme.severity(conflict.tier, conflict.tier)}: `, hitSummary(hit, now, theme), width, "    "));
+    for (const hit of conflict.hits)
+      lines.push(
+        ...wrapWithPrefix(
+          `  ${theme.severity(conflict.tier, conflict.tier)}: `,
+          hitSummary(hit, now, theme),
+          width,
+          "    ",
+        ),
+      );
   }
-  if (!opts.full && result.conflicts.length > 20) lines.push(theme.dim(`... ${result.conflicts.length - 20} more conflicting path(s); rerun with --full`));
+  if (!opts.full && result.conflicts.length > 20)
+    lines.push(theme.dim(`... ${result.conflicts.length - 20} more conflicting path(s); rerun with --full`));
 
   if (result.stale.length) {
     lines.push("");
     lines.push(theme.heading("stale overlaps treated as free:"));
     for (const stale of capped(result.stale, opts.full)) lines.push(`  ${theme.path(stale.path)}`);
-    if (!opts.full && result.stale.length > 20) lines.push(theme.dim(`  ... ${result.stale.length - 20} more stale path(s); rerun with --full`));
+    if (!opts.full && result.stale.length > 20)
+      lines.push(theme.dim(`  ... ${result.stale.length - 20} more stale path(s); rerun with --full`));
   }
 
   if (result.unrelatedSessions.length) {
     lines.push("");
-    lines.push(...wrapWithPrefix(`${theme.accent(String(result.unrelatedSessions.length))} `, `other active session${result.unrelatedSessions.length === 1 ? "" : "s"} ${theme.dim("do not overlap checked paths.")}`, width));
+    lines.push(
+      ...wrapWithPrefix(
+        `${theme.accent(String(result.unrelatedSessions.length))} `,
+        `other active session${result.unrelatedSessions.length === 1 ? "" : "s"} ${theme.dim("do not overlap checked paths.")}`,
+        width,
+      ),
+    );
   }
 
   lines.push("");
   if (result.recommendation === "ask-user") {
-    lines.push(...wrapWithPrefix(`${theme.warn("Recommendation:")} `, `ask the user whether to continue, wait briefly, or coordinate first. ${theme.dim("Do not silently wait for another session.")}`, width));
+    lines.push(
+      ...wrapWithPrefix(
+        `${theme.warn("Recommendation:")} `,
+        `ask the user whether to continue, wait briefly, or coordinate first. ${theme.dim("Do not silently wait for another session.")}`,
+        width,
+      ),
+    );
   } else {
-    lines.push(...wrapWithPrefix(`${theme.success("Recommendation:")} `, "continue; no relevant active overlap was found.", width));
+    lines.push(
+      ...wrapWithPrefix(
+        `${theme.success("Recommendation:")} `,
+        "continue; no relevant active overlap was found.",
+        width,
+      ),
+    );
   }
   lines.push(theme.dim(`exit policy: fail-on=${opts.failOn}`));
   return lines.join("\n") + "\n";
@@ -180,10 +228,20 @@ function jsonHit(hit: ConflictHit, now: number): unknown {
       lastSeenMsAgo: now - hit.session.lastSeen,
     },
     claim: hit.claim
-      ? { pattern: hit.claim.pattern, reason: hit.claim.reason, broad: hasBroadClaim(hit), createdMsAgo: now - hit.claim.createdAt }
+      ? {
+          pattern: hit.claim.pattern,
+          reason: hit.claim.reason,
+          broad: hasBroadClaim(hit),
+          createdMsAgo: now - hit.claim.createdAt,
+        }
       : null,
     activity: hit.activity
-      ? { kind: hit.activity.kind, target: hit.activity.target, summary: hit.activity.summary, tsMsAgo: now - hit.activity.ts }
+      ? {
+          kind: hit.activity.kind,
+          target: hit.activity.target,
+          summary: hit.activity.summary,
+          tsMsAgo: now - hit.activity.ts,
+        }
       : null,
   };
 }
@@ -215,7 +273,13 @@ function formatJson(result: PreflightResult, opts: RenderOpts, now: number): str
       paths,
       conflicts: conflicts.map((c) => ({ path: c.path, tier: c.tier, hits: c.hits.map((h) => jsonHit(h, now)) })),
       stale: stale.map((c) => ({ path: c.path, tier: c.tier, hits: c.hits.map((h) => jsonHit(h, now)) })),
-      unrelatedSessions: unrelatedSessions.map((s) => ({ shortId: shortId(s.id), harness: s.harness, source: s.idSource, intent: s.intent, lastSeenMsAgo: now - s.lastSeen })),
+      unrelatedSessions: unrelatedSessions.map((s) => ({
+        shortId: shortId(s.id),
+        harness: s.harness,
+        source: s.idSource,
+        intent: s.intent,
+        lastSeenMsAgo: now - s.lastSeen,
+      })),
       warnings: result.warnings,
     }) + "\n"
   );
@@ -234,6 +298,10 @@ export function run(ctx: Ctx): number {
     recentMs: ctx.config.recentMs,
   });
   const renderOpts = { operation, source: pathSource.source, failOn, full: flagBool(ctx.args, "full") };
-  ctx.out(flagBool(ctx.args, "json") ? formatJson(result, renderOpts, ctx.now) : formatHuman(result, renderOpts, ctx.now, themeFromCtx(ctx)));
+  ctx.out(
+    flagBool(ctx.args, "json")
+      ? formatJson(result, renderOpts, ctx.now)
+      : formatHuman(result, renderOpts, ctx.now, themeFromCtx(ctx)),
+  );
   return shouldFail(result.severity, failOn) ? 1 : 0;
 }

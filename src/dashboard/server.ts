@@ -4,8 +4,8 @@
  */
 
 import http from "node:http";
-import { DEFAULT_COMPLETED_SESSION_RECENT_MS, DEFAULT_SESSION_TTL_MS } from "../store/reap.ts";
 import { claimsByLiveHolders, type StatusData, statusJson } from "../render.ts";
+import { DEFAULT_COMPLETED_SESSION_RECENT_MS, DEFAULT_SESSION_TTL_MS } from "../store/reap.ts";
 import type { Store } from "../store/store.ts";
 import { PAGE } from "./page.ts";
 

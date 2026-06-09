@@ -86,11 +86,13 @@ export async function openDb(path: string, opts: OpenDbOptions = {}): Promise<Db
   const readOnly = opts.readOnly ?? false;
   let db: Db;
   if (isBun) {
-    // @ts-ignore - bun:sqlite is provided by the Bun runtime
+    // @ts-expect-error - bun:sqlite is provided by the Bun runtime
     const { Database } = await import("bun:sqlite");
-    db = wrap(new Database(path, readOnly ? { readonly: true, create: false } : { create: true }) as unknown as RawDatabase, "bun:sqlite");
+    db = wrap(
+      new Database(path, readOnly ? { readonly: true, create: false } : { create: true }) as unknown as RawDatabase,
+      "bun:sqlite",
+    );
   } else {
-    // @ts-ignore - node:sqlite is a built-in module (Node >= 22.5)
     const { DatabaseSync } = await import("node:sqlite");
     db = wrap(new DatabaseSync(path, readOnly ? { readOnly: true } : {}) as unknown as RawDatabase, "node:sqlite");
   }

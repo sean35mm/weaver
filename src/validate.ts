@@ -62,5 +62,7 @@ export function parseTtl(raw: string | undefined, fallbackMs: number): number {
 /** A claim covering essentially the whole repo — allowed, but worth flagging. */
 export function isBroadGlob(pattern: string): boolean {
   const p = pattern.trim();
-  return p === "" || p === "**" || p === "**/*" || p === "/" || p === "*" || p === "." || p === "./**" || p === "./**/*";
+  return (
+    p === "" || p === "**" || p === "**/*" || p === "/" || p === "*" || p === "." || p === "./**" || p === "./**/*"
+  );
 }

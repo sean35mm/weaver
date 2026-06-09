@@ -12,6 +12,9 @@ cd weaver
 npm install            # only dev deps + picomatch; SQLite is built into Node/Bun
 ```
 
+Development needs **Node >= 22.18.0** (the first 22.x that runs TypeScript and `node:sqlite`
+without flags) or Bun. Users of the installed binary need neither — it's self-contained.
+
 No build is needed for development — both runtimes run the TypeScript directly.
 
 ## Running
@@ -29,6 +32,7 @@ The suite must pass under **both Node and Bun** (CI runs both):
 npm test            # node --test
 npm run test:bun    # bun test
 npm run typecheck   # tsc --noEmit
+npm run lint        # biome check (lint + format); `npm run lint:fix` to auto-fix
 ```
 
 - Tests use `node:test` + `node:assert/strict` so they run identically on both runtimes.

@@ -6,12 +6,8 @@ import { test } from "node:test";
 import { parseArgs } from "../src/args.ts";
 import * as check from "../src/commands/check.ts";
 import type { Ctx } from "../src/context.ts";
-import {
-  DEFAULT_CLAIM_TTL_MS,
-  DEFAULT_RECENT_ACTIVITY_MS,
-  DEFAULT_SESSION_TTL_MS,
-} from "../src/store/reap.ts";
 import { openStore } from "../src/store/open.ts";
+import { DEFAULT_CLAIM_TTL_MS, DEFAULT_RECENT_ACTIVITY_MS, DEFAULT_SESSION_TTL_MS } from "../src/store/reap.ts";
 import type { IdSource, Store } from "../src/store/store.ts";
 
 function tmpDb(): string {
@@ -23,7 +19,11 @@ function ctxFor(store: Store, idKey: string | null, now: number, argv: string[])
     store,
     identity: idKey ? { key: idKey, source: "explicit" as IdSource, label: "test" } : null,
     repo: { repoId: "r", root: "/repo", basis: "path" },
-    config: { sessionTtlMs: DEFAULT_SESSION_TTL_MS, claimTtlMs: DEFAULT_CLAIM_TTL_MS, recentMs: DEFAULT_RECENT_ACTIVITY_MS },
+    config: {
+      sessionTtlMs: DEFAULT_SESSION_TTL_MS,
+      claimTtlMs: DEFAULT_CLAIM_TTL_MS,
+      recentMs: DEFAULT_RECENT_ACTIVITY_MS,
+    },
     cwd: "/repo",
     now,
     env: {},

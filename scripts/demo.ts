@@ -30,7 +30,11 @@ store.setMeta("enabled", "1");
 
 // Three agents, three harnesses, all on the same repo.
 const agents = [
-  { id: "harness:claude-code:demo-alice@host", harness: "claude-code", intent: "Refactor auth to route through AuthService" },
+  {
+    id: "harness:claude-code:demo-alice@host",
+    harness: "claude-code",
+    intent: "Refactor auth to route through AuthService",
+  },
   { id: "harness:codex:demo-bob@host", harness: "codex", intent: "Add a Google OAuth provider" },
   { id: "harness:opencode:demo-cleo@host", harness: "opencode", intent: "Backfill auth unit tests" },
 ];
@@ -40,11 +44,41 @@ for (const a of agents) {
   store.touchSession(a.id, ago(3));
 }
 
-store.addClaim({ sessionId: agents[0]!.id, pattern: "src/auth/**", reason: "rewriting token refresh — expect churn", createdAt: ago(110), expiresAt: now + 30 * 60 * 1000 });
-store.addClaim({ sessionId: agents[2]!.id, pattern: "tests/auth/**", reason: "coverage only, won't touch src", createdAt: ago(90), expiresAt: now + 30 * 60 * 1000 });
+store.addClaim({
+  sessionId: agents[0]!.id,
+  pattern: "src/auth/**",
+  reason: "rewriting token refresh — expect churn",
+  createdAt: ago(110),
+  expiresAt: now + 30 * 60 * 1000,
+});
+store.addClaim({
+  sessionId: agents[2]!.id,
+  pattern: "tests/auth/**",
+  reason: "coverage only, won't touch src",
+  createdAt: ago(90),
+  expiresAt: now + 30 * 60 * 1000,
+});
 
-store.addNote({ sessionId: agents[0]!.id, harness: "claude-code", body: "AuthService is the new entry point — don't call jwt.* directly", path: null, tags: "auth", pinned: true, createdAt: ago(80), supersedes: null });
-store.addNote({ sessionId: agents[2]!.id, harness: "opencode", body: "integration tests need `docker compose up pg` on :5433", path: null, tags: "testing", pinned: false, createdAt: ago(60), supersedes: null });
+store.addNote({
+  sessionId: agents[0]!.id,
+  harness: "claude-code",
+  body: "AuthService is the new entry point — don't call jwt.* directly",
+  path: null,
+  tags: "auth",
+  pinned: true,
+  createdAt: ago(80),
+  supersedes: null,
+});
+store.addNote({
+  sessionId: agents[2]!.id,
+  harness: "opencode",
+  body: "integration tests need `docker compose up pg` on :5433",
+  path: null,
+  tags: "testing",
+  pinned: false,
+  createdAt: ago(60),
+  supersedes: null,
+});
 
 const events: Array<[string, string, string, string]> = [
   [agents[0]!.id, "edit", "src/auth/login.ts", "extracted refreshToken() into AuthService"],
@@ -53,7 +87,7 @@ const events: Array<[string, string, string, string]> = [
   [agents[0]!.id, "run", "", "ran `npm test auth` → 3 failing on session expiry"],
 ];
 events.forEach(([sid, kind, target, summary], i) => {
-  // @ts-ignore - kind is a known ActivityKind in the demo data
+  // @ts-expect-error - kind is a known ActivityKind in the demo data
   store.addActivity({ sessionId: sid, ts: ago(40 - i * 8), kind, target: target || null, summary, meta: null });
 });
 

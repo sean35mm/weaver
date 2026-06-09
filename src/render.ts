@@ -39,7 +39,13 @@ function who(s: SessionRow): string {
   return `${s.harness}#${shortId(s.id)}`;
 }
 
-function appendWrapped(lines: string[], prefix: string, text: string, width: number, continuationIndent?: string): void {
+function appendWrapped(
+  lines: string[],
+  prefix: string,
+  text: string,
+  width: number,
+  continuationIndent?: string,
+): void {
   lines.push(...wrapWithPrefix(prefix, text, width, continuationIndent));
 }
 
@@ -61,12 +67,28 @@ function truncateWithSuffix(text: string, width: number, suffix: string): string
   return `${truncateVisible(text, width - suffixWidth)}${suffixText}`;
 }
 
-export function formatConflict(result: ConflictResult, now: number, theme: TerminalTheme = plainTheme, opts: FormatOptions = {}): string {
+export function formatConflict(
+  result: ConflictResult,
+  now: number,
+  theme: TerminalTheme = plainTheme,
+  opts: FormatOptions = {},
+): string {
   const width = terminalWidth(opts.width);
-  const label = result.tier === "hard" ? "CONFLICT (active claim)" : result.tier === "soft" ? "HEADS-UP (recent activity)" : "stale";
+  const label =
+    result.tier === "hard"
+      ? "CONFLICT (active claim)"
+      : result.tier === "soft"
+        ? "HEADS-UP (recent activity)"
+        : "stale";
   const lines: string[] = [`⚠ ${theme.severity(result.tier, label)} ${theme.dim("on this area:")}`];
   for (const h of result.hits) {
-    appendWrapped(lines, `  ${theme.dim("•")} ${theme.accent(who(h.session))} ${theme.dim("—")} `, h.session.intent ?? theme.dim("(no stated intent)"), width, "      ");
+    appendWrapped(
+      lines,
+      `  ${theme.dim("•")} ${theme.accent(who(h.session))} ${theme.dim("—")} `,
+      h.session.intent ?? theme.dim("(no stated intent)"),
+      width,
+      "      ",
+    );
     if (h.claim) {
       appendWrapped(
         lines,
@@ -85,7 +107,12 @@ export function formatConflict(result: ConflictResult, now: number, theme: Termi
     }
     lines.push(`      ${theme.dim(`active ${ago(now - h.session.lastSeen)}`)}`);
   }
-  appendWrapped(lines, theme.dim("  → "), theme.dim("coordinate, work elsewhere, or ask the user how to split. Don't silently overwrite."), width);
+  appendWrapped(
+    lines,
+    theme.dim("  → "),
+    theme.dim("coordinate, work elsewhere, or ask the user how to split. Don't silently overwrite."),
+    width,
+  );
   return lines.join("\n") + "\n";
 }
 
@@ -97,10 +124,20 @@ export interface StatusData {
   notes: NoteRow[];
 }
 
-export function formatStatus(d: StatusData, now: number, store: Store, theme: TerminalTheme = plainTheme, opts: FormatOptions = {}): string {
+export function formatStatus(
+  d: StatusData,
+  now: number,
+  store: Store,
+  theme: TerminalTheme = plainTheme,
+  opts: FormatOptions = {},
+): string {
   const width = terminalWidth(opts.width);
   const out: string[] = [];
-  out.push(d.sessions.length ? `${theme.accent(String(d.sessions.length))} other active session${d.sessions.length === 1 ? "" : "s"}` : `${theme.success("weaver:")} no other active agents`);
+  out.push(
+    d.sessions.length
+      ? `${theme.accent(String(d.sessions.length))} other active session${d.sessions.length === 1 ? "" : "s"}`
+      : `${theme.success("weaver:")} no other active agents`,
+  );
   for (const s of d.sessions) {
     const label = `  ${padEndVisible(theme.accent(who(s)), 22)} `;
     out.push(compactRow(label, s.intent ?? theme.dim("(no intent)"), `   ${theme.dim(ago(now - s.lastSeen))}`, width));
@@ -132,7 +169,14 @@ export function formatStatus(d: StatusData, now: number, store: Store, theme: Te
     pushSection(out, theme.heading("recently done:"));
     for (const s of d.completed) {
       const label = `  ${padEndVisible(theme.dim(who(s)), 22)} `;
-      out.push(compactRow(label, s.intent ?? theme.dim("(no intent)"), `   ${theme.dim(ago(now - (s.endedAt ?? s.lastSeen)))}`, width));
+      out.push(
+        compactRow(
+          label,
+          s.intent ?? theme.dim("(no intent)"),
+          `   ${theme.dim(ago(now - (s.endedAt ?? s.lastSeen)))}`,
+          width,
+        ),
+      );
     }
   }
   const notes = d.notes;

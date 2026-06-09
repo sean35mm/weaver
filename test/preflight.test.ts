@@ -43,7 +43,14 @@ test("preflight: unrelated active sessions are informational only", async () => 
   const s = await store();
   s.upsertSession({ id: "research", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
 
-  const result = runPreflight({ store: s, paths: ["src/app.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/app.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.severity, "clear");
   assert.equal(result.recommendation, "continue");
@@ -55,9 +62,22 @@ test("preflight: unrelated active sessions are informational only", async () => 
 test("preflight: hard overlap is a user decision point", async () => {
   const s = await store();
   s.upsertSession({ id: "other", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
-  s.addClaim({ sessionId: "other", pattern: "src/auth/**", reason: "login flow", createdAt: NOW, expiresAt: NOW + 60_000 });
+  s.addClaim({
+    sessionId: "other",
+    pattern: "src/auth/**",
+    reason: "login flow",
+    createdAt: NOW,
+    expiresAt: NOW + 60_000,
+  });
 
-  const result = runPreflight({ store: s, paths: ["src/auth/login.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.severity, "hard");
   assert.equal(result.recommendation, "ask-user");
@@ -68,9 +88,23 @@ test("preflight: hard overlap is a user decision point", async () => {
 test("preflight: soft overlap from recent activity is a user decision point", async () => {
   const s = await store();
   s.upsertSession({ id: "other", harness: "claude-code", idSource: "harness", pid: null, cwd: null }, NOW);
-  s.addActivity({ sessionId: "other", ts: NOW, kind: "edit", target: "src/auth/login.ts", summary: "reviewed login", meta: null });
+  s.addActivity({
+    sessionId: "other",
+    ts: NOW,
+    kind: "edit",
+    target: "src/auth/login.ts",
+    summary: "reviewed login",
+    meta: null,
+  });
 
-  const result = runPreflight({ store: s, paths: ["src/auth/login.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.severity, "soft");
   assert.equal(result.recommendation, "ask-user");
@@ -82,12 +116,33 @@ test("preflight: soft overlap is found beyond the newest 200 activity rows", asy
   const s = await store();
   s.upsertSession({ id: "other", harness: "claude-code", idSource: "harness", pid: null, cwd: null }, NOW);
   s.upsertSession({ id: "noise", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
-  s.addActivity({ sessionId: "other", ts: NOW, kind: "edit", target: "src/auth/login.ts", summary: "reviewed login", meta: null });
+  s.addActivity({
+    sessionId: "other",
+    ts: NOW,
+    kind: "edit",
+    target: "src/auth/login.ts",
+    summary: "reviewed login",
+    meta: null,
+  });
   for (let i = 1; i <= 201; i++) {
-    s.addActivity({ sessionId: "noise", ts: NOW + i, kind: "run", target: `noise/${i}.ts`, summary: "noise", meta: null });
+    s.addActivity({
+      sessionId: "noise",
+      ts: NOW + i,
+      kind: "run",
+      target: `noise/${i}.ts`,
+      summary: "noise",
+      meta: null,
+    });
   }
 
-  const result = runPreflight({ store: s, paths: ["src/auth/login.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.severity, "soft");
   assert.equal(result.conflicts[0]?.hits[0]?.session.id, "other");
@@ -99,7 +154,14 @@ test("preflight: stale claims are treated as free", async () => {
   s.upsertSession({ id: "other", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
   s.addClaim({ sessionId: "other", pattern: "src/auth/**", reason: null, createdAt: NOW, expiresAt: NOW + 60_000 });
 
-  const result = runPreflight({ store: s, paths: ["src/auth/login.ts"], selfId: "me", now: NOW + SESSION_TTL + 1, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + SESSION_TTL + 1,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.severity, "info");
   assert.equal(result.recommendation, "continue");
@@ -112,7 +174,14 @@ test("preflight: broad claims are detectable", async () => {
   s.upsertSession({ id: "other", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
   s.addClaim({ sessionId: "other", pattern: "**", reason: "whole repo", createdAt: NOW, expiresAt: NOW + 60_000 });
 
-  const result = runPreflight({ store: s, paths: ["src/app.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/app.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.severity, "hard");
   assert.equal(hasBroadClaim(result.conflicts[0]!.hits[0]!), true);
@@ -124,7 +193,14 @@ test("preflight: normalized root claims are hard overlaps", async () => {
   s.upsertSession({ id: "other", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
   s.addClaim({ sessionId: "other", pattern: "", reason: "root", createdAt: NOW, expiresAt: NOW + 60_000 });
 
-  const result = runPreflight({ store: s, paths: ["src/app.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/app.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.severity, "hard");
   assert.equal(hasBroadClaim(result.conflicts[0]!.hits[0]!), true);
@@ -135,7 +211,14 @@ test("preflight: unresolved identity warns when active sessions exist", async ()
   const s = await store();
   s.upsertSession({ id: "maybe-me", harness: "unknown", idSource: "tty", pid: null, cwd: null }, NOW);
 
-  const result = runPreflight({ store: s, paths: ["src/app.ts"], selfId: null, now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/app.ts"],
+    selfId: null,
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.match(result.warnings[0] ?? "", /identity is unresolved/);
   s.close();
@@ -148,7 +231,14 @@ test("preflight: reports all sessions with hard overlaps on the same path", asyn
     s.addClaim({ sessionId: id, pattern: "src/auth/**", reason: id, createdAt: NOW, expiresAt: NOW + 60_000 });
   }
 
-  const result = runPreflight({ store: s, paths: ["src/auth/login.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.conflicts[0]?.hits.length, 2);
   s.close();
@@ -159,7 +249,14 @@ test("preflight: stale overlap holders are not called unrelated", async () => {
   s.upsertSession({ id: "other", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
   s.addClaim({ sessionId: "other", pattern: "src/auth/**", reason: null, createdAt: NOW, expiresAt: NOW + 60_000 });
 
-  const result = runPreflight({ store: s, paths: ["src/auth/login.ts"], selfId: "me", now: NOW + 61_000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + 61_000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.severity, "info");
   assert.equal(result.unrelatedSessions.length, 0);
@@ -171,9 +268,23 @@ test("preflight: recent activity under a hard overlap is not called unrelated", 
   s.upsertSession({ id: "claimant", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
   s.addClaim({ sessionId: "claimant", pattern: "src/auth/**", reason: null, createdAt: NOW, expiresAt: NOW + 60_000 });
   s.upsertSession({ id: "reviewer", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
-  s.addActivity({ sessionId: "reviewer", ts: NOW, kind: "edit", target: "src/auth/login.ts", summary: "review", meta: null });
+  s.addActivity({
+    sessionId: "reviewer",
+    ts: NOW,
+    kind: "edit",
+    target: "src/auth/login.ts",
+    summary: "review",
+    meta: null,
+  });
 
-  const result = runPreflight({ store: s, paths: ["src/auth/login.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
 
   assert.equal(result.severity, "hard");
   assert.ok(result.conflicts.some((c) => c.tier === "soft" && c.hits.some((h) => h.session.id === "reviewer")));
@@ -202,7 +313,12 @@ test("preflight json is capped unless --full is passed", async () => {
     output += text;
   };
   assert.equal(runCommand(cappedCtx), 0);
-  const cappedJson = JSON.parse(output) as { paths: unknown[]; conflicts: unknown[]; counts: { paths: number; conflicts: number }; truncated: { paths: number; conflicts: number } };
+  const cappedJson = JSON.parse(output) as {
+    paths: unknown[];
+    conflicts: unknown[];
+    counts: { paths: number; conflicts: number };
+    truncated: { paths: number; conflicts: number };
+  };
   assert.equal(cappedJson.counts.paths, 21);
   assert.equal(cappedJson.paths.length, 20);
   assert.equal(cappedJson.truncated.paths, 1);
@@ -216,7 +332,11 @@ test("preflight json is capped unless --full is passed", async () => {
     output += text;
   };
   assert.equal(runCommand(fullCtx), 0);
-  const fullJson = JSON.parse(output) as { paths: unknown[]; conflicts: unknown[]; truncated: { paths: number; conflicts: number } };
+  const fullJson = JSON.parse(output) as {
+    paths: unknown[];
+    conflicts: unknown[];
+    truncated: { paths: number; conflicts: number };
+  };
   assert.equal(fullJson.paths.length, 21);
   assert.equal(fullJson.conflicts.length, 21);
   assert.equal(fullJson.truncated.paths, 0);
@@ -249,7 +369,14 @@ test("preflight human output wraps long hit summaries", async () => {
     createdAt: NOW,
     expiresAt: NOW + 60_000,
   });
-  const result = runPreflight({ store: s, paths: ["src/auth/login.ts"], selfId: "me", now: NOW + 1000, sessionTtlMs: SESSION_TTL, recentMs: RECENT });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+  });
   const opts = { operation: "commit", source: "paths" as const, failOn: "never" as const, full: true, width: 64 };
 
   const plain = formatHuman(result, opts, NOW + 1000, createTheme({ isTTY: false }));
@@ -260,7 +387,10 @@ test("preflight human output wraps long hit summaries", async () => {
   assert.equal(stripAnsi(colored), plain);
   assert.notEqual(hitLine, -1);
   assert.equal(lines[hitLine + 1]?.startsWith("    "), true);
-  assert.equal(lines.every((line) => line.length <= 64), true);
+  assert.equal(
+    lines.every((line) => line.length <= 64),
+    true,
+  );
   s.close();
 });
 
@@ -275,6 +405,18 @@ test("preflight explicit outside-repo paths are input errors", async () => {
 });
 
 test("parseNameStatus includes deleted, both sides of renames, and copy destinations", () => {
-  const output = ["D", "src/old.ts", "R100", "src/from.ts", "src/to.ts", "C100", "src/source.ts", "src/copied.ts", "A", "src/new.ts", ""].join("\0");
+  const output = [
+    "D",
+    "src/old.ts",
+    "R100",
+    "src/from.ts",
+    "src/to.ts",
+    "C100",
+    "src/source.ts",
+    "src/copied.ts",
+    "A",
+    "src/new.ts",
+    "",
+  ].join("\0");
   assert.deepEqual(parseNameStatus(output), ["src/old.ts", "src/from.ts", "src/to.ts", "src/copied.ts", "src/new.ts"]);
 });

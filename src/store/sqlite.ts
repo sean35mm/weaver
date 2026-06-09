@@ -5,8 +5,8 @@ import { ageCutoff } from "./reap.ts";
 import type {
   ActivityInput,
   ActivityRow,
-  ClaimPruneOptions,
   ClaimInput,
+  ClaimPruneOptions,
   ClaimRow,
   NoteInput,
   NoteRow,
@@ -162,11 +162,18 @@ export class SqliteStore implements Store {
   listRecentEndedSessions(limit: number, since?: number): SessionRow[] {
     if (since !== undefined) {
       return this.db
-        .all<RawSession>("SELECT * FROM sessions WHERE ended_at IS NOT NULL AND ended_at >= ? ORDER BY ended_at DESC, started_at DESC LIMIT ?", since, limit)
+        .all<RawSession>(
+          "SELECT * FROM sessions WHERE ended_at IS NOT NULL AND ended_at >= ? ORDER BY ended_at DESC, started_at DESC LIMIT ?",
+          since,
+          limit,
+        )
         .map(toSession);
     }
     return this.db
-      .all<RawSession>("SELECT * FROM sessions WHERE ended_at IS NOT NULL ORDER BY ended_at DESC, started_at DESC LIMIT ?", limit)
+      .all<RawSession>(
+        "SELECT * FROM sessions WHERE ended_at IS NOT NULL ORDER BY ended_at DESC, started_at DESC LIMIT ?",
+        limit,
+      )
       .map(toSession);
   }
 
@@ -192,26 +199,17 @@ export class SqliteStore implements Store {
   }
 
   releaseAllClaims(sessionId: string, now: number): void {
-    this.db.run(
-      "UPDATE claims SET released_at = ? WHERE session_id = ? AND released_at IS NULL",
-      now,
-      sessionId,
-    );
+    this.db.run("UPDATE claims SET released_at = ? WHERE session_id = ? AND released_at IS NULL", now, sessionId);
   }
 
   listActiveClaims(now: number): ClaimRow[] {
     return this.db
-      .all<RawClaim>(
-        "SELECT * FROM claims WHERE released_at IS NULL AND expires_at > ? ORDER BY created_at",
-        now,
-      )
+      .all<RawClaim>("SELECT * FROM claims WHERE released_at IS NULL AND expires_at > ? ORDER BY created_at", now)
       .map(toClaim);
   }
 
   listOpenClaims(): ClaimRow[] {
-    return this.db
-      .all<RawClaim>("SELECT * FROM claims WHERE released_at IS NULL ORDER BY created_at")
-      .map(toClaim);
+    return this.db.all<RawClaim>("SELECT * FROM claims WHERE released_at IS NULL ORDER BY created_at").map(toClaim);
   }
 
   pruneClaims(opts: ClaimPruneOptions): void {
@@ -266,9 +264,7 @@ export class SqliteStore implements Store {
   }
 
   listRecentActivity(limit: number): ActivityRow[] {
-    return this.db
-      .all<RawActivity>("SELECT * FROM activity ORDER BY ts DESC, id DESC LIMIT ?", limit)
-      .map(toActivity);
+    return this.db.all<RawActivity>("SELECT * FROM activity ORDER BY ts DESC, id DESC LIMIT ?", limit).map(toActivity);
   }
 
   pruneActivity(opts: PruneOptions): void {

@@ -51,7 +51,9 @@ export async function runDashboard(ctx: Ctx): Promise<number> {
     port,
     sessionTtlMs: ctx.config.sessionTtlMs,
   });
-  ctx.out(`${theme.accent("weaver dashboard")} ${theme.dim("→")} ${theme.path(server.url)}   ${theme.dim("(Ctrl-C to stop)")}\n`);
+  ctx.out(
+    `${theme.accent("weaver dashboard")} ${theme.dim("→")} ${theme.path(server.url)}   ${theme.dim("(Ctrl-C to stop)")}\n`,
+  );
   if (!flagBool(ctx.args, "no-open")) openBrowser(server.url);
 
   await waitForSignal();
@@ -72,10 +74,17 @@ export async function runWatch(ctx: Ctx): Promise<number> {
       activity: ctx.store.listRecentActivity(12),
       notes: ctx.store.listNotes(8),
     };
-    const empty = !data.sessions.length && !data.completed.length && !data.claims.length && !data.activity.length && !data.notes.length;
+    const empty =
+      !data.sessions.length &&
+      !data.completed.length &&
+      !data.claims.length &&
+      !data.activity.length &&
+      !data.notes.length;
     const body = empty ? `${theme.dim("no activity")}\n` : formatStatus(data, now, ctx.store, theme);
     process.stdout.write("\x1b[2J\x1b[H"); // clear screen + cursor home
-    process.stdout.write(`🧵 ${theme.accent("weaver watch")} ${theme.dim("—")} ${theme.dim(ctx.repo.repoId)}   ${theme.dim("(Ctrl-C to stop)")}\n\n${body}`);
+    process.stdout.write(
+      `🧵 ${theme.accent("weaver watch")} ${theme.dim("—")} ${theme.dim(ctx.repo.repoId)}   ${theme.dim("(Ctrl-C to stop)")}\n\n${body}`,
+    );
   };
 
   draw();

@@ -1,8 +1,8 @@
 import { flagBool } from "../args.ts";
 import { detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
-import { normalizeTarget } from "../repo/paths.ts";
 import { formatConflict } from "../render.ts";
+import { normalizeTarget } from "../repo/paths.ts";
 import { themeFromCtx } from "../terminal/color.ts";
 import { requireArg } from "../validate.ts";
 

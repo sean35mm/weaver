@@ -1,8 +1,8 @@
-import { detectConflict, type ConflictHit, type Tier } from "./conflict.ts";
+import { type ConflictHit, detectConflict, type Tier } from "./conflict.ts";
 import { targetsOverlap } from "./glob.ts";
 import { DEFAULT_ACTIVITY_MAX_EVENTS } from "./store/reap.ts";
-import { isBroadGlob } from "./validate.ts";
 import type { SessionRow, Store } from "./store/store.ts";
+import { isBroadGlob } from "./validate.ts";
 
 export type PreflightSeverity = "clear" | "info" | "soft" | "hard";
 export type PreflightRecommendation = "continue" | "ask-user";

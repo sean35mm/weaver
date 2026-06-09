@@ -22,11 +22,14 @@
     "opencode"
   ],
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "build:local": "node scripts/write-version.ts && bun build src/cli.ts --compile --outfile $HOME/.local/bin/weaver; s=$?; node scripts/write-version.ts --reset; exit $s",
     "demo": "node scripts/demo.ts",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
     "test": "node --test test/*.test.ts test/integration/*.test.ts",
     "test:bun": "bun test test/",
     "typecheck": "tsc --noEmit"
@@ -35,6 +38,7 @@
     "picomatch": "^4.0.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
     "@types/node": "^22.0.0",
     "@types/picomatch": "^4.0.0",
     "typescript": "^5.7.0"

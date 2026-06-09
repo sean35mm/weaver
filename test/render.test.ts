@@ -59,14 +59,24 @@ test("statusJson redacts full session ids", () => {
 });
 
 test("short ids do not expose short explicit session keys", () => {
-  const data = { sessions: [session("explicit:abc123@host.local")], completed: [], claims: [], activity: [], notes: [] };
+  const data = {
+    sessions: [session("explicit:abc123@host.local")],
+    completed: [],
+    claims: [],
+    activity: [],
+    notes: [],
+  };
   const json = statusJson("repo", data, 1000, {} as Store) as { sessions: Array<Record<string, unknown>> };
   assert.notEqual(json.sessions[0]?.shortId, "abc123");
 });
 
 test("formatStatus shows recently completed sessions", () => {
   const done = { ...session("explicit:done123456@host.local"), intent: "ship fixes", endedAt: 900 };
-  const body = formatStatus({ sessions: [], completed: [done], claims: [], activity: [], notes: [] }, 1000, {} as Store);
+  const body = formatStatus(
+    { sessions: [], completed: [done], claims: [], activity: [], notes: [] },
+    1000,
+    {} as Store,
+  );
   assert.match(body, /weaver: no other active agents/);
   assert.match(body, /recently done:/);
   assert.match(body, /ship fixes/);
@@ -82,12 +92,21 @@ test("formatStatus colors without changing visible text", () => {
 });
 
 test("formatStatus truncates long session intents to the configured width", () => {
-  const active = { ...session("explicit:active123456@host.local"), intent: "ship a very long terminal rendering polish change with many details" };
-  const body = formatStatus({ sessions: [active], completed: [], claims: [], activity: [], notes: [] }, 1000, {} as Store, plainTheme, { width: 54 });
+  const active = {
+    ...session("explicit:active123456@host.local"),
+    intent: "ship a very long terminal rendering polish change with many details",
+  };
+  const body = formatStatus(
+    { sessions: [active], completed: [], claims: [], activity: [], notes: [] },
+    1000,
+    {} as Store,
+    plainTheme,
+    { width: 54 },
+  );
   const row = body.trimEnd().split("\n")[1] ?? "";
 
   assert.equal(row.length <= 54, true);
-  assert.match(row, /\.\.\.   1s ago$/);
+  assert.match(row, /\.\.\. {3}1s ago$/);
 });
 
 test("formatStatus shows recent activity before recently completed sessions", () => {
@@ -145,7 +164,13 @@ test("formatStatus wraps notes with continuation indentation", () => {
     createdAt: 0,
     supersedes: null,
   };
-  const body = formatStatus({ sessions: [], completed: [], claims: [], activity: [], notes: [note] }, 1000, {} as Store, plainTheme, { width: 40 });
+  const body = formatStatus(
+    { sessions: [], completed: [], claims: [], activity: [], notes: [note] },
+    1000,
+    {} as Store,
+    plainTheme,
+    { width: 40 },
+  );
   const lines = body.trimEnd().split("\n");
 
   assert.equal(lines[3], "  • one two three four five six seven");
@@ -164,11 +189,20 @@ test("formatStatus caps note width on wide terminals", () => {
     createdAt: 0,
     supersedes: null,
   };
-  const body = formatStatus({ sessions: [], completed: [], claims: [], activity: [], notes: [note] }, 1000, {} as Store, plainTheme, { width: 140 });
+  const body = formatStatus(
+    { sessions: [], completed: [], claims: [], activity: [], notes: [note] },
+    1000,
+    {} as Store,
+    plainTheme,
+    { width: 140 },
+  );
   const noteLines = body.trimEnd().split("\n").slice(3);
 
   assert.equal(noteLines.length > 1, true);
-  assert.equal(noteLines.every((line) => line.length <= 100), true);
+  assert.equal(
+    noteLines.every((line) => line.length <= 100),
+    true,
+  );
   assert.equal(noteLines[1]?.startsWith("      "), true);
 });
 
@@ -185,7 +219,13 @@ test("formatStatus spaces wrapped notes apart", () => {
     supersedes: null,
   };
   const second = { ...first, id: 2, body: "short note" };
-  const body = formatStatus({ sessions: [], completed: [], claims: [], activity: [], notes: [first, second] }, 1000, {} as Store, plainTheme, { width: 40 });
+  const body = formatStatus(
+    { sessions: [], completed: [], claims: [], activity: [], notes: [first, second] },
+    1000,
+    {} as Store,
+    plainTheme,
+    { width: 40 },
+  );
   const lines = body.trimEnd().split("\n");
 
   assert.equal(lines[5], "");

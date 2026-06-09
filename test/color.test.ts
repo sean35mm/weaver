@@ -4,6 +4,7 @@ import { parseArgs } from "../src/args.ts";
 import { createTheme, stripAnsi } from "../src/terminal/color.ts";
 
 const BOOL = new Set(["color", "no-color"]);
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escapes is the point
 const hasAnsi = (text: string): boolean => /\x1b\[[0-9;]*m/.test(text);
 
 test("terminal colors are disabled without a TTY by default", () => {
@@ -18,7 +19,12 @@ test("terminal colors can be forced with flags or env", () => {
 });
 
 test("terminal colors respect no-color controls", () => {
-  assert.equal(createTheme({ args: parseArgs(["status", "--no-color"], BOOL), env: { FORCE_COLOR: "1" }, isTTY: true }).accent("x"), "x");
+  assert.equal(
+    createTheme({ args: parseArgs(["status", "--no-color"], BOOL), env: { FORCE_COLOR: "1" }, isTTY: true }).accent(
+      "x",
+    ),
+    "x",
+  );
   assert.equal(createTheme({ env: { NO_COLOR: "1", FORCE_COLOR: "1" }, isTTY: true }).accent("x"), "x");
   assert.equal(createTheme({ env: { TERM: "dumb" }, isTTY: true }).accent("x"), "x");
 });

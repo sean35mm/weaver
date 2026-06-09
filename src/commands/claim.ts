@@ -1,8 +1,8 @@
 import { flagStr } from "../args.ts";
 import { detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
-import { normalizeTarget } from "../repo/paths.ts";
 import { formatConflict } from "../render.ts";
+import { normalizeTarget } from "../repo/paths.ts";
 import { themeFromCtx } from "../terminal/color.ts";
 import { clamp, isBroadGlob, parseTtl, requireArg, requireIdentity } from "../validate.ts";
 import { pruneAfterWrite } from "./prune.ts";
@@ -29,11 +29,19 @@ export function runClaim(ctx: Ctx): number {
     // Refresh: supersede our own prior claim on the same pattern, then (re)record.
     ctx.store.releaseClaim(id.key, pattern, ctx.now);
     ctx.store.addClaim({ sessionId: id.key, pattern, reason, createdAt: ctx.now, expiresAt: ctx.now + ttlMs });
-    ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind: "claim", target: pattern, summary: reason, meta: null });
+    ctx.store.addActivity({
+      sessionId: id.key,
+      ts: ctx.now,
+      kind: "claim",
+      target: pattern,
+      summary: reason,
+      meta: null,
+    });
     pruneAfterWrite(ctx.store, ctx.now);
   });
 
-  if (isBroadGlob(pattern)) ctx.err(`⚠ ${theme.warn(`'${pattern}' is very broad`)} — you're claiming most/all of the repo.\n`);
+  if (isBroadGlob(pattern))
+    ctx.err(`⚠ ${theme.warn(`'${pattern}' is very broad`)} — you're claiming most/all of the repo.\n`);
   ctx.out(`${theme.success("✓ claimed")} ${theme.path(pattern)}${reason ? ` ${theme.dim("—")} ${reason}` : ""}\n`);
 
   if (conflict.tier === "hard" || conflict.tier === "soft") {
@@ -49,7 +57,14 @@ export function runRelease(ctx: Ctx): number {
   const pattern = normalizeTarget(requireArg(ctx.args._[1], "glob"), ctx.repo.root, ctx.cwd);
   ctx.store.transaction(() => {
     ctx.store.releaseClaim(id.key, pattern, ctx.now);
-    ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind: "release", target: pattern, summary: null, meta: null });
+    ctx.store.addActivity({
+      sessionId: id.key,
+      ts: ctx.now,
+      kind: "release",
+      target: pattern,
+      summary: null,
+      meta: null,
+    });
     pruneAfterWrite(ctx.store, ctx.now);
   });
   ctx.out(`${theme.success("✓ released")} ${theme.path(pattern)}\n`);

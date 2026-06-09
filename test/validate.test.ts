@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clamp, CliError, isBroadGlob, normalizeKind, parseTtl, requireArg } from "../src/validate.ts";
+import { CliError, clamp, isBroadGlob, normalizeKind, parseTtl, requireArg } from "../src/validate.ts";
 
 test("parseTtl: units, fallback, bounds", () => {
   assert.equal(parseTtl("30m", 0), 30 * 60 * 1000);
