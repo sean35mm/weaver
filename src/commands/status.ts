@@ -30,9 +30,9 @@ export function run(ctx: Ctx): number {
     return 0;
   }
 
-  // Silent when there's nothing worth an agent's tokens.
-  const pinned = data.notes.filter((n) => n.pinned);
-  if (!data.sessions.length && !data.claims.length && !pinned.length && !data.activity.length && !data.completed.length) {
+  // Silent when there's nothing worth an agent's tokens. Notes count even unpinned:
+  // durable learnings must surface in a quiet repo, not just while activity is fresh.
+  if (!data.sessions.length && !data.claims.length && !data.notes.length && !data.activity.length && !data.completed.length) {
     ctx.out(`${theme.success("weaver:")} no other active agents\n`);
     return 0;
   }

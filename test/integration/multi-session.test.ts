@@ -88,6 +88,19 @@ test("multiple sessions coordinate through one store", () => {
   assert.equal(selfParsed.completed.some((s) => s.intent === "build auth flow"), false);
 });
 
+test("status surfaces unpinned notes in an otherwise quiet repo", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+
+  assert.equal(run(root, home, "agent-a", ["note", "pg runs on :5433 in tests"]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["done"]).status, 0);
+
+  // Self is excluded everywhere, so the unpinned note is the only thing left to show.
+  const status = run(root, home, "agent-a", ["status"]);
+  assert.equal(status.status, 0);
+  assert.match(status.stdout, /pg runs on :5433 in tests/);
+});
+
 test("observer status with missing store does not create Weaver home", () => {
   const root = tmpDir("weaver-repo-");
   const home = path.join(root, "missing-home");

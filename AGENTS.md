@@ -40,7 +40,7 @@ Don't hand-create releases. Land `feat:`/`fix:` commits on `main`, then **merge 
 the standalone binaries. Full details and the
 pre-flight checklist are in **[RELEASING.md](./RELEASING.md)**.
 
-<!-- weaver:start — managed by Weaver; re-run `weaver init` to update, `weaver deinit` to remove -->
+<!-- weaver:start — managed by Weaver; re-run `weaver init` to update; use `weaver deinit` for project files or `weaver deinit --global` for global files -->
 ## Weaver — shared agent context
 
 Other agents may be working in this repo right now. Weaver is a local CLI that keeps you
@@ -56,7 +56,8 @@ aware of them. If the `weaver` command isn't found, ignore this section.
   `weaver note "<learning>"`.
 - **When finished:** `weaver done`.
 
-**On a conflict** (`status`/`claim` shows another *live* session in your area): read their
+**On a conflict** (`status`/`claim` shows another *live* session in your area): exit 1 from
+`claim` means your claim WAS recorded and a conflict was surfaced — don't re-run it. Read their
 intent + reason + recent activity, then — (1) prefer to work elsewhere and re-check later;
 (2) if the overlap is harmless, proceed; (3) if you're blocked, `weaver note` your intent
 and **ask the user how to split the work**. Never silently edit over another agent's active

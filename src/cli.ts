@@ -81,6 +81,8 @@ const REGISTRY: Record<string, Handler> = {
   check: { run: check.run, agent: false, store: (args) => (flagBool(args, "no-touch") ? "read" : "touch") },
   preflight: { run: preflight.run, agent: false, store: "read" },
   doctor: { run: doctor.run, agent: false, store: "read" },
+  // Viewers intentionally `create`: they poll the store file, so it must exist even before
+  // the first agent writes.
   dashboard: { run: dashboard.runDashboard, agent: false, store: "create" },
   view: { run: dashboard.runDashboard, agent: false, store: "create" },
   ui: { run: dashboard.runDashboard, agent: false, store: "create" },
@@ -88,10 +90,10 @@ const REGISTRY: Record<string, Handler> = {
   init: { run: init.run, agent: false, store: "create" },
   enable: { run: toggle.runEnable, agent: false, store: "create" },
   disable: { run: toggle.runDisable, agent: false, store: "create" },
-  deinit: { run: deinit.run, agent: false, store: "create" },
+  deinit: { run: deinit.run, agent: false, store: "touch" },
   config: { run: config.run, agent: false, store: "create" },
-  upgrade: { run: upgrade.run, agent: false, store: "create" },
-  uninstall: { run: uninstall.run, agent: false, store: "create" },
+  upgrade: { run: upgrade.run, agent: false, store: "read" },
+  uninstall: { run: uninstall.run, agent: false, store: "read" },
 };
 
 async function openStoreForMode(repoId: string, mode: StoreMode): Promise<Ctx["store"]> {
@@ -120,7 +122,7 @@ function printHelp(write: (s: string) => void): void {
   write("commands:\n");
   write("  status [--json] [--full]                 who's active, claims, activity, notes\n");
   write("  task <intent…>                           announce what you're working on\n");
-  write("  claim <glob> [--reason …] [--ttl 30m]    stake out an area (surfaces overlaps)\n");
+  write("  claim <glob> [--reason …] [--ttl 30m]    stake out an area (exit 1 = recorded, but conflicts exist)\n");
   write("  release <glob>                           free an area\n");
   write("  check <path> [--no-touch]                is anyone else here? (exit 1 on conflict)\n");
   write("  preflight [paths…|--staged|--upstream|--base REF]  bounded commit/push/PR risk check\n");

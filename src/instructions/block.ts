@@ -23,7 +23,8 @@ aware of them. If the \`weaver\` command isn't found, ignore this section.
   \`weaver note "<learning>"\`.
 - **When finished:** \`weaver done\`.
 
-**On a conflict** (\`status\`/\`claim\` shows another *live* session in your area): read their
+**On a conflict** (\`status\`/\`claim\` shows another *live* session in your area): exit 1 from
+\`claim\` means your claim WAS recorded and a conflict was surfaced — don't re-run it. Read their
 intent + reason + recent activity, then — (1) prefer to work elsewhere and re-check later;
 (2) if the overlap is harmless, proceed; (3) if you're blocked, \`weaver note\` your intent
 and **ask the user how to split the work**. Never silently edit over another agent's active

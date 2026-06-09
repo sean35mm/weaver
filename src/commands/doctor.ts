@@ -1,11 +1,10 @@
 import type { Ctx } from "../context.ts";
-import { DEFAULT_SESSION_TTL_MS } from "../store/reap.ts";
 
 const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
 
 export function run(ctx: Ctx): number {
   const id = ctx.identity;
-  const active = ctx.store.listActiveSessions(ctx.now, DEFAULT_SESSION_TTL_MS).length;
+  const active = ctx.store.listActiveSessions(ctx.now, ctx.config.sessionTtlMs).length;
 
   ctx.out("weaver doctor\n");
   ctx.out(

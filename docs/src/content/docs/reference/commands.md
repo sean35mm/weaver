@@ -21,8 +21,9 @@ weaver task "refactor the auth module to use AuthService"
 ```
 
 ### `weaver claim '<glob>' [--reason "<why>"] [--ttl <dur>]`
-Stake out an area you'll work in. Advisory and TTL'd. If it overlaps another live session's
-claim, it still records your claim but prints the conflict and exits non-zero.
+Stake out an area you'll work in. Advisory and TTL'd. Exits `0` when the area is clear. Exit `1`
+means the claim **was still recorded** but it overlaps another live session — the conflict is
+printed so the agent stops and coordinates. Don't re-run the claim on exit `1`; it succeeded.
 ```sh
 weaver claim 'src/auth/**' --reason "rewriting token refresh" --ttl 2h
 ```
