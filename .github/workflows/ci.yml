@@ -6,6 +6,15 @@ on:
   pull_request:
 
 jobs:
+  guard:
+    name: Version sentinel guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # version.generated.ts must stay at the 0.0.0-dev sentinel; real versions are stamped
+      # only inside release builds (see release-please.yml / release-binaries.yml).
+      - run: grep -q '"0.0.0-dev"' src/version.generated.ts || { echo "src/version.generated.ts must contain the 0.0.0-dev sentinel — run 'node scripts/write-version.ts --reset'"; exit 1; }
+
   node:
     name: Node test
     runs-on: ubuntu-latest
