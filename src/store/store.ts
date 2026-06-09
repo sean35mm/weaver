@@ -116,6 +116,8 @@ export interface Store {
 
   // notes (durable, repo-scoped)
   addNote(input: NoteInput): number;
+  getNote(id: number): NoteRow | undefined;
+  /** Excludes superseded notes — only the current version of each learning is listed. */
   listNotes(limit: number): NoteRow[];
 
   // activity (time-ordered; pruned lazily)

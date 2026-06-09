@@ -31,10 +31,14 @@ weaver claim 'src/auth/**' --reason "rewriting token refresh" --ttl 2h
 ### `weaver release '<glob>'`
 Free an area you previously claimed.
 
-### `weaver note "<text>" [--pin] [--path <p>] [--tag <t>]`
+### `weaver note "<text>" [--pin] [--path <p>] [--tag <t>] [--update <id>]`
 Record a durable, repo-scoped learning. `--pin` surfaces it prominently in `status`.
+`--update <id>` replaces an existing note: the old note disappears from all listings and the
+new one takes its place (ids are shown by `weaver notes`). A pinned note stays pinned across
+updates unless you say otherwise.
 ```sh
 weaver note "integration tests need docker pg on :5433" --tag testing
+weaver note "integration tests need docker pg on :5434 since #42" --update 17
 ```
 
 ### `weaver log <kind> <path> "<summary>"`
@@ -79,7 +83,8 @@ Human and JSON output are capped by default; `--json` includes `counts` and `tru
 Use `--full` to include every checked path and overlap.
 
 ### `weaver notes [--full]`
-List durable notes (pinned first, newest first).
+List durable notes with their ids (pinned first, newest first). Superseded notes are hidden —
+only the current version of each learning appears.
 
 ### `weaver activity [--json] [--full]`
 The recent activity feed across sessions.

@@ -142,6 +142,26 @@ test("notes: pinned first, newest first", async () => {
   store.close();
 });
 
+test("notes: superseded notes are hidden, only the latest in a chain survives", async () => {
+  const store = await openStore(tmpDb());
+  store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
+
+  const a = store.addNote({ sessionId: "s1", harness: "opencode", body: "v1", path: null, tags: null, pinned: false, createdAt: NOW, supersedes: null });
+  const b = store.addNote({ sessionId: "s1", harness: "opencode", body: "v2", path: null, tags: null, pinned: false, createdAt: NOW + 1, supersedes: a });
+  const c = store.addNote({ sessionId: "s1", harness: "opencode", body: "v3", path: null, tags: null, pinned: false, createdAt: NOW + 2, supersedes: b });
+  store.addNote({ sessionId: "s1", harness: "opencode", body: "unrelated", path: null, tags: null, pinned: false, createdAt: NOW + 3, supersedes: null });
+
+  const notes = store.listNotes(10);
+  assert.deepEqual(notes.map((n) => n.body).sort(), ["unrelated", "v3"]);
+
+  // History stays addressable directly even though it's hidden from listings.
+  assert.equal(store.getNote(a)?.body, "v1");
+  assert.equal(store.getNote(c)?.supersedes, b);
+  assert.equal(store.getNote(99_999), undefined);
+
+  store.close();
+});
+
 test("activity: insert, recent order, prune to maxEvents", async () => {
   const store = await openStore(tmpDb());
   store.upsertSession({ id: "s1", harness: "pi", idSource: "tty", pid: null, cwd: null }, NOW);

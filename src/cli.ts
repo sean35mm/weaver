@@ -126,8 +126,8 @@ function printHelp(write: (s: string) => void): void {
   write("  release <glob>                           free an area\n");
   write("  check <path> [--no-touch]                is anyone else here? (exit 1 on conflict)\n");
   write("  preflight [paths…|--staged|--upstream|--base REF]  bounded commit/push/PR risk check\n");
-  write("  note <text…> [--pin] [--path …] [--tag …]  record a durable learning\n");
-  write("  notes [--full]                           list notes\n");
+  write("  note <text…> [--pin] [--path …] [--tag …] [--update <id>]  record a durable learning\n");
+  write("  notes [--full]                           list notes (with ids; superseded notes hidden)\n");
   write("  log <kind> <path> <summary…>             record an activity event\n");
   write("  activity [--full]                        recent activity feed\n");
   write("  done                                     end this session, release its claims\n");

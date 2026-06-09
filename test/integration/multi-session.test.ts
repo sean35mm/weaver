@@ -88,6 +88,33 @@ test("multiple sessions coordinate through one store", () => {
   assert.equal(selfParsed.completed.some((s) => s.intent === "build auth flow"), false);
 });
 
+test("note --update supersedes, inherits pin, and rejects unknown ids", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+
+  const first = run(root, home, "agent-a", ["note", "old learning", "--pin"]);
+  assert.equal(first.status, 0);
+  const firstId = Number(/#(\d+)/.exec(first.stdout)?.[1]);
+  assert.ok(Number.isInteger(firstId));
+
+  const updated = run(root, home, "agent-a", ["note", "new learning", "--update", String(firstId)]);
+  assert.equal(updated.status, 0);
+  assert.match(updated.stdout, /\(pinned\)/); // inherited from the superseded note
+  assert.match(updated.stdout, new RegExp(`supersedes #${firstId}`));
+
+  const notes = run(root, home, "agent-a", ["notes"]);
+  assert.match(notes.stdout, /new learning/);
+  assert.doesNotMatch(notes.stdout, /old learning/);
+
+  const missing = run(root, home, "agent-a", ["note", "x", "--update", "9999"]);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /note #9999 not found/);
+
+  const garbage = run(root, home, "agent-a", ["note", "x", "--update", "abc"]);
+  assert.equal(garbage.status, 1);
+  assert.match(garbage.stderr, /--update expects a note id/);
+});
+
 test("status surfaces unpinned notes in an otherwise quiet repo", () => {
   const root = tmpDir("weaver-repo-");
   const home = tmpDir("weaver-home-");

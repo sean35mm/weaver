@@ -79,6 +79,10 @@ export class EmptyStore implements Store {
     return readonlyStoreWrite();
   }
 
+  getNote(_id: number): NoteRow | undefined {
+    return undefined;
+  }
+
   listNotes(_limit: number): NoteRow[] {
     return [];
   }

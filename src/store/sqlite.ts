@@ -235,9 +235,20 @@ export class SqliteStore implements Store {
     ).lastInsertRowid;
   }
 
+  getNote(id: number): NoteRow | undefined {
+    const r = this.db.get<RawNote>("SELECT * FROM notes WHERE id = ?", id);
+    return r ? toNote(r) : undefined;
+  }
+
   listNotes(limit: number): NoteRow[] {
+    // Superseded notes are history, not the current picture: hide any note another note replaces.
     return this.db
-      .all<RawNote>("SELECT * FROM notes ORDER BY pinned DESC, created_at DESC LIMIT ?", limit)
+      .all<RawNote>(
+        `SELECT * FROM notes
+         WHERE id NOT IN (SELECT supersedes FROM notes WHERE supersedes IS NOT NULL)
+         ORDER BY pinned DESC, created_at DESC LIMIT ?`,
+        limit,
+      )
       .map(toNote);
   }
 
