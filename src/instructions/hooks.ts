@@ -38,12 +38,25 @@ export function settingsPathForRepo(root: string): string {
   return path.join(root, ".claude", "settings.json");
 }
 
-const isWeaverGroup = (group: MatcherGroup): boolean =>
-  Array.isArray(group.hooks) && group.hooks.some((h) => typeof h?.command === "string" && h.command.includes(MARKER));
+const isWeaverEntry = (h: HookEntry): boolean => typeof h?.command === "string" && h.command.includes(MARKER);
 
-/** Drop our matcher groups from one event list, leaving everything else untouched. */
+/**
+ * Strip Weaver's hook entries from one event list, leaving everything else untouched. Only
+ * marker-matching entries are removed — a group that also carries user-defined hooks keeps
+ * them (and the group); a group left empty is dropped.
+ */
 function withoutWeaver(groups: MatcherGroup[]): MatcherGroup[] {
-  return groups.filter((g) => !isWeaverGroup(g));
+  const out: MatcherGroup[] = [];
+  for (const group of groups) {
+    if (!Array.isArray(group.hooks)) {
+      out.push(group);
+      continue;
+    }
+    const kept = group.hooks.filter((h) => !isWeaverEntry(h));
+    if (kept.length === group.hooks.length) out.push(group);
+    else if (kept.length > 0) out.push({ ...group, hooks: kept });
+  }
+  return out;
 }
 
 export function injectHooks(settings: Settings): Settings {

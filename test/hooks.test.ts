@@ -59,6 +59,28 @@ test("removeHooks drops an empty hooks object entirely", () => {
   assert.equal("hooks" in removed, false);
 });
 
+test("user hooks sharing a matcher group with weaver's entry survive remove and re-inject", () => {
+  const injected = injectHooks({});
+  // a user appends their own command to weaver's matcher group
+  injected.hooks?.PreToolUse?.[0]?.hooks?.push({ type: "command", command: "./my-guard.sh" });
+
+  const removed = removeHooks(injected);
+  const survivors = removed.hooks?.PreToolUse ?? [];
+  assert.equal(survivors.length, 1);
+  assert.deepEqual(
+    survivors[0]?.hooks?.map((h) => h.command),
+    ["./my-guard.sh"],
+  );
+  assert.equal("PostToolUse" in (removed.hooks ?? {}), false); // ours-only list still drops
+
+  // re-injecting dedupes our entry without disturbing the user's
+  const reinjected = injectHooks(injected);
+  const preGroups = reinjected.hooks?.PreToolUse ?? [];
+  const commands = preGroups.flatMap((g) => g.hooks ?? []).map((h) => h.command);
+  assert.equal(commands.filter((c) => c.includes("weaver hook pre-edit")).length, 1);
+  assert.ok(commands.includes("./my-guard.sh"));
+});
+
 test("installHooks/uninstallHooks round-trip on disk, refusing invalid JSON", () => {
   const root = tmpDir("weaver-hooks-");
   assert.equal(installHooks(root), "wrote");

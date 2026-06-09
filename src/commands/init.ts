@@ -51,10 +51,6 @@ async function chooseScope(ctx: Ctx): Promise<InstructionScope | null> {
  * --hooks, so scripted inits never write settings the user didn't ask for.
  */
 async function chooseHooks(ctx: Ctx): Promise<boolean> {
-  if (flagBool(ctx.args, "hooks") && flagBool(ctx.args, "no-hooks")) {
-    ctx.err("weaver: choose either --hooks or --no-hooks, not both.\n");
-    return false;
-  }
   if (flagBool(ctx.args, "hooks")) return true;
   if (flagBool(ctx.args, "no-hooks")) return false;
   if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
@@ -65,6 +61,11 @@ async function chooseHooks(ctx: Ctx): Promise<boolean> {
 }
 
 export async function run(ctx: Ctx): Promise<number> {
+  // Validate all flag combinations before touching any file or store state.
+  if (flagBool(ctx.args, "hooks") && flagBool(ctx.args, "no-hooks")) {
+    ctx.err("weaver: choose either --hooks or --no-hooks, not both.\n");
+    return 1;
+  }
   const scope = await chooseScope(ctx);
   if (!scope) return 1;
 

@@ -95,6 +95,22 @@ test("init rejects project and global together", async () => {
   ctx.store.close();
 });
 
+test("init rejects hooks and no-hooks together before touching any file", async () => {
+  const root = tmpDir("weaver-repo-");
+  const ctx = await ctxFor(root, ["init", "--project", "--hooks", "--no-hooks"]);
+  let err = "";
+  ctx.err = (s) => {
+    err += s;
+  };
+
+  assert.equal(await init.run(ctx), 1);
+  assert.match(err, /either --hooks or --no-hooks/);
+  assert.equal(fs.existsSync(path.join(root, "CLAUDE.md")), false);
+  assert.equal(fs.existsSync(path.join(root, ".claude", "settings.json")), false);
+  assert.equal(ctx.store.getMeta("enabled"), undefined);
+  ctx.store.close();
+});
+
 test("disable/enable toggles the enabled flag", async () => {
   const ctx = await ctxFor(tmpDir("weaver-repo-"));
   toggle.runDisable(ctx);
