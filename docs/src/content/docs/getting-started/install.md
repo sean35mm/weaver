@@ -18,6 +18,13 @@ This downloads the right binary for your OS/arch (macOS and Linux, arm64 and x64
 `~/.local/bin/weaver`. If that directory isn't on your `PATH`, the installer tells you the
 line to add.
 
+## Supported platforms
+
+- **macOS** — arm64 (Apple Silicon) and x64
+- **Linux** — arm64 and x64 (glibc)
+- **Windows** — via **WSL2**: install inside your WSL distro and the linux binary works as-is.
+  Native Windows isn't supported today; it may come later if there's demand.
+
 Verify it:
 
 ```sh

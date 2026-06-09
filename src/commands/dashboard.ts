@@ -21,10 +21,7 @@ function waitForSignal(): Promise<void> {
 
 function openBrowser(url: string): void {
   try {
-    if (process.platform === "win32") {
-      spawn("cmd", ["/c", "start", "", url], { stdio: "ignore", detached: true }).unref();
-      return;
-    }
+    // macOS/Linux only — Weaver ships no native Windows binary (WSL2 takes the linux path).
     const cmd = process.platform === "darwin" ? "open" : "xdg-open";
     spawn(cmd, [url], { stdio: "ignore", detached: true }).unref();
   } catch {

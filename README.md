@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | s
 ```
 
 A single self-contained binary is installed into `~/.local/bin/weaver`. No Node, npm, server, or
-cloud account is required.
+cloud account is required. Supported platforms: macOS and Linux (arm64/x64); on Windows, use WSL2.
 
 ```sh
 weaver --version

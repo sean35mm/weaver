@@ -33,12 +33,11 @@ export function isGlob(target: string): boolean {
 
 export function normalizeTarget(target: string, root: string, cwd: string): string {
   const raw = target.trim();
-  const windowsAbs = /^[A-Za-z]:[\\/]/.test(raw);
 
-  // Absolute (POSIX or Windows-drive) → relativize to root directly.
-  if (path.isAbsolute(raw) || windowsAbs) {
-    const rel = windowsAbs ? path.win32.relative(root, raw) : path.relative(root, raw);
-    return rejectOutsideRepo(toPosix(rel));
+  // Absolute → relativize to root directly. (POSIX only — no native Windows support;
+  // WSL2 sees POSIX paths.)
+  if (path.isAbsolute(raw)) {
+    return rejectOutsideRepo(toPosix(path.relative(root, raw)));
   }
 
   const rel = stripDotSlash(toPosix(raw));
