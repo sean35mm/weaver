@@ -49,6 +49,15 @@ CREATE TABLE IF NOT EXISTS activity (
   meta        TEXT
 );
 
+-- Pre-edit advisory cooldown: when a session was last warned about a given conflict picture.
+-- No FK to sessions: a session's first pre-edit hook can fire before any session row exists.
+CREATE TABLE IF NOT EXISTS advisories (
+  session_id  TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  ts          INTEGER NOT NULL,
+  PRIMARY KEY (session_id, fingerprint)
+);
+
 CREATE TABLE IF NOT EXISTS weaver_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL

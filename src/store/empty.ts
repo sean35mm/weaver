@@ -1,6 +1,7 @@
 import type {
   ActivityInput,
   ActivityRow,
+  AgePruneOptions,
   ClaimInput,
   ClaimPruneOptions,
   ClaimRow,
@@ -96,6 +97,18 @@ export class EmptyStore implements Store {
   }
 
   pruneActivity(_opts: PruneOptions): void {
+    readonlyStoreWrite();
+  }
+
+  getAdvisory(_sessionId: string, _fingerprint: string): number | undefined {
+    return undefined;
+  }
+
+  recordAdvisory(_sessionId: string, _fingerprint: string, _ts: number): void {
+    readonlyStoreWrite();
+  }
+
+  pruneAdvisories(_opts: AgePruneOptions): void {
     readonlyStoreWrite();
   }
 

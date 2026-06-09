@@ -14,6 +14,7 @@ import {
   uninstallHooks,
 } from "../src/instructions/hooks.ts";
 import { openStore } from "../src/store/open.ts";
+import { DEFAULT_ADVISORY_COOLDOWN_MS } from "../src/store/reap.ts";
 
 function tmpDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -177,6 +178,51 @@ test("preEditOutput emits advisory allow JSON on a conflicting claim, silence wh
   });
   const own = preEditOutput(ctx, { ...payload, tool_input: { file_path: path.join(root, "src/web/app.ts") } });
   assert.equal(own, null);
+
+  ctx.store.close();
+});
+
+test("preEditOutput rate-limits repeat warnings, re-warns on a changed picture or after cooldown", async () => {
+  const root = tmpDir("weaver-repo-");
+  const ctx = await ctxFor(root);
+  const longTtl = ctx.now + 60 * 60 * 1000;
+
+  ctx.store.upsertSession(
+    { id: "explicit:alice@h", harness: "codex", idSource: "explicit", pid: null, cwd: null },
+    ctx.now,
+  );
+  ctx.store.addClaim({
+    sessionId: "explicit:alice@h",
+    pattern: "src/auth/**",
+    reason: "token flow",
+    createdAt: ctx.now,
+    expiresAt: longTtl,
+  });
+
+  const payload = { session_id: "sess-9", cwd: root, tool_input: { file_path: path.join(root, "src/auth/login.ts") } };
+  assert.ok(preEditOutput(ctx, payload)); // first edit warns
+  assert.equal(preEditOutput(ctx, payload), null); // same picture within cooldown: silent
+  // a different file under the same claim is the same picture — still silent
+  const sibling = { ...payload, tool_input: { file_path: path.join(root, "src/auth/token.ts") } };
+  assert.equal(preEditOutput(ctx, sibling), null);
+
+  // the picture changes (a second claimant appears) → re-warn immediately
+  ctx.store.upsertSession({ id: "explicit:bob@h", harness: "pi", idSource: "explicit", pid: null, cwd: null }, ctx.now);
+  ctx.store.addClaim({
+    sessionId: "explicit:bob@h",
+    pattern: "src/auth/login.ts",
+    reason: null,
+    createdAt: ctx.now,
+    expiresAt: longTtl,
+  });
+  assert.ok(preEditOutput(ctx, payload));
+
+  // after the cooldown, the same picture warns again
+  const later = { ...ctx, now: ctx.now + DEFAULT_ADVISORY_COOLDOWN_MS + 1 };
+  ctx.store.touchSession("explicit:alice@h", later.now); // keep the holders live
+  ctx.store.touchSession("explicit:bob@h", later.now);
+  assert.ok(preEditOutput(later, payload));
+  assert.equal(preEditOutput(later, payload), null); // and rate-limits again
 
   ctx.store.close();
 });

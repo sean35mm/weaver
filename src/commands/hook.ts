@@ -12,11 +12,12 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { detectConflict } from "../conflict.ts";
+import { type ConflictHit, detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
 import { type Identity, resolveIdentity } from "../identity/session.ts";
 import { formatConflict } from "../render.ts";
 import { normalizeTarget } from "../repo/paths.ts";
+import { DEFAULT_ADVISORY_COOLDOWN_MS } from "../store/reap.ts";
 import { plainTheme } from "../terminal/color.ts";
 import { pruneAfterWrite } from "./prune.ts";
 
@@ -84,6 +85,14 @@ function targetPath(ctx: Ctx, payload: HookPayload): string | null {
   }
 }
 
+/** Stable digest of a conflict picture: who holds what, at which tier. Order-insensitive. */
+export function advisoryFingerprint(hits: ConflictHit[]): string {
+  return hits
+    .map((h) => `${h.tier}:${h.session.id}:${h.claim ? `c:${h.claim.pattern}` : `a:${h.activity?.target ?? ""}`}`)
+    .sort()
+    .join("|");
+}
+
 /** The advisory JSON for PreToolUse, or null when there is nothing worth saying. */
 export function preEditOutput(ctx: Ctx, payload: HookPayload): string | null {
   const target = targetPath(ctx, payload);
@@ -105,6 +114,16 @@ export function preEditOutput(ctx: Ctx, payload: HookPayload): string | null {
     recentMs: ctx.config.recentMs,
   });
   if (conflict.tier !== "hard" && conflict.tier !== "soft") return null;
+
+  // Cooldown: an agent editing a contested area gets warned once, not on every edit. The
+  // same picture re-warns only after the cooldown; a CHANGED picture (new holder, new claim,
+  // soft→hard escalation) re-warns immediately because its fingerprint differs.
+  if (self) {
+    const fingerprint = advisoryFingerprint(conflict.hits);
+    const lastWarned = ctx.store.getAdvisory(self.key, fingerprint);
+    if (lastWarned !== undefined && ctx.now - lastWarned < DEFAULT_ADVISORY_COOLDOWN_MS) return null;
+    ctx.store.recordAdvisory(self.key, fingerprint, ctx.now);
+  }
 
   const summary = formatConflict(conflict, ctx.now, plainTheme).trimEnd();
   return `${JSON.stringify({

@@ -13,6 +13,11 @@ export const DEFAULT_ACTIVITY_MAX_EVENTS = 5000;
 export const DEFAULT_ACTIVITY_MAX_AGE_DAYS = 14;
 export const DEFAULT_CLAIM_RETENTION_DAYS = 7;
 
+// Pre-edit hook advisories: repeat the same warning to the same session at most this often
+// (a changed conflict picture re-warns immediately); rows only matter for minutes, prune in a day.
+export const DEFAULT_ADVISORY_COOLDOWN_MS = 5 * 60 * 1000;
+export const DEFAULT_ADVISORY_RETENTION_DAYS = 1;
+
 /** A session is stale when its last heartbeat is older than the TTL. */
 export function isStale(lastSeen: number, now: number, ttlMs: number): boolean {
   return now - lastSeen > ttlMs;

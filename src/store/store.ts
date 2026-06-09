@@ -85,10 +85,12 @@ export interface PruneOptions {
   now: number;
 }
 
-export interface ClaimPruneOptions {
+export interface AgePruneOptions {
   maxAgeDays: number;
   now: number;
 }
+
+export type ClaimPruneOptions = AgePruneOptions;
 
 export interface Store {
   /** Execute related writes atomically. Transactions are synchronous and non-nested. */
@@ -124,6 +126,11 @@ export interface Store {
   addActivity(input: ActivityInput): number;
   listRecentActivity(limit: number): ActivityRow[];
   pruneActivity(opts: PruneOptions): void;
+
+  // pre-edit advisory cooldown (warned session × conflict-picture fingerprint → last warned)
+  getAdvisory(sessionId: string, fingerprint: string): number | undefined;
+  recordAdvisory(sessionId: string, fingerprint: string, ts: number): void;
+  pruneAdvisories(opts: AgePruneOptions): void;
 
   // config / state
   getMeta(key: string): string | undefined;

@@ -5,6 +5,7 @@ import { ageCutoff } from "./reap.ts";
 import type {
   ActivityInput,
   ActivityRow,
+  AgePruneOptions,
   ClaimInput,
   ClaimPruneOptions,
   ClaimRow,
@@ -276,6 +277,28 @@ export class SqliteStore implements Store {
        )`,
       opts.maxEvents,
     );
+  }
+
+  getAdvisory(sessionId: string, fingerprint: string): number | undefined {
+    return this.db.get<{ ts: number }>(
+      "SELECT ts FROM advisories WHERE session_id = ? AND fingerprint = ?",
+      sessionId,
+      fingerprint,
+    )?.ts;
+  }
+
+  recordAdvisory(sessionId: string, fingerprint: string, ts: number): void {
+    this.db.run(
+      `INSERT INTO advisories (session_id, fingerprint, ts) VALUES (?, ?, ?)
+       ON CONFLICT(session_id, fingerprint) DO UPDATE SET ts = excluded.ts`,
+      sessionId,
+      fingerprint,
+      ts,
+    );
+  }
+
+  pruneAdvisories(opts: AgePruneOptions): void {
+    this.db.run("DELETE FROM advisories WHERE ts < ?", ageCutoff(opts.now, opts.maxAgeDays));
   }
 
   getMeta(key: string): string | undefined {

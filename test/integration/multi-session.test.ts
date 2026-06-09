@@ -223,6 +223,16 @@ test("hook pre-edit warns about another session's claim; post-edit registers pre
   assert.equal(parsed.hookSpecificOutput.permissionDecision, "allow");
   assert.match(parsed.hookSpecificOutput.additionalContext, /token flow/);
 
+  // an unchanged conflict picture is not re-announced on the next edit (cooldown)
+  const repeat = hook("pre-edit", {
+    session_id: "claude-sess",
+    cwd: root,
+    tool_name: "Edit",
+    tool_input: { file_path: path.join(root, "src/auth/login.ts") },
+  });
+  assert.equal(repeat.status, 0);
+  assert.equal(repeat.stdout, "");
+
   const clear = hook("pre-edit", {
     session_id: "claude-sess",
     cwd: root,

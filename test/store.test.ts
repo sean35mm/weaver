@@ -245,6 +245,24 @@ test("activity: insert, recent order, prune to maxEvents", async () => {
   store.close();
 });
 
+test("advisories: record, refresh, prune by age", async () => {
+  const store = await openStore(tmpDb());
+  const day = 24 * 60 * 60 * 1000;
+
+  assert.equal(store.getAdvisory("s1", "fp"), undefined);
+  store.recordAdvisory("s1", "fp", NOW);
+  assert.equal(store.getAdvisory("s1", "fp"), NOW);
+  store.recordAdvisory("s1", "fp", NOW + 5); // upsert refreshes the timestamp
+  assert.equal(store.getAdvisory("s1", "fp"), NOW + 5);
+
+  store.recordAdvisory("s1", "old-picture", NOW - 2 * day);
+  store.pruneAdvisories({ maxAgeDays: 1, now: NOW + 5 });
+  assert.equal(store.getAdvisory("s1", "old-picture"), undefined);
+  assert.equal(store.getAdvisory("s1", "fp"), NOW + 5);
+
+  store.close();
+});
+
 test("meta: schema_version seeded, get/set upsert", async () => {
   const store = await openStore(tmpDb());
   assert.equal(store.getMeta("schema_version"), "1");

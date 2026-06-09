@@ -15,7 +15,10 @@ Two hooks are installed, both **advisory** — Weaver never blocks an edit:
 - **PreToolUse → `weaver hook pre-edit`** — before Edit/Write/MultiEdit/NotebookEdit runs,
   Weaver checks the target path against other live sessions' claims and recent activity. On
   an overlap it *allows* the edit but injects a warning the model sees, with the other
-  session's intent and claim reason — the same picture `weaver check` prints.
+  session's intent and claim reason — the same picture `weaver check` prints. Warnings are
+  rate-limited: an agent deliberately working in a contested area is warned once, not on
+  every edit — the same picture repeats at most every ~5 minutes, but a *changed* picture
+  (a new agent, a new claim, a soft overlap turning into an active claim) warns immediately.
 - **PostToolUse → `weaver hook post-edit`** — after the edit, Weaver records an `edit`
   activity event and refreshes the session's heartbeat. This fixes the classic gap where an
   agent edits heads-down for 20 minutes without running a weaver command and goes "stale"
