@@ -15,10 +15,11 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      # Configured via release-please-config.json + .release-please-manifest.json so that
+      # bump-minor-pre-major keeps releases on 0.x: feat → minor, fix → patch, and a
+      # BREAKING CHANGE bumps the minor instead of jumping to 1.0.0.
       - uses: googleapis/release-please-action@v4
         id: release
-        with:
-          release-type: node
 
   # Build + attach standalone binaries in the SAME (push-triggered) run. This avoids the
   # GitHub limitation where a release created by GITHUB_TOKEN does not fire `release:published`.

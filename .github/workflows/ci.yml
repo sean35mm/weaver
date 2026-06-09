@@ -15,21 +15,42 @@ jobs:
       # only inside release builds (see release-please.yml / release-binaries.yml).
       - run: grep -q '"0.0.0-dev"' src/version.generated.ts || { echo "src/version.generated.ts must contain the 0.0.0-dev sentinel — run 'node scripts/write-version.ts --reset'"; exit 1; }
 
-  node:
-    name: Node test
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - run: npm install
+      - run: npm ci
+      - run: npm run lint
+
+  node:
+    name: Node test (${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.18.0 is the engines minimum (first 22.x with flag-free node:sqlite + type stripping).
+        node: ["22.18.0", "24"]
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
       - run: npm run typecheck
       - run: npm test
 
   bun:
-    name: Bun test
-    runs-on: ubuntu-latest
+    name: Bun test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
