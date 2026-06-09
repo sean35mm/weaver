@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { removeBlock } from "../instructions/block.ts";
+import { uninstallHooks } from "../instructions/hooks.ts";
 import { instructionTargets, scopeFromFlags } from "../instructions/targets.ts";
 import { storePathForRepo } from "../store/location.ts";
 
@@ -23,6 +24,11 @@ export function run(ctx: Ctx): number {
     }
   }
   ctx.out(`✓ removed Weaver instructions${cleaned.length ? ` from ${cleaned.join(", ")}` : " (none found)"}\n`);
+
+  // Hooks are always project-scoped, so remove them whenever this repo is being deinited.
+  if (scope === "project" && uninstallHooks(ctx.repo.root) === "wrote") {
+    ctx.out("✓ removed Claude Code hooks from .claude/settings.json\n");
+  }
 
   if (flagBool(ctx.args, "purge")) {
     const dbPath = storePathForRepo(ctx.repo.repoId);

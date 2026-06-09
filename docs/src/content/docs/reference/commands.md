@@ -95,11 +95,15 @@ state, active session count.
 
 ## Lifecycle & maintenance
 
-### `weaver init [--project|--global]`
+### `weaver init [--project|--global] [--hooks|--no-hooks]`
 Install the agent instruction block into either project files (`./CLAUDE.md`, `./AGENTS.md`) or
 global files (`~/.claude/CLAUDE.md`, `~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`). On a
 TTY, `init` prompts with project files as the first/default choice. Non-interactive runs default
 to project files. `--project` and `--global` are mutually exclusive.
+
+`init` can also install [Claude Code hooks](/weaver/guides/claude-code-hooks/) into the repo's
+`.claude/settings.json` (always project-scoped). On a TTY it asks (default yes); non-interactive
+runs install them only with an explicit `--hooks`.
 
 Project scope covers the current checkout only — run `init` in each repo you want covered. Global
 scope is a one-time setup that covers every repo where your agents read their global instruction
@@ -113,7 +117,15 @@ Pause / resume agent writes for this repo. While disabled, mutating commands no-
 
 ### `weaver deinit [--project|--global] [--purge]`
 Remove the instruction block from project files by default, or from global files with `--global`.
+Project-scope deinit also removes Weaver's Claude Code hook entries from `.claude/settings.json`.
 `--purge` also deletes the current repo's store.
+
+### `weaver hook <pre-edit|post-edit>`
+The Claude Code hook endpoint — registered by `weaver init`, not meant to be run by hand. Reads
+the hook payload JSON on stdin. `pre-edit` emits an advisory warning (never a block) when the
+target file overlaps another live session; `post-edit` records the edit and refreshes the
+session's heartbeat. Always exits `0`; problems are silently ignored so a hook can never break
+an agent. See [Claude Code hooks](/weaver/guides/claude-code-hooks/).
 
 ### `weaver config [<key> [<seconds>]]`
 View or set tunable TTLs. See [Configuration](/weaver/guides/configuration/).
@@ -136,6 +148,8 @@ Update the installed binary to the latest release (`--check` only checks). See
 | `--fail-on` | `preflight` | exit threshold: `soft`, `hard`, or `never` |
 | `--project` | `init`, `deinit` | use project instruction files |
 | `--global` | `init`, `deinit` | use global instruction files |
+| `--hooks` / `--no-hooks` | `init` | install / skip Claude Code hooks |
+| `--update` | `note` | supersede an existing note by id |
 | `--no-touch` | `check` | do not refresh heartbeat |
 | `--reason` | `claim` | why you're claiming the area |
 | `--ttl` | `claim` | claim lifetime (`90s`, `30m`, `2h`, `1d`) |

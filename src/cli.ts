@@ -11,6 +11,7 @@ import * as dashboard from "./commands/dashboard.ts";
 import * as deinit from "./commands/deinit.ts";
 import * as doctor from "./commands/doctor.ts";
 import * as done from "./commands/done.ts";
+import * as hook from "./commands/hook.ts";
 import * as init from "./commands/init.ts";
 import * as log from "./commands/log.ts";
 import * as note from "./commands/note.ts";
@@ -50,6 +51,8 @@ const BOOLEAN_FLAGS = new Set([
   "no-touch",
   "staged",
   "upstream",
+  "hooks",
+  "no-hooks",
 ]);
 // Mutating writes that are paused when the project is disabled (done/lifecycle still work).
 const WRITE_GATED = new Set(["task", "claim", "release", "note", "log"]);
@@ -60,6 +63,8 @@ interface Handler {
   agent: boolean;
   /** `read` never creates a store, `touch` writes only when one exists, `create` creates/migrates. */
   store: StoreMode | ((args: ParsedArgs) => StoreMode);
+  /** Skip ladder resolution (incl. the `ps` TTY walk) — for hot paths that derive identity themselves. */
+  skipIdentity?: boolean;
 }
 
 type StoreMode = "read" | "touch" | "create";
@@ -94,6 +99,9 @@ const REGISTRY: Record<string, Handler> = {
   config: { run: config.run, agent: false, store: "create" },
   upgrade: { run: upgrade.run, agent: false, store: "read" },
   uninstall: { run: uninstall.run, agent: false, store: "read" },
+  // Claude Code hook endpoint — fires on every edit, so it derives identity from the hook
+  // payload itself and never creates a store in repos that haven't opted in.
+  hook: { run: hook.run, agent: false, store: "touch", skipIdentity: true },
 };
 
 async function openStoreForMode(repoId: string, mode: StoreMode): Promise<Ctx["store"]> {
@@ -135,7 +143,10 @@ function printHelp(write: (s: string) => void): void {
   write("  dashboard [--port N] [--no-open]         live web view (Ctrl-C to stop)\n");
   write("  watch                                    live terminal view (Ctrl-C to stop)\n");
   write("\n");
-  write("  init [--project|--global]               install agent instructions (this repo, or global = every repo)\n");
+  write(
+    "  init [--project|--global] [--hooks|--no-hooks]  install agent instructions (this repo, or global = every repo)\n",
+  );
+  write("  hook <pre-edit|post-edit>                Claude Code hook endpoint (payload JSON on stdin)\n");
   write("  disable / enable                         pause / resume agent writes for this repo\n");
   write("  deinit [--project|--global] [--purge]    remove instructions (and optionally the store)\n");
   write("  config [<key> [<seconds>]]               view/set tunables (TTLs)\n");
@@ -173,7 +184,7 @@ async function main(): Promise<number> {
     const repo = resolveRepoId();
     const mode = typeof handler.store === "function" ? handler.store(args) : handler.store;
     store = await openStoreForMode(repo.repoId, mode);
-    const identity = resolveIdentity();
+    const identity = handler.skipIdentity ? null : resolveIdentity();
     const now = Date.now();
     const ctx: Ctx = {
       store,

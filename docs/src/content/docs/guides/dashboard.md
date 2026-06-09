@@ -2,7 +2,7 @@
 title: Dashboard & watch
 description: Watch the commons live — a local web dashboard or a terminal view.
 sidebar:
-  order: 3
+  order: 4
 ---
 
 Two ways to watch what your agents are doing in real time.

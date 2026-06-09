@@ -55,6 +55,12 @@ weaver init
 Either way, there is no per-repo database setup: each repo's store is created automatically the
 first time an agent runs a weaver command there. After init, your agents coordinate on their own.
 
+For Claude Code, `init` can also install **hooks** (`--hooks`) that make coordination structural
+instead of voluntary: before every file edit Claude is warned — advisorily, never blocked — when
+the target overlaps another live session, and after every edit the session's presence is
+refreshed automatically. See the
+[Claude Code hooks guide](https://sean35mm.github.io/weaver/guides/claude-code-hooks/).
+
 Update with `weaver upgrade`; remove with `weaver uninstall`.
 
 ## Try it by hand

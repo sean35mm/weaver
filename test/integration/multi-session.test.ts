@@ -193,6 +193,73 @@ test("write bootstrap failures use the friendly error boundary", () => {
   assert.doesNotMatch(result.stderr, /fatal/);
 });
 
+test("hook pre-edit warns about another session's claim; post-edit registers presence", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+
+  function hook(event: string, payload: unknown) {
+    const result = spawnSync(process.execPath, [cliPath, "hook", event], {
+      cwd: root,
+      env: env(home, null),
+      encoding: "utf8",
+      input: JSON.stringify(payload),
+    });
+    return { status: result.status ?? 1, stdout: result.stdout, stderr: result.stderr };
+  }
+
+  assert.equal(run(root, home, "alice", ["task", "auth refactor"]).status, 0);
+  assert.equal(run(root, home, "alice", ["claim", "src/auth/**", "--reason", "token flow"]).status, 0);
+
+  const conflicted = hook("pre-edit", {
+    session_id: "claude-sess",
+    cwd: root,
+    tool_name: "Edit",
+    tool_input: { file_path: path.join(root, "src/auth/login.ts") },
+  });
+  assert.equal(conflicted.status, 0); // advisory: never blocks, never fails
+  const parsed = JSON.parse(conflicted.stdout) as {
+    hookSpecificOutput: { permissionDecision: string; additionalContext: string };
+  };
+  assert.equal(parsed.hookSpecificOutput.permissionDecision, "allow");
+  assert.match(parsed.hookSpecificOutput.additionalContext, /token flow/);
+
+  const clear = hook("pre-edit", {
+    session_id: "claude-sess",
+    cwd: root,
+    tool_name: "Edit",
+    tool_input: { file_path: path.join(root, "docs/notes.md") },
+  });
+  assert.equal(clear.status, 0);
+  assert.equal(clear.stdout, "");
+
+  const post = hook("post-edit", {
+    session_id: "claude-sess",
+    cwd: root,
+    tool_name: "Edit",
+    tool_input: { file_path: path.join(root, "src/web/app.ts") },
+  });
+  assert.equal(post.status, 0);
+  assert.equal(post.stdout, "");
+
+  const status = run(root, home, "viewer", ["status", "--json", "--full"]);
+  const statusParsed = JSON.parse(status.stdout) as {
+    sessions: Array<{ harness: string }>;
+    recentActivity: Array<{ kind: string; target: string | null }>;
+  };
+  assert.ok(statusParsed.sessions.some((s) => s.harness === "claude-code"));
+  assert.ok(statusParsed.recentActivity.some((a) => a.kind === "edit" && a.target === "src/web/app.ts"));
+
+  // garbage stdin must be silent and harmless
+  const garbage = spawnSync(process.execPath, [cliPath, "hook", "pre-edit"], {
+    cwd: root,
+    env: env(home, null),
+    encoding: "utf8",
+    input: "not json{",
+  });
+  assert.equal(garbage.status ?? 1, 0);
+  assert.equal(garbage.stdout, "");
+});
+
 test("preflight --staged reports relevant hard overlaps without polling", () => {
   const root = tmpDir("weaver-repo-");
   const home = tmpDir("weaver-home-");
