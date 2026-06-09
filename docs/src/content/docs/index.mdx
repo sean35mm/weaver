@@ -27,8 +27,6 @@ hero:
       variant: minimal
 ---
 
-import { LinkButton } from "@astrojs/starlight/components";
-
 ```sh
 curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | sh
 ```
@@ -36,53 +34,3 @@ curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | s
 <p style="text-align:center;color:var(--sl-color-gray-3);margin-top:-0.4rem">
   A single self-contained binary — no Node, no npm. Update with <code>weaver upgrade</code>.
 </p>
-
-<div class="wv-eyebrow">The problem</div>
-
-Run several coding agents on one repo and they're blind to each other: different tools,
-sessions, and memories. They edit the same files, redo each other's work, and have no shared
-picture of what's in flight. **Weaver** is a fast, local, CLI-first coordination layer any
-agent can call.
-
-<div class="wv-eyebrow">How it works</div>
-
-<div class="wv-grid cols3">
-  <div class="wv-card"><h3><span class="num">1 ·</span> install</h3><p>One curl line drops in a standalone binary — no runtime to manage.</p></div>
-  <div class="wv-card"><h3><span class="num">2 ·</span> weaver init</h3><p>Adds a short instruction block to <code>CLAUDE.md</code> / <code>AGENTS.md</code>.</p></div>
-  <div class="wv-card"><h3><span class="num">3 ·</span> just work</h3><p>Agents read it and coordinate on their own — announce, claim, check, note.</p></div>
-</div>
-
-<div class="wv-eyebrow">Who runs what</div>
-
-<div class="wv-grid">
-  <div class="wv-card"><h3>Your agents drive it</h3><p>After <code>weaver init</code>, every agent runs the coordination commands itself — <code>task</code>, <code>claim</code>, <code>check</code>, <code>note</code>, <code>preflight</code> — as it works. You don't wire anything up.</p></div>
-  <div class="wv-card"><h3>You just watch</h3><p>Day to day you run three commands: <code>weaver status</code>, <code>weaver dashboard</code>, or <code>weaver watch</code> — and step in only to resolve a conflict.</p></div>
-</div>
-
-<div class="wv-eyebrow">What you get</div>
-
-<div class="wv-grid">
-  <div class="wv-card"><h3>They see each other</h3><p>Every session — across harnesses and windows — shows its intent, claimed areas, and recent activity.</p></div>
-  <div class="wv-card"><h3>No silent collisions</h3><p>An agent can <code>check</code> an area and get a clear conflict signal instead of quietly overwriting another's work.</p></div>
-  <div class="wv-card"><h3>Shared memory</h3><p>Durable <code>note</code>s capture gotchas and conventions that survive context compaction and new sessions.</p></div>
-  <div class="wv-card"><h3>Watch it live</h3><p>A real-time <code>dashboard</code> (web) and <code>watch</code> (terminal) show the whole commons as it changes.</p></div>
-</div>
-
-<div class="wv-eyebrow">Works with your agents</div>
-
-<div class="wv-chips">
-  <span class="chip">Claude Code</span>
-  <span class="chip">Codex</span>
-  <span class="chip">OpenCode</span>
-  <span class="chip">Pi</span>
-  <span class="chip">+ any shell</span>
-</div>
-
-It's a CLI, not an MCP server, on purpose — the one interface every harness can call with no
-setup. [Read why →](/weaver/concepts/why-cli-not-mcp/)
-
-<div class="wv-cta">
-  <h2>Stop your agents from colliding.</h2>
-  <LinkButton href="/weaver/getting-started/install/" icon="right-arrow">Get started</LinkButton>
-  <LinkButton href="/weaver/guides/using-from-an-agent/" variant="minimal">Using it from an agent</LinkButton>
-</div>

@@ -1,49 +1,28 @@
-/* Weaver — terminal-native theme. Accent: mid green #33c98f. */
+/* Weaver — terminal-native theme. Accent: teal #4cc4b0 (matches the web dashboard). */
 
 :root {
-  --sl-color-accent-low: #0f2e25;
-  --sl-color-accent: #33c98f;
-  --sl-color-accent-high: #a9f0d4;
-
-  --wv-card-bg: #0e141a;
-  --wv-card-border: #18212a;
-  --wv-card-heading: var(--sl-color-white);
-  --wv-card-text: var(--sl-color-gray-3, #8a9a93);
-  --wv-chip-bg: transparent;
-  --wv-chip-border: #1e2730;
-  --wv-chip-text: var(--sl-color-gray-2, #9fb3ab);
-  --wv-cta-bg: radial-gradient(120% 140% at 50% 0%, rgba(51, 201, 143, 0.08), transparent 60%);
-  --wv-cta-border: #18212a;
-  --wv-cta-heading: var(--sl-color-white);
+  --sl-color-accent-low: #0f2e29;
+  --sl-color-accent: #4cc4b0;
+  --sl-color-accent-high: #a5ece0;
 
   /* Inter for text, JetBrains Mono for code/terminal (self-hosted via Fontsource). */
   --sl-font: "Inter Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --sl-font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* Dark (default brand) — near-black terminal tones. */
+/* Dark (default brand) — surfaces aligned to the web dashboard. */
 :root[data-theme="dark"] {
-  --sl-color-bg: #0b0e12;
-  --sl-color-bg-nav: #0b0e12;
-  --sl-color-bg-sidebar: #0c1014;
-  --sl-color-bg-inline-code: #11161c;
-  --sl-color-hairline-shade: #1a222b;
+  --sl-color-bg: #0e1116;
+  --sl-color-bg-nav: #0e1116;
+  --sl-color-bg-sidebar: #0b0f13;
+  --sl-color-bg-inline-code: #161b22;
+  --sl-color-hairline-shade: #232b36;
 }
 
 :root[data-theme="light"] {
-  --sl-color-accent-low: #c8f0e0;
-  --sl-color-accent: #0e8c66;
-  --sl-color-accent-high: #07392b;
-  --wv-card-bg: #f7fbf9;
-  --wv-card-border: #c9ddd3;
-  --wv-card-heading: #102018;
-  --wv-card-text: #4b6258;
-  --wv-chip-bg: #ffffff;
-  --wv-chip-border: #c9ddd3;
-  --wv-chip-text: #263b32;
-  --wv-cta-bg: radial-gradient(120% 140% at 50% 0%, rgba(14, 140, 102, 0.12), rgba(247, 251, 249, 0.92) 62%);
-  --wv-cta-border: #c9ddd3;
-  --wv-cta-heading: #102018;
+  --sl-color-accent-low: #c2efe7;
+  --sl-color-accent: #0d8c7a;
+  --sl-color-accent-high: #073630;
 }
 
 /* ----------------------------------------------------------------------------
@@ -73,6 +52,7 @@
   }
 }
 
+/* Section eyebrow (used on the roadmap page). */
 .wv-eyebrow {
   font-family: var(--sl-font-mono, ui-monospace, monospace);
   font-size: 0.72rem;
@@ -118,97 +98,20 @@
   line-height: 1.75;
   color: #9fb3ab;
 }
+/* Starlight's prose spacing adds margin-top to sibling elements; the terminal
+   body is custom UI, not prose — neutralize it so the lines stay tight. */
+.wv-term .wv-body > * {
+  margin: 0;
+}
 .wv-term .wv-body .p {
-  color: #5fd3ad;
+  color: #62d8c4;
 }
 .wv-term .wv-body .who {
-  color: #33c98f;
+  color: #4cc4b0;
 }
 .wv-term .wv-body .warn {
   color: #e3b341;
 }
 .wv-term .wv-body .dim {
   color: #5a6a64;
-}
-
-/* Step + feature grids. */
-.wv-grid {
-  display: grid;
-  gap: 0.85rem;
-  grid-template-columns: repeat(2, 1fr);
-  align-items: stretch;
-}
-.wv-grid.cols3 {
-  grid-template-columns: repeat(3, 1fr);
-}
-@media (max-width: 44rem) {
-  .wv-grid,
-  .wv-grid.cols3 {
-    grid-template-columns: 1fr;
-  }
-}
-.wv-card {
-  border: 1px solid var(--wv-card-border);
-  background: var(--wv-card-bg);
-  border-radius: 12px;
-  padding: 1.1rem 1.2rem;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-/* Starlight adds margin-top to any element following a sibling (its prose spacing
-   rule, specificity 0,1,2). These are custom UI, not prose — neutralize it so grid
-   cards stay equal height and terminal lines stay tight. Selectors below outrank it. */
-.wv-grid > .wv-card,
-.wv-term .wv-body > * {
-  margin: 0;
-}
-.wv-card h3 {
-  margin: 0 0 0.35rem;
-  font-size: 1rem;
-  color: var(--wv-card-heading);
-}
-.wv-card .num {
-  font-family: var(--sl-font-mono, ui-monospace, monospace);
-  color: var(--sl-color-accent);
-  font-size: 0.85rem;
-}
-.wv-card p {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--wv-card-text);
-  line-height: 1.55;
-}
-
-/* Harness chips. */
-.wv-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-}
-.wv-chips .chip {
-  border: 1px solid var(--wv-chip-border);
-  border-radius: 999px;
-  background: var(--wv-chip-bg);
-  padding: 0.4rem 0.85rem;
-  font-size: 0.82rem;
-  color: var(--wv-chip-text);
-  font-family: var(--sl-font-mono, ui-monospace, monospace);
-}
-
-/* Closing call-to-action. */
-.wv-cta {
-  margin: 4rem 0 1rem;
-  padding: 2.5rem 1.5rem;
-  border: 1px solid var(--wv-cta-border);
-  border-radius: 16px;
-  background: var(--wv-cta-bg);
-  text-align: center;
-}
-.wv-cta h2 {
-  border: 0;
-  margin: 0 0 1.25rem;
-  font-size: 1.6rem;
-  color: var(--wv-cta-heading);
 }
