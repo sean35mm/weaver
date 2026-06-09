@@ -7,7 +7,7 @@ sidebar:
 
 This gets you from zero to "two agents coordinating" in a few minutes.
 
-## 1. Enable Weaver in your repo
+## 1. Install the agent instructions
 
 From the root of any git repo:
 
@@ -15,14 +15,18 @@ From the root of any git repo:
 weaver init
 ```
 
-`init` creates a local store for the repo and asks where to append a short instruction block:
-project files (`./CLAUDE.md`, `./AGENTS.md`) or global files (`~/.claude/CLAUDE.md`,
-`~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`). Project files are the first/default choice.
-For scripts, use `weaver init --project` or `weaver init --global`. That's the whole setup — **you
-don't run anything else by hand.**
+`init` asks where to append a short instruction block:
 
-Choose project files for one repo. Choose global files when you want your agents to use Weaver in
-every repo where they read global instructions.
+- **Project files** (`./CLAUDE.md`, `./AGENTS.md`) — covers this repo only. Run `weaver init`
+  again in each repo you want covered. This is the first/default choice.
+- **Global files** (`~/.claude/CLAUDE.md`, `~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`)
+  — one-time setup that covers every repo on this machine. You never run `init` again.
+
+For scripts, use `weaver init --project` or `weaver init --global`.
+
+There is no per-repo database setup either way: each repo's store is created automatically the
+first time an agent runs a weaver command there. That's the whole setup — **you don't run
+anything else by hand.**
 
 ## 2. Use your agents normally
 

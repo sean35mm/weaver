@@ -90,12 +90,16 @@ state, active session count.
 ## Lifecycle & maintenance
 
 ### `weaver init [--project|--global]`
-Enable Weaver in the current repo: create the store and inject the instruction block into either
-project files (`./CLAUDE.md`, `./AGENTS.md`) or global files (`~/.claude/CLAUDE.md`,
-`~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`). On a TTY, `init` prompts with project files
-as the first/default choice. Non-interactive runs default to project files. `--project` and
-`--global` are mutually exclusive. Global instructions apply in every repo where your agents read
-their global instruction files.
+Install the agent instruction block into either project files (`./CLAUDE.md`, `./AGENTS.md`) or
+global files (`~/.claude/CLAUDE.md`, `~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`). On a
+TTY, `init` prompts with project files as the first/default choice. Non-interactive runs default
+to project files. `--project` and `--global` are mutually exclusive.
+
+Project scope covers the current checkout only — run `init` in each repo you want covered. Global
+scope is a one-time setup that covers every repo where your agents read their global instruction
+files — no per-repo `init` is needed afterwards. In both cases there is no per-repo database
+setup: a repo's store is created automatically the first time an agent runs a weaver command
+there.
 
 ### `weaver disable` / `weaver enable`
 Pause / resume agent writes for this repo. While disabled, mutating commands no-op quietly

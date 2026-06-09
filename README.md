@@ -43,13 +43,17 @@ weaver --version
 weaver init
 ```
 
-`weaver init` enables the current git repo by creating its local store and asking where to install
-the agent protocol: project files (`CLAUDE.md` and `AGENTS.md`) or global files. Use `--project`
-or `--global` to choose explicitly; non-interactive runs default to project files. After that,
-your agents can coordinate on their own.
+`weaver init` asks where to install the agent protocol:
 
-Project instructions apply only to this checkout. Global instructions apply in every repo where
-your agents read their global instruction files.
+- **Project** (`--project`, the default): appends the instruction block to this repo's `CLAUDE.md`
+  and `AGENTS.md`. Covers this checkout only — run `weaver init` again in each repo you want
+  covered.
+- **Global** (`--global`): appends the block to your global instruction files (`~/.claude/CLAUDE.md`,
+  `~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`). One-time setup that covers every repo on
+  the machine — you never run `init` again.
+
+Either way, there is no per-repo database setup: each repo's store is created automatically the
+first time an agent runs a weaver command there. After init, your agents coordinate on their own.
 
 Update with `weaver upgrade`; remove with `weaver uninstall`.
 

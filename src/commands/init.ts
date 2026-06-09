@@ -22,9 +22,9 @@ function readAnswer(): Promise<string> {
 
 async function promptScope(ctx: Ctx): Promise<InstructionScope> {
   ctx.out("Where should Weaver install agent instructions?\n\n");
-  ctx.out("1. Project files: ./CLAUDE.md, ./AGENTS.md\n");
+  ctx.out("1. Project files: ./CLAUDE.md, ./AGENTS.md — this repo only\n");
   ctx.out(
-    "2. Global files: ~/.claude/CLAUDE.md, ~/.config/opencode/AGENTS.md, ~/.codex/AGENTS.md\n\n",
+    "2. Global files: ~/.claude/CLAUDE.md, ~/.config/opencode/AGENTS.md, ~/.codex/AGENTS.md — every repo, one-time setup\n\n",
   );
 
   for (;;) {
@@ -68,11 +68,18 @@ export async function run(ctx: Ctx): Promise<number> {
     }
   }
 
-  ctx.out("✓ weaver initialized for this repo\n");
+  ctx.out(scope === "global" ? "✓ weaver initialized (global)\n" : "✓ weaver initialized for this repo\n");
   ctx.out(`  repo  : ${ctx.repo.repoId} (${ctx.repo.basis})\n`);
   ctx.out(`  store : ${storePathForRepo(ctx.repo.repoId)}\n`);
   ctx.out(`  scope : ${scope}\n`);
   if (wrote.length) ctx.out(`  wrote : ${wrote.join(", ")}\n`);
   if (unchanged.length) ctx.out(`  ok    : ${unchanged.join(", ")} (already current)\n`);
+  if (scope === "global") {
+    ctx.out("\nGlobal instructions cover every repo on this machine — no per-repo init needed.\n");
+    ctx.out("Each repo's store is created automatically the first time an agent uses weaver there.\n");
+  } else {
+    ctx.out("\nProject instructions cover this checkout only. Run `weaver init` in other repos,\n");
+    ctx.out("or `weaver init --global` once to cover every repo on this machine.\n");
+  }
   return 0;
 }
