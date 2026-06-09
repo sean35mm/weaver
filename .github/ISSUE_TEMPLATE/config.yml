@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://sean35mm.github.io/weaver/
+    about: Guides, command reference, and concepts — check here first.
+  - name: Roadmap
+    url: https://sean35mm.github.io/weaver/roadmap/
+    about: See what's planned and 👍 issues to influence priorities.

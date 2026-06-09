@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in Weaver misbehaves
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        1. ran `weaver claim 'src/**'` in one session
+        2. ran `weaver status` in another
+        3. expected ... but saw ...
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`weaver doctor` output"
+      description: Run `weaver doctor` in the affected repo and paste the output (it contains no secrets).
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Weaver version
+      description: "`weaver --version`"
+      placeholder: 0.9.0
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: macOS 15 arm64 / Ubuntu 24.04 x64 / WSL2
+    validations:
+      required: true
+  - type: textarea
+    id: harnesses
+    attributes:
+      label: Agent harnesses involved
+      placeholder: Claude Code 2.x + OpenCode, running in the same repo
