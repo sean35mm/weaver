@@ -82,9 +82,22 @@ only on active claims, or `--fail-on never` for report-only automation.
 Human and JSON output are capped by default; `--json` includes `counts` and `truncated` metadata.
 Use `--full` to include every checked path and overlap.
 
-### `weaver notes [--full]`
-List durable notes with their ids (pinned first, newest first). Superseded notes are hidden —
-only the current version of each learning appears.
+### `weaver forget <id> "<why>" [--undo]`
+Retire a note that turned out to be wrong or has become noise. Removal is **soft, audited, and
+reversible**: the note disappears from `status`/`notes`/dashboard, a `forget` event (with your
+reason) lands in the activity feed, the reason is kept on the note itself, and
+`weaver forget --undo <id>` brings it back. A reason is required — curation always leaves a why.
+For learnings that are *outdated* rather than wrong, prefer `weaver note --update <id>` with the
+correction.
+```sh
+weaver forget 12 "npm distribution was removed; this no longer applies"
+weaver forget --undo 12
+```
+
+### `weaver notes [--full] [--all]`
+List durable notes with their ids (pinned first, newest first). Superseded and retired notes are
+hidden — only the current picture appears. `--all` shows the full curation history, marking
+retired notes (with their reason) and superseded ones.
 
 ### `weaver activity [--json] [--full]`
 The recent activity feed across sessions.
@@ -150,6 +163,8 @@ Update the installed binary to the latest release (`--check` only checks). See
 | `--global` | `init`, `deinit` | use global instruction files |
 | `--hooks` / `--no-hooks` | `init` | install / skip Claude Code hooks |
 | `--update` | `note` | supersede an existing note by id |
+| `--all` | `notes` | include retired and superseded notes |
+| `--undo` | `forget` | restore a retired note |
 | `--no-touch` | `check` | do not refresh heartbeat |
 | `--reason` | `claim` | why you're claiming the area |
 | `--ttl` | `claim` | claim lifetime (`90s`, `30m`, `2h`, `1d`) |

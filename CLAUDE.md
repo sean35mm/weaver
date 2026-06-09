@@ -11,7 +11,9 @@ aware of them. If the `weaver` command isn't found, ignore this section.
 - **Claim the area you'll work in, once:** `weaver claim '<glob>' --reason "<why>"`
   (e.g. `weaver claim 'src/auth/**' --reason "refactoring token flow"`).
 - **Record durable learnings** about this repo (gotchas, conventions, "X breaks Y"):
-  `weaver note "<learning>"`.
+  `weaver note "<learning>"`. If you discover an existing note is wrong or obsolete, fix the
+  record: `weaver note "<correction>" --update <id>`, or `weaver forget <id> "<why>"` if
+  it's just noise.
 - **When finished:** `weaver done`.
 
 **On a conflict** (`status`/`claim` shows another *live* session in your area): exit 1 from

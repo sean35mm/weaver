@@ -2,7 +2,7 @@
 
 import type { Db } from "./db.ts";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -28,15 +28,18 @@ CREATE TABLE IF NOT EXISTS claims (
 );
 
 CREATE TABLE IF NOT EXISTS notes (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id  TEXT REFERENCES sessions(id),
-  harness     TEXT,
-  body        TEXT NOT NULL,
-  path        TEXT,
-  tags        TEXT,
-  pinned      INTEGER NOT NULL DEFAULT 0,
-  created_at  INTEGER NOT NULL,
-  supersedes  INTEGER REFERENCES notes(id)
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id    TEXT REFERENCES sessions(id),
+  harness       TEXT,
+  body          TEXT NOT NULL,
+  path          TEXT,
+  tags          TEXT,
+  pinned        INTEGER NOT NULL DEFAULT 0,
+  created_at    INTEGER NOT NULL,
+  supersedes    INTEGER REFERENCES notes(id),
+  retired_at    INTEGER,
+  retired_by    TEXT,
+  retire_reason TEXT
 );
 
 CREATE TABLE IF NOT EXISTS activity (
@@ -74,8 +77,23 @@ CREATE INDEX IF NOT EXISTS idx_notes_surface      ON notes(pinned, created_at);
 export function migrate(db: Db): void {
   db.exec(DDL);
   const row = db.get<{ value: string }>("SELECT value FROM weaver_meta WHERE key = ?", "schema_version");
-  if (!row) {
-    db.run("INSERT INTO weaver_meta (key, value) VALUES (?, ?)", "schema_version", String(SCHEMA_VERSION));
+  const version = row ? Number(row.value) : SCHEMA_VERSION; // fresh DDL is already current
+
+  // v1 → v2: note retirement (`weaver forget`). ALTER is needed because CREATE TABLE
+  // IF NOT EXISTS never alters an existing table.
+  if (version < 2) {
+    db.exec(`
+      ALTER TABLE notes ADD COLUMN retired_at INTEGER;
+      ALTER TABLE notes ADD COLUMN retired_by TEXT;
+      ALTER TABLE notes ADD COLUMN retire_reason TEXT;
+    `);
   }
-  // Future migrations key off the stored schema_version here.
+
+  if (!row || version < SCHEMA_VERSION) {
+    db.run(
+      "INSERT INTO weaver_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      "schema_version",
+      String(SCHEMA_VERSION),
+    );
+  }
 }

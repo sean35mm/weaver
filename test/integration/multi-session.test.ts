@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { resolveRepoId } from "../../src/repo/identity.ts";
+import { openDb } from "../../src/store/db.ts";
 
 const repoRoot = path.resolve(new URL("../..", import.meta.url).pathname);
 const cliPath = path.join(repoRoot, "src/cli.ts");
@@ -130,6 +131,72 @@ test("note --update supersedes, inherits pin, and rejects unknown ids", () => {
   const garbage = run(root, home, "agent-a", ["note", "x", "--update", "abc"]);
   assert.equal(garbage.status, 1);
   assert.match(garbage.stderr, /--update expects a note id/);
+});
+
+test("forget retires a note (hidden, audited, recoverable), rejects unknown ids", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+
+  const noted = run(root, home, "agent-a", ["note", "npm publish works"]);
+  const id = /#(\d+)/.exec(noted.stdout)?.[1];
+  assert.ok(id);
+
+  const missingReason = run(root, home, "agent-a", ["forget", id!]);
+  assert.equal(missingReason.status, 1); // a forget must leave a why
+
+  const forgot = run(root, home, "agent-a", ["forget", id!, "npm distribution was removed"]);
+  assert.equal(forgot.status, 0);
+  assert.match(forgot.stdout, /retired note #\d+/);
+
+  assert.doesNotMatch(run(root, home, "agent-a", ["notes"]).stdout, /npm publish works/);
+  const all = run(root, home, "agent-a", ["notes", "--all"]);
+  assert.match(all.stdout, /npm publish works.*retired: npm distribution was removed/);
+
+  // audited in the activity feed, idempotent on retry, recoverable
+  assert.match(run(root, home, "viewer", ["activity"]).stdout, /forget.*npm distribution was removed/);
+  const again = run(root, home, "agent-a", ["forget", id!, "x"]);
+  assert.equal(again.status, 0);
+  assert.match(again.stdout, /already retired/);
+  assert.equal(run(root, home, "agent-a", ["forget", "--undo", id!]).status, 0);
+  assert.match(run(root, home, "agent-a", ["notes"]).stdout, /npm publish works/);
+
+  const unknown = run(root, home, "agent-a", ["forget", "9999", "whatever"]);
+  assert.equal(unknown.status, 1);
+  assert.match(unknown.stderr, /note #9999 not found/);
+});
+
+test("read-only commands transparently migrate a v1 store", async () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  // the spawned CLI sees the symlink-resolved cwd (macOS /var → /private/var), so the store
+  // path must be derived from the resolved root to land where the CLI will look
+  const repoId = resolveRepoId(fs.realpathSync(root)).repoId;
+
+  // hand-craft a v1-era store at the real path
+  const raw = await openDb(path.join(home, `${repoId}.db`));
+  raw.exec(`
+    CREATE TABLE sessions (
+      id TEXT PRIMARY KEY, harness TEXT NOT NULL, id_source TEXT NOT NULL, pid INTEGER,
+      cwd TEXT, intent TEXT, started_at INTEGER NOT NULL, last_seen INTEGER NOT NULL, ended_at INTEGER
+    );
+    CREATE TABLE notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, harness TEXT, body TEXT NOT NULL,
+      path TEXT, tags TEXT, pinned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL,
+      supersedes INTEGER
+    );
+    CREATE TABLE weaver_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    INSERT INTO weaver_meta (key, value) VALUES ('schema_version', '1');
+    INSERT INTO notes (body, created_at) VALUES ('survives the upgrade', 1);
+  `);
+  raw.close();
+
+  // a pure reader on the old store must not crash on the new columns
+  const notes = run(root, home, null, ["notes"]);
+  assert.equal(notes.status, 0);
+  assert.match(notes.stdout, /survives the upgrade/);
+
+  const status = run(root, home, null, ["status", "--json"]);
+  assert.equal(status.status, 0);
 });
 
 test("status surfaces unpinned notes in an otherwise quiet repo", () => {

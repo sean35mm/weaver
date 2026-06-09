@@ -88,6 +88,18 @@ export class EmptyStore implements Store {
     return [];
   }
 
+  listAllNotes(_limit: number): NoteRow[] {
+    return [];
+  }
+
+  retireNote(_id: number, _retiredBy: string, _reason: string, _now: number): void {
+    readonlyStoreWrite();
+  }
+
+  restoreNote(_id: number): void {
+    readonlyStoreWrite();
+  }
+
   addActivity(_input: ActivityInput): number {
     return readonlyStoreWrite();
   }

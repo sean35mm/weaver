@@ -3,7 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { openDb } from "../src/store/db.ts";
 import { openStore } from "../src/store/open.ts";
+import { SCHEMA_VERSION } from "../src/store/schema.ts";
 
 function tmpDb(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-test-"));
@@ -245,6 +247,92 @@ test("activity: insert, recent order, prune to maxEvents", async () => {
   store.close();
 });
 
+test("notes: retire hides from listings, restore brings back, listAllNotes shows history", async () => {
+  const store = await openStore(tmpDb());
+  store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
+
+  const keep = store.addNote({
+    sessionId: "s1",
+    harness: "opencode",
+    body: "still true",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: NOW,
+    supersedes: null,
+  });
+  const wrong = store.addNote({
+    sessionId: "s1",
+    harness: "opencode",
+    body: "wrong fact",
+    path: null,
+    tags: null,
+    pinned: false,
+    createdAt: NOW + 1,
+    supersedes: null,
+  });
+
+  store.retireNote(wrong, "s1", "contradicted by the code", NOW + 2);
+  assert.deepEqual(
+    store.listNotes(10).map((n) => n.id),
+    [keep],
+  );
+
+  const retired = store.getNote(wrong);
+  assert.equal(retired?.retiredAt, NOW + 2);
+  assert.equal(retired?.retiredBy, "s1");
+  assert.equal(retired?.retireReason, "contradicted by the code");
+
+  const history = store.listAllNotes(10);
+  assert.equal(history.length, 2);
+  assert.equal(history.find((n) => n.id === wrong)?.retiredAt, NOW + 2);
+  assert.equal(history.find((n) => n.id === keep)?.superseded, false);
+
+  store.restoreNote(wrong);
+  assert.deepEqual(
+    store
+      .listNotes(10)
+      .map((n) => n.id)
+      .sort(),
+    [keep, wrong].sort(),
+  );
+  assert.equal(store.getNote(wrong)?.retireReason, null);
+
+  store.close();
+});
+
+test("migration: a v1 store gains retirement columns, keeps data, and stamps version 2", async () => {
+  const dbPath = tmpDb();
+  const raw = await openDb(dbPath);
+  raw.exec(`
+    CREATE TABLE notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, harness TEXT, body TEXT NOT NULL,
+      path TEXT, tags TEXT, pinned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL,
+      supersedes INTEGER
+    );
+    CREATE TABLE weaver_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    INSERT INTO weaver_meta (key, value) VALUES ('schema_version', '1');
+    INSERT INTO notes (body, created_at, pinned) VALUES ('legacy learning', 123, 1);
+  `);
+  raw.close();
+
+  const store = await openStore(dbPath); // migrates on open
+  assert.equal(store.getMeta("schema_version"), "2");
+  const notes = store.listNotes(10);
+  assert.equal(notes[0]?.body, "legacy learning");
+  assert.equal(notes[0]?.pinned, true);
+  assert.equal(notes[0]?.retiredAt, null);
+
+  store.retireNote(notes[0]!.id, "s1", "stale", 200);
+  assert.equal(store.listNotes(10).length, 0);
+
+  // reopening must not re-run the v1→v2 step (duplicate ALTER would throw)
+  store.close();
+  const reopened = await openStore(dbPath);
+  assert.equal(reopened.getMeta("schema_version"), "2");
+  reopened.close();
+});
+
 test("advisories: record, refresh, prune by age", async () => {
   const store = await openStore(tmpDb());
   const day = 24 * 60 * 60 * 1000;
@@ -265,7 +353,7 @@ test("advisories: record, refresh, prune by age", async () => {
 
 test("meta: schema_version seeded, get/set upsert", async () => {
   const store = await openStore(tmpDb());
-  assert.equal(store.getMeta("schema_version"), "1");
+  assert.equal(store.getMeta("schema_version"), String(SCHEMA_VERSION));
 
   store.setMeta("enabled", "1");
   assert.equal(store.getMeta("enabled"), "1");

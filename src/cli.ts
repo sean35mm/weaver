@@ -11,6 +11,7 @@ import * as dashboard from "./commands/dashboard.ts";
 import * as deinit from "./commands/deinit.ts";
 import * as doctor from "./commands/doctor.ts";
 import * as done from "./commands/done.ts";
+import * as forget from "./commands/forget.ts";
 import * as hook from "./commands/hook.ts";
 import * as init from "./commands/init.ts";
 import * as log from "./commands/log.ts";
@@ -28,6 +29,7 @@ import { resolveRepoId } from "./repo/identity.ts";
 import { EmptyStore } from "./store/empty.ts";
 import { ensureWeaverDir, storePathForRepo } from "./store/location.ts";
 import { openStore } from "./store/open.ts";
+import { SCHEMA_VERSION } from "./store/schema.ts";
 import { CliError } from "./validate.ts";
 import { VERSION } from "./version.ts";
 
@@ -53,9 +55,11 @@ const BOOLEAN_FLAGS = new Set([
   "upstream",
   "hooks",
   "no-hooks",
+  "all",
+  "undo",
 ]);
 // Mutating writes that are paused when the project is disabled (done/lifecycle still work).
-const WRITE_GATED = new Set(["task", "claim", "release", "note", "log"]);
+const WRITE_GATED = new Set(["task", "claim", "release", "note", "forget", "log"]);
 
 interface Handler {
   run: (ctx: Ctx) => number | Promise<number>;
@@ -78,6 +82,7 @@ const REGISTRY: Record<string, Handler> = {
   claim: { run: claim.runClaim, agent: true, store: "create" },
   release: { run: claim.runRelease, agent: true, store: "create" },
   note: { run: note.runNote, agent: true, store: "create" },
+  forget: { run: forget.run, agent: true, store: "create" },
   log: { run: log.run, agent: true, store: "create" },
   done: { run: done.run, agent: true, store: "create" },
   status: { run: status.run, agent: false, store: "read" },
@@ -108,9 +113,15 @@ async function openStoreForMode(repoId: string, mode: StoreMode): Promise<Ctx["s
   const dbPath = storePathForRepo(repoId);
   if (mode === "read") {
     if (!fs.existsSync(dbPath)) return new EmptyStore();
-    const opened = await openStore(dbPath, { readOnly: true, migrate: false });
+    let opened = await openStore(dbPath, { readOnly: true, migrate: false });
     try {
-      opened.getMeta("schema_version");
+      // An older store must be migrated even for readers (queries reference new columns):
+      // do a one-time writable open to migrate, then reopen read-only.
+      if (Number(opened.getMeta("schema_version") ?? "0") < SCHEMA_VERSION) {
+        opened.close();
+        (await openStore(dbPath)).close();
+        opened = await openStore(dbPath, { readOnly: true, migrate: false });
+      }
     } catch (e) {
       opened.close();
       if (isMissingSchemaError(e)) return new EmptyStore();
@@ -135,7 +146,8 @@ function printHelp(write: (s: string) => void): void {
   write("  check <path> [--no-touch]                is anyone else here? (exit 1 on conflict)\n");
   write("  preflight [paths…|--staged|--upstream|--base REF]  bounded commit/push/PR risk check\n");
   write("  note <text…> [--pin] [--path …] [--tag …] [--update <id>]  record a durable learning\n");
-  write("  notes [--full]                           list notes (with ids; superseded notes hidden)\n");
+  write("  notes [--full] [--all]                   list notes (ids shown; --all includes retired/superseded)\n");
+  write("  forget <id> <why…>                       retire a wrong/obsolete note (--undo <id> restores)\n");
   write("  log <kind> <path> <summary…>             record an activity event\n");
   write("  activity [--full]                        recent activity feed\n");
   write("  done                                     end this session, release its claims\n");

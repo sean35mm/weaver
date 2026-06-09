@@ -48,6 +48,10 @@ interface RawNote {
   pinned: number;
   created_at: number;
   supersedes: number | null;
+  retired_at: number | null;
+  retired_by: string | null;
+  retire_reason: string | null;
+  superseded_by?: number | null;
 }
 interface RawActivity {
   id: number;
@@ -89,6 +93,10 @@ const toNote = (r: RawNote): NoteRow => ({
   pinned: r.pinned !== 0,
   createdAt: r.created_at,
   supersedes: r.supersedes,
+  retiredAt: r.retired_at,
+  retiredBy: r.retired_by,
+  retireReason: r.retire_reason,
+  ...(r.superseded_by !== undefined ? { superseded: r.superseded_by !== null } : {}),
 });
 const toActivity = (r: RawActivity): ActivityRow => ({
   id: r.id,
@@ -240,15 +248,40 @@ export class SqliteStore implements Store {
   }
 
   listNotes(limit: number): NoteRow[] {
-    // Superseded notes are history, not the current picture: hide any note another note replaces.
+    // Superseded and retired notes are history, not the current picture.
     return this.db
       .all<RawNote>(
         `SELECT * FROM notes
-         WHERE id NOT IN (SELECT supersedes FROM notes WHERE supersedes IS NOT NULL)
+         WHERE retired_at IS NULL
+           AND id NOT IN (SELECT supersedes FROM notes WHERE supersedes IS NOT NULL)
          ORDER BY pinned DESC, created_at DESC LIMIT ?`,
         limit,
       )
       .map(toNote);
+  }
+
+  listAllNotes(limit: number): NoteRow[] {
+    return this.db
+      .all<RawNote>(
+        `SELECT n.*, (SELECT s.id FROM notes s WHERE s.supersedes = n.id LIMIT 1) AS superseded_by
+         FROM notes n ORDER BY n.created_at DESC LIMIT ?`,
+        limit,
+      )
+      .map(toNote);
+  }
+
+  retireNote(id: number, retiredBy: string, reason: string, now: number): void {
+    this.db.run(
+      "UPDATE notes SET retired_at = ?, retired_by = ?, retire_reason = ? WHERE id = ?",
+      now,
+      retiredBy,
+      reason,
+      id,
+    );
+  }
+
+  restoreNote(id: number): void {
+    this.db.run("UPDATE notes SET retired_at = NULL, retired_by = NULL, retire_reason = NULL WHERE id = ?", id);
   }
 
   addActivity(input: ActivityInput): number {

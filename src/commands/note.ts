@@ -49,11 +49,22 @@ export function runNote(ctx: Ctx): number {
 }
 
 export function runNotes(ctx: Ctx): number {
-  const notes = ctx.store.listNotes(flagBool(ctx.args, "full") ? 100 : 20);
+  const all = flagBool(ctx.args, "all");
+  const limit = flagBool(ctx.args, "full") || all ? 100 : 20;
+  const notes = all ? ctx.store.listAllNotes(limit) : ctx.store.listNotes(limit);
   if (!notes.length) {
     ctx.out("no notes yet\n");
     return 0;
   }
-  for (const n of notes) ctx.out(`#${n.id} ${n.pinned ? "📌 " : "• "}${n.body}${n.path ? `  [${n.path}]` : ""}\n`);
+  for (const n of notes) {
+    const marker = n.retiredAt !== null ? "✗ " : n.pinned ? "📌 " : "• ";
+    const history =
+      n.retiredAt !== null
+        ? `  (retired${n.retireReason ? `: ${n.retireReason}` : ""})`
+        : n.superseded
+          ? "  (superseded)"
+          : "";
+    ctx.out(`#${n.id} ${marker}${n.body}${n.path ? `  [${n.path}]` : ""}${history}\n`);
+  }
   return 0;
 }

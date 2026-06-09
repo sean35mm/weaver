@@ -16,6 +16,7 @@ export const ACTIVITY_KINDS = [
   "release",
   "task",
   "note",
+  "forget",
   "join",
   "done",
 ] as const;
@@ -64,6 +65,11 @@ export interface NoteInput {
 
 export interface NoteRow extends NoteInput {
   id: number;
+  retiredAt: number | null;
+  retiredBy: string | null;
+  retireReason: string | null;
+  /** True when another note supersedes this one (computed; only populated by `listAllNotes`). */
+  superseded?: boolean;
 }
 
 export interface ActivityInput {
@@ -116,11 +122,15 @@ export interface Store {
   listOpenClaims(): ClaimRow[];
   pruneClaims(opts: ClaimPruneOptions): void;
 
-  // notes (durable, repo-scoped)
+  // notes (durable, repo-scoped; removal is always soft — retire, never delete)
   addNote(input: NoteInput): number;
   getNote(id: number): NoteRow | undefined;
-  /** Excludes superseded notes — only the current version of each learning is listed. */
+  /** Excludes superseded and retired notes — only the current picture is listed. */
   listNotes(limit: number): NoteRow[];
+  /** Everything, newest first, with `superseded` computed — the curation history view. */
+  listAllNotes(limit: number): NoteRow[];
+  retireNote(id: number, retiredBy: string, reason: string, now: number): void;
+  restoreNote(id: number): void;
 
   // activity (time-ordered; pruned lazily)
   addActivity(input: ActivityInput): number;

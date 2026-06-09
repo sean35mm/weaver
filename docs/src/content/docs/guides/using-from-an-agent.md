@@ -31,6 +31,11 @@ weaver claim 'src/auth/**' --reason "rewriting token refresh"
 # 4. Record durable learnings about this repo as you discover them.
 weaver note "AuthService is the new entry point — don't call jwt.* directly"
 
+# 4b. Keep the record honest: if an existing note is outdated, replace it; if it's
+#     wrong or noise, retire it (soft, audited, reversible — a reason is required).
+weaver note "AuthService moved to src/core/auth" --update 12
+weaver forget 17 "we no longer use docker for tests"
+
 # 5. When finished, release your claims.
 weaver done
 ```
