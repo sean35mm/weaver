@@ -5,6 +5,23 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.10.0](https://github.com/sean35mm/weaver/compare/v0.9.0...v0.10.0) (2026-06-09)
+
+
+### Features
+
+* add claude code hooks for structural, advisory coordination ([b314b94](https://github.com/sean35mm/weaver/commit/b314b9461ea78dac55dc55b35a18b1ffcb81891a))
+* add weaver forget for agent-driven note curation ([dc74274](https://github.com/sean35mm/weaver/commit/dc7427435f8ba90d607b4f2e7e040848fcad4d28))
+* clarify init scopes and automatic store creation ([04a976d](https://github.com/sean35mm/weaver/commit/04a976dae4ab2e9f7a36c6bf95a33f7a5d26d299))
+* complete note lifecycle with ids and superseded filtering ([a1ad1a2](https://github.com/sean35mm/weaver/commit/a1ad1a241db3c31710054d1987ec2decd4346736))
+
+
+### Bug Fixes
+
+* preserve user hooks in shared matcher groups, reject conflicting init hook flags ([933010f](https://github.com/sean35mm/weaver/commit/933010fbc2374d6ba7ba39375ee4cc83ac499287))
+* rate-limit repeated pre-edit advisories ([1aaaffc](https://github.com/sean35mm/weaver/commit/1aaaffc32014ea08225f90e94cd14acc22a8e20c))
+* surface unpinned notes in quiet repos, honor tuned ttl in doctor, stop junk store creation ([0102fbd](https://github.com/sean35mm/weaver/commit/0102fbdf8242a0d7a210512ac9bccf4d5044cd82))
+
 ## [0.9.0](https://github.com/sean35mm/weaver/compare/v0.8.0...v0.9.0) (2026-06-08)
 
 
