@@ -30,6 +30,10 @@ Observer commands (`status`, `check`) work without identity.
 - Is it disabled? `weaver doctor` shows `enabled`. Re-enable with `weaver enable`.
 - Are the agents actually in the **same repo**? `weaver doctor` shows the `repo` id — it should
   match across sessions.
+- For Claude Code, install [hooks](/weaver/guides/claude-code-hooks/) (`weaver init --hooks`) —
+  coordination then happens around every edit automatically instead of relying on the agent
+  remembering to run weaver commands. Hooks need a weaver binary new enough to have the `hook`
+  command (`weaver upgrade`); older binaries no-op silently.
 
 ### A crashed agent's claim seems stuck
 It isn't — claims from stale sessions are treated as free (they show as `stale`, not active) and

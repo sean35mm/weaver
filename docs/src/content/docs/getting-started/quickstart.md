@@ -22,7 +22,13 @@ weaver init
 - **Global files** (`~/.claude/CLAUDE.md`, `~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`)
   — one-time setup that covers every repo on this machine. You never run `init` again.
 
-For scripts, use `weaver init --project` or `weaver init --global`.
+If you use Claude Code, `init` also offers to install
+[hooks](/weaver/guides/claude-code-hooks/) (default yes): Claude is then warned automatically —
+never blocked — before editing an area another agent is working in, and its presence refreshes
+on every edit.
+
+For scripts, use `weaver init --project` or `weaver init --global`, plus `--hooks` or
+`--no-hooks` to decide about Claude Code hooks non-interactively.
 
 There is no per-repo database setup either way: each repo's store is created automatically the
 first time an agent runs a weaver command there. That's the whole setup — **you don't run

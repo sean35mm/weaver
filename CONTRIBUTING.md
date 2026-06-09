@@ -53,7 +53,8 @@ npm run lint        # biome check (lint + format); `npm run lint:fix` to auto-fi
 
 - `src/store/` — SQLite binding adapter, schema, the `Store` interface + impl, reaping
 - `src/identity/`, `src/repo/` — session identity ladder, repo identity, path normalization
-- `src/commands/` — one file per verb; each exports a `run(ctx)` 
+- `src/commands/` — one file per verb; each exports a `run(ctx)`
+- `src/instructions/` — the injected instruction block + Claude Code hooks settings merge
 - `src/conflict.ts`, `src/glob.ts`, `src/render.ts`, `src/validate.ts`, `src/args.ts`
 - `src/dashboard/` — the read-only web viewer
 - `test/` — unit + integration (run on both runtimes)

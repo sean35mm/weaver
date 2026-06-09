@@ -28,6 +28,11 @@ conventional commits on main  →  release-please opens a "release vX.Y.Z" PR
 | `feat!: …` or a `BREAKING CHANGE:` footer | major (while pre-1.0, treated as minor) |
 | `chore:` `docs:` `refactor:` `test:` `ci:` | no release (still recorded) |
 
+The pre-1.0 behavior is enforced by `bump-minor-pre-major` in `release-please-config.json` —
+a breaking change bumps the 0.x minor and can never jump to 1.0.0 until that flag is removed
+deliberately. `.release-please-manifest.json` tracks the current version; release-please
+updates it in the release PR, never edit it by hand.
+
 So: to ship anything, land at least one `fix:` or `feat:` commit on `main`.
 
 ## The normal release flow

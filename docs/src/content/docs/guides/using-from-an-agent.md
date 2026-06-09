@@ -59,6 +59,9 @@ user explicitly asks you to wait.
 
 ## On a conflict
 
+A non-zero exit from `claim` means your claim **was recorded** and a conflict was surfaced —
+don't re-run the command; coordinate instead.
+
 If `status`, `check`, or `claim` shows another **live** session in your area, read their intent
 + reason + recent activity, then:
 
