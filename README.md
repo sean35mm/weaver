@@ -29,6 +29,11 @@ Weaver is not another editor, merge tool, daemon, or MCP server. It is a small C
 SQLite store. Agents call it with shell commands, humans watch the shared picture, and git remains
 the source of truth for code.
 
+**Everything stays on your machine.** All coordination data lives in plain SQLite files under
+`~/.weaver/` — no telemetry, no account, and nothing about you, your repo, or your agents'
+activity is ever sent over the network. (The only network call Weaver makes is downloading its
+own binary on install/upgrade.)
+
 ## Install
 
 ```sh

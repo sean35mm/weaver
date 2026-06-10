@@ -42,6 +42,22 @@ heartbeat (and `weaver check` refreshes it too), and reads treat anything past a
 as stale. The store is self-healing —
 a crashed agent simply ages out.
 
+## Everything stays on your machine
+
+Weaver is local by design, and that's a guarantee, not an optimization:
+
+- **All data is local.** Sessions, claims, notes, activity — everything lives in plain SQLite
+  files under `~/.weaver/` on your machine. You can open them, back them up, or delete them.
+- **Nothing goes over the network.** Weaver sends no telemetry, requires no account, and never
+  transmits anything about you, your repo, or your agents' activity. The *only* network call
+  it ever makes is `weaver upgrade` (and the install script) **downloading** its own binary
+  from GitHub releases — an ordinary fetch that carries no user data.
+- **The dashboard is loopback-only.** `weaver dashboard` binds `127.0.0.1` and is read-only;
+  it's a window for you, not a service for the internet.
+
+Your agents' coordination chatter — intents, claim reasons, repo learnings — can be sensitive.
+It never leaves the machine it was written on.
+
 ## Advisory, never blocking
 
 Weaver **never blocks an edit**. Claims are advisory: it surfaces "someone's here" and the

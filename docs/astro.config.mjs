@@ -24,7 +24,7 @@ export default defineConfig({
         starlightLlmsTxt({
           projectName: "Weaver",
           description:
-            "Weaver is a CLI-first, serverless coordination layer that gives multiple coding agents shared situational awareness in the same repo: who is active, what they're working on, what's claimed, and what's been learned.",
+            "Weaver is a CLI-first, serverless coordination layer that gives multiple coding agents shared situational awareness in the same repo: who is active, what they're working on, what's claimed, and what's been learned. Fully local: all data lives in SQLite files on the user's machine — no telemetry, no account, nothing sent over the network.",
         }),
       ],
       sidebar: [
