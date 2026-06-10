@@ -11,7 +11,6 @@ export default defineConfig({
     starlight({
       title: "Weaver",
       tagline: "Shared situational awareness for your coding agents.",
-      logo: { src: "./src/assets/logo.svg" },
       favicon: "/favicon.svg",
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/sean35mm/weaver" }],
       components: { SocialIcons: "./src/components/SocialIcons.astro" },

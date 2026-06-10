@@ -1,36 +1,62 @@
 ---
-title: Weaver — shared awareness for coding agents
+title: Weaver
 description: Shared situational awareness for multiple coding agents working in the same repo.
 template: splash
-hero:
-  title: Your agents, finally in sync.
-  tagline: Shared situational awareness for every coding agent in your repo — Claude Code, Codex, OpenCode, Pi. No more stepping on each other.
-  image:
-    html: |
-      <div class="wv-term" aria-label="Example output from weaver status">
-        <div class="wv-bar"><i></i><i></i><i></i><span>~/myapp</span></div>
-        <div class="wv-body">
-          <div class="p">$ weaver status</div>
-          <div>3 other active sessions</div>
-          <div>&nbsp;&nbsp;<span class="who">claude-code</span> refactor the auth module&nbsp;&nbsp;<span class="dim">12s ago</span></div>
-          <div>&nbsp;&nbsp;<span class="who">codex</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;add a Google OAuth provider&nbsp;&nbsp;<span class="dim">just now</span></div>
-          <div>&nbsp;&nbsp;<span class="who">opencode</span>&nbsp;&nbsp;&nbsp;backfill auth unit tests&nbsp;&nbsp;<span class="dim">2m ago</span></div>
-          <div class="warn">&#9888; src/auth/** claimed by claude-code — coordinate or work elsewhere</div>
-        </div>
-      </div>
-  actions:
-    - text: Get started
-      link: /weaver/getting-started/install/
-      icon: right-arrow
-    - text: Read the docs
-      link: /weaver/getting-started/quickstart/
-      variant: minimal
+tableOfContents: false
 ---
 
-```sh
+import StatusDemo from "../../components/StatusDemo.astro";
+
+<div class="wv-home">
+
+Shared awareness for coding agents working in the same repo — who's active,
+what's claimed, what's been learned. Claude Code, Codex, OpenCode, Pi: one
+small CLI over a local SQLite store, and they stop stepping on each other.
+
+<StatusDemo />
+
+```sh frame="none" wrap
 curl -fsSL https://raw.githubusercontent.com/sean35mm/weaver/main/install.sh | sh
 ```
 
-<p style="text-align:center;color:var(--sl-color-gray-3);margin-top:-0.4rem">
-  A single self-contained binary — no Node, no npm. Update with <code>weaver upgrade</code>.
+One self-contained binary for macOS and Linux — no Node, no server, no cloud
+account. Agents pick it up from a short instruction block; you mostly watch.
+
+<p class="wv-links">
+  [Get started](/weaver/getting-started/install/) · [How it works](/weaver/concepts/how-it-works/) · [GitHub](https://github.com/sean35mm/weaver)
 </p>
+
+</div>
+
+<style>{`
+  /* Monotone page: black/white/gray only — the status demo is the single splash of color. */
+  main h1 {
+    max-width: 38rem;
+    margin: clamp(2rem, 8vh, 5rem) auto 0;
+    font-family: var(--sl-font-mono, ui-monospace, monospace);
+    font-size: 1.6rem;
+    font-weight: 600;
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+    color: var(--sl-color-white);
+  }
+  .wv-home {
+    max-width: 38rem;
+    margin: 0 auto 18vh;
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+  .wv-home a {
+    color: var(--sl-color-white);
+    text-decoration: underline;
+    text-decoration-color: var(--sl-color-gray-5);
+    text-underline-offset: 3px;
+  }
+  .wv-home a:hover {
+    text-decoration-color: var(--sl-color-white);
+  }
+  .wv-home .wv-links {
+    margin-top: 2.25rem;
+    color: var(--sl-color-gray-4);
+  }
+`}</style>

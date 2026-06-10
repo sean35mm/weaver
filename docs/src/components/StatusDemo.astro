@@ -1,0 +1,35 @@
+---
+// The homepage demo: real `weaver status` output as a plain block — no window chrome.
+// An Astro component (not inline MDX) because JSX collapses whitespace inside <pre>.
+---
+
+<pre class="wv-status" aria-label="Example output from weaver status">$ weaver status
+3 other active sessions
+  <span class="who">claude-code</span>  refactor the auth module     <span class="dim">12s ago</span>
+  <span class="who">codex</span>        add a Google OAuth provider  <span class="dim">just now</span>
+  <span class="who">opencode</span>     backfill auth unit tests     <span class="dim">2m ago</span>
+<span class="warn">⚠ src/auth/** claimed by claude-code — coordinate or work elsewhere</span></pre>
+
+<style>
+  .wv-status {
+    margin: 2rem 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: var(--sl-font-mono, ui-monospace, monospace);
+    font-size: 0.82rem;
+    line-height: 1.8;
+    color: var(--sl-color-gray-2);
+    overflow-x: auto;
+  }
+  .wv-status .who {
+    /* Deliberately hardcoded: the demo is the single splash of color on a monochrome site. */
+    color: #4cc4b0;
+  }
+  .wv-status .warn {
+    color: #e3b341;
+  }
+  .wv-status .dim {
+    color: var(--sl-color-gray-4);
+  }
+</style>

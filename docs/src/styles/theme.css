@@ -1,55 +1,65 @@
-/* Weaver — terminal-native theme. Accent: teal #4cc4b0 (matches the web dashboard). */
+/* Weaver — strictly monochrome: pitch black, white, neutral grays. No hue anywhere.
+   The only color on the site is the homepage status demo (hardcoded there). */
 
 :root {
-  --sl-color-accent-low: #0f2e29;
-  --sl-color-accent: #4cc4b0;
-  --sl-color-accent-high: #a5ece0;
+  --sl-color-accent-low: #1a1a1a;
+  --sl-color-accent: #ffffff;
+  --sl-color-accent-high: #ffffff;
 
   /* Inter for text, JetBrains Mono for code/terminal (self-hosted via Fontsource). */
   --sl-font: "Inter Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --sl-font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* Dark (default brand) — surfaces aligned to the web dashboard. */
+/* Dark (default): pitch black + neutral grays (Starlight's defaults are blue-tinted). */
 :root[data-theme="dark"] {
-  --sl-color-bg: #0e1116;
-  --sl-color-bg-nav: #0e1116;
-  --sl-color-bg-sidebar: #0b0f13;
-  --sl-color-bg-inline-code: #161b22;
-  --sl-color-hairline-shade: #232b36;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f0f0f0;
+  --sl-color-gray-2: #dcdcdc;
+  --sl-color-gray-3: #9e9e9e;
+  --sl-color-gray-4: #6e6e6e;
+  --sl-color-gray-5: #3a3a3a;
+  --sl-color-gray-6: #161616;
+  --sl-color-black: #000000;
+
+  --sl-color-bg: #000000;
+  --sl-color-bg-nav: #000000;
+  --sl-color-bg-sidebar: #000000;
+  --sl-color-bg-inline-code: #161616;
+  --sl-color-hairline-shade: #262626;
 }
 
+/* Light: pure white + neutral grays (Starlight inverts the scale: "white" = text). */
 :root[data-theme="light"] {
-  --sl-color-accent-low: #c2efe7;
-  --sl-color-accent: #0d8c7a;
-  --sl-color-accent-high: #073630;
+  --sl-color-accent-low: #ececec;
+  --sl-color-accent: #000000;
+  --sl-color-accent-high: #000000;
+
+  --sl-color-white: #000000;
+  --sl-color-gray-1: #1a1a1a;
+  --sl-color-gray-2: #333333;
+  --sl-color-gray-3: #6e6e6e;
+  --sl-color-gray-4: #9e9e9e;
+  --sl-color-gray-5: #d6d6d6;
+  --sl-color-gray-6: #f2f2f2;
+  --sl-color-gray-7: #f7f7f7;
+  --sl-color-black: #ffffff;
+
+  --sl-color-bg: #ffffff;
+  --sl-color-bg-nav: #ffffff;
+  --sl-color-bg-sidebar: #ffffff;
+  --sl-color-bg-inline-code: #f2f2f2;
+  --sl-color-hairline-shade: #e2e2e2;
 }
 
-/* ----------------------------------------------------------------------------
-   Home / landing page (`.wv-*`)
-   --------------------------------------------------------------------------- */
-
-/* Starlight's built-in hero owns the visible <h1 id="_top"> skip-link target. */
-.hero:has(.wv-term) {
-  gap: 2.75rem;
-  padding-block: clamp(1.5rem, calc(1rem + 4vw), 4rem);
+/* Monochrome code blocks: kill syntax-highlight hues everywhere; the homepage status
+   demo (its own component) is the only color on the site. */
+.expressive-code .ec-line span {
+  color: var(--sl-color-gray-2) !important;
 }
-.hero:has(.wv-term) > .hero-html {
-  width: 100%;
-  max-width: 36rem;
-}
-.hero:has(.wv-term) .wv-term {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-}
-@media (min-width: 50rem) {
-  .hero:has(.wv-term) {
-    grid-template-columns: 1.05fr 0.95fr;
-  }
-  .hero:has(.wv-term) > .hero-html {
-    width: 100%;
-  }
+.expressive-code pre {
+  background: var(--sl-color-gray-6) !important;
+  border-color: var(--sl-color-hairline-shade) !important;
 }
 
 /* Section eyebrow (used on the roadmap page). */
@@ -58,60 +68,6 @@
   font-size: 0.72rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--sl-color-accent);
+  color: var(--sl-color-gray-3);
   margin: 3.5rem 0 1rem;
-}
-
-/* A faux terminal window (the hero demo). */
-.wv-term {
-  max-width: 36rem;
-  margin: 1.75rem auto 0;
-  border: 1px solid var(--sl-color-hairline-shade);
-  border-radius: 12px;
-  overflow: hidden;
-  background: #06090c;
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.4);
-  font-family: var(--sl-font-mono, ui-monospace, monospace);
-  text-align: left;
-}
-.wv-term .wv-bar {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding: 10px 13px;
-  border-bottom: 1px solid #141c23;
-}
-.wv-term .wv-bar i {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #2a3640;
-}
-.wv-term .wv-bar span {
-  margin-left: 8px;
-  color: #4a5a54;
-  font-size: 0.72rem;
-}
-.wv-term .wv-body {
-  padding: 15px 17px;
-  font-size: 0.8rem;
-  line-height: 1.75;
-  color: #9fb3ab;
-}
-/* Starlight's prose spacing adds margin-top to sibling elements; the terminal
-   body is custom UI, not prose — neutralize it so the lines stay tight. */
-.wv-term .wv-body > * {
-  margin: 0;
-}
-.wv-term .wv-body .p {
-  color: #62d8c4;
-}
-.wv-term .wv-body .who {
-  color: #4cc4b0;
-}
-.wv-term .wv-body .warn {
-  color: #e3b341;
-}
-.wv-term .wv-body .dim {
-  color: #5a6a64;
 }
