@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.10.1](https://github.com/sean35mm/weaver/compare/v0.10.0...v0.10.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* resolve harness labels via ancestry and render explicit session names ([0903c34](https://github.com/sean35mm/weaver/commit/0903c34d6eaf805753a2dc35930edc9c5a2c9476))
+
 ## [0.10.0](https://github.com/sean35mm/weaver/compare/v0.9.0...v0.10.0) (2026-06-09)
 
 
