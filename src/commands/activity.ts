@@ -1,6 +1,6 @@
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
-import { ago } from "../render.ts";
+import { ago, sessionName } from "../render.ts";
 import { themeFromCtx } from "../terminal/color.ts";
 
 export function run(ctx: Ctx): number {
@@ -10,13 +10,16 @@ export function run(ctx: Ctx): number {
   if (flagBool(ctx.args, "json")) {
     ctx.out(
       JSON.stringify(
-        rows.map((a) => ({
-          kind: a.kind,
-          target: a.target,
-          summary: a.summary,
-          by: ctx.store.getSession(a.sessionId)?.harness ?? null,
-          tsMsAgo: ctx.now - a.ts,
-        })),
+        rows.map((a) => {
+          const s = ctx.store.getSession(a.sessionId);
+          return {
+            kind: a.kind,
+            target: a.target,
+            summary: a.summary,
+            by: s ? sessionName(s) : null,
+            tsMsAgo: ctx.now - a.ts,
+          };
+        }),
       ) + "\n",
     );
     return 0;
@@ -29,7 +32,7 @@ export function run(ctx: Ctx): number {
   for (const a of rows) {
     const s = ctx.store.getSession(a.sessionId);
     ctx.out(
-      `${theme.dim(ago(ctx.now - a.ts).padStart(7))}  ${theme.accent((s?.harness ?? "?").padEnd(11))} ${theme.kind(a.kind)} ${a.target ? theme.path(a.target) : ""}${a.summary ? ` ${theme.dim("—")} ${a.summary}` : ""}\n`,
+      `${theme.dim(ago(ctx.now - a.ts).padStart(7))}  ${theme.accent((s ? sessionName(s) : "?").padEnd(11))} ${theme.kind(a.kind)} ${a.target ? theme.path(a.target) : ""}${a.summary ? ` ${theme.dim("—")} ${a.summary}` : ""}\n`,
     );
   }
   return 0;

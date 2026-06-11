@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ago, claimsByLiveHolders, formatStatus, statusJson } from "../src/render.ts";
+import { ago, claimsByLiveHolders, formatStatus, sessionName, statusJson, who } from "../src/render.ts";
 import type { ActivityRow, ClaimRow, NoteRow, SessionRow, Store } from "../src/store/store.ts";
 import { createTheme, plainTheme, stripAnsi } from "../src/terminal/color.ts";
 
@@ -56,6 +56,25 @@ test("statusJson redacts full session ids", () => {
   assert.match(String(json.sessions[0]?.shortId), /^[a-f0-9]{6}$/);
   assert.notEqual(json.sessions[0]?.shortId, "123456");
   assert.equal("id" in (json.sessions[0] ?? {}), false);
+});
+
+test("explicit sessions display the chosen name; harness sessions keep harness#hash", () => {
+  const explicit = session("explicit:alice@host.local");
+  assert.equal(sessionName(explicit), "alice");
+  assert.equal(who(explicit), "alice");
+  const harness: SessionRow = { ...session("harness:opencode:o1@h"), idSource: "harness", harness: "opencode" };
+  assert.equal(sessionName(harness), "opencode");
+  assert.match(who(harness), /^opencode#[a-f0-9]{6}$/);
+});
+
+test("formatStatus and statusJson surface explicit names even when harness is unknown", () => {
+  const s: SessionRow = { ...session("explicit:alice@host.local"), harness: "unknown" };
+  const data = { sessions: [s], completed: [], claims: [], activity: [], notes: [] };
+  const body = formatStatus(data, 1000, {} as Store);
+  assert.match(body, /alice/);
+  assert.doesNotMatch(body, /unknown#/);
+  const json = statusJson("repo", data, 1000, {} as Store) as { sessions: Array<Record<string, unknown>> };
+  assert.equal(json.sessions[0]?.name, "alice");
 });
 
 test("short ids do not expose short explicit session keys", () => {

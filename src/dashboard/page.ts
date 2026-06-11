@@ -69,7 +69,7 @@ export const PAGE = `<!doctype html>
     const sessions = d.sessions || [];
     $("sessions").className = sessions.length ? "" : "empty";
     $("sessions").innerHTML = sessions.length ? sessions.map((s) =>
-      '<div class="card"><div class="row"><span class="who">' + esc(s.harness) + '</span>' +
+      '<div class="card"><div class="row"><span class="who">' + esc(s.name || s.harness) + '</span>' +
       '<span class="ago">' + ago(s.lastSeenMsAgo) + '</span></div>' +
       '<div class="intent">' + esc(s.intent || "(no stated intent)") + '</div>' +
       '<div class="meta">' + esc(s.source) + '</div></div>').join("") : "no active sessions";

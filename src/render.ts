@@ -35,8 +35,22 @@ interface FormatOptions {
 const NOTE_WIDTH = 100;
 const NOTE_CONTINUATION_INDENT = "      ";
 
-function who(s: SessionRow): string {
-  return `${s.harness}#${shortId(s.id)}`;
+type SessionLike = Pick<SessionRow, "id" | "harness" | "idSource">;
+
+/** Explicit sessions display the name the caller chose (`WEAVER_SESSION=alice` → "alice"). */
+export function sessionName(s: SessionLike): string {
+  if (s.idSource === "explicit" && s.id.startsWith("explicit:")) {
+    const start = "explicit:".length;
+    const at = s.id.lastIndexOf("@");
+    const name = at > start ? s.id.slice(start, at) : s.id.slice(start);
+    if (name) return name;
+  }
+  return s.harness;
+}
+
+/** Explicit names are unique per host by construction, so they need no hash suffix. */
+export function who(s: SessionLike): string {
+  return s.idSource === "explicit" ? sessionName(s) : `${s.harness}#${shortId(s.id)}`;
 }
 
 function appendWrapped(
@@ -146,7 +160,7 @@ export function formatStatus(
     pushSection(out, theme.heading("recent:"));
     for (const a of d.activity) {
       const holder = store.getSession(a.sessionId);
-      const prefix = `  ${theme.dim(ago(now - a.ts).padStart(7))}  ${padEndVisible(theme.accent(holder?.harness ?? "?"), 11)} ${theme.kind(a.kind)} `;
+      const prefix = `  ${theme.dim(ago(now - a.ts).padStart(7))}  ${padEndVisible(theme.accent(holder ? sessionName(holder) : "?"), 11)} ${theme.kind(a.kind)} `;
       const body = `${a.target ? theme.path(a.target) : ""}${a.summary ? `${a.target ? " " : ""}${theme.dim("—")} ${a.summary}` : ""}`;
       if (a.kind === "note") {
         const maxBody = Math.max(8, width - visibleLength(prefix));
@@ -198,10 +212,15 @@ export function formatStatus(
 }
 
 export function statusJson(repoId: string, d: StatusData, now: number, store: Store): unknown {
+  const byName = (sessionId: string): string | null => {
+    const s = store.getSession(sessionId);
+    return s ? sessionName(s) : null;
+  };
   return {
     repo: repoId,
     sessions: d.sessions.map((s) => ({
       shortId: shortId(s.id),
+      name: sessionName(s),
       harness: s.harness,
       source: s.idSource,
       intent: s.intent,
@@ -209,6 +228,7 @@ export function statusJson(repoId: string, d: StatusData, now: number, store: St
     })),
     completed: d.completed.map((s) => ({
       shortId: shortId(s.id),
+      name: sessionName(s),
       harness: s.harness,
       source: s.idSource,
       intent: s.intent,
@@ -217,14 +237,14 @@ export function statusJson(repoId: string, d: StatusData, now: number, store: St
     claims: d.claims.map((c) => ({
       pattern: c.pattern,
       reason: c.reason,
-      by: store.getSession(c.sessionId)?.harness ?? null,
+      by: byName(c.sessionId),
       createdMsAgo: now - c.createdAt,
     })),
     recentActivity: d.activity.map((a) => ({
       kind: a.kind,
       target: a.target,
       summary: a.summary,
-      by: store.getSession(a.sessionId)?.harness ?? null,
+      by: byName(a.sessionId),
       tsMsAgo: now - a.ts,
     })),
     notes: d.notes.map((n) => ({ body: n.body, path: n.path, pinned: n.pinned })),

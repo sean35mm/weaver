@@ -31,7 +31,8 @@ amount of work, and exits. **No daemon, no server, no MCP.**
 ## Identity ladder
 
 A session's stable key is resolved as: **explicit** (`--session` / `WEAVER_SESSION`) →
-**harness-native session id** (`CLAUDE_CODE_SESSION_ID`, `OPENCODE_RUN_ID`, `CODEX_THREAD_ID`)
+**harness-native session id** (`CLAUDE_CODE_SESSION_ID`, `OPENCODE_SESSION_ID` /
+`OPENCODE_RUN_ID`, `CODEX_THREAD_ID`)
 → **controlling TTY** (self or nearest ancestor). No anonymous fallback. See
 [Coordinating many agents](/weaver/guides/multiple-agents/).
 

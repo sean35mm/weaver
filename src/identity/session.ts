@@ -1,11 +1,16 @@
 /**
- * Resolve "which session am I?" — the heart of Weaver, validated by the Phase 0 spike.
- * Ladder: explicit override → harness-native session id → controlling TTY (self → ancestry).
- * Never returns a shared anonymous key: callers that require identity fail gracefully.
+ * Resolve "which session am I?" — the heart of Weaver.
+ * Identity ladder: explicit override → harness-native session id → controlling TTY
+ * (self → ancestry). Never returns a shared anonymous key: callers that require identity
+ * fail gracefully.
+ * The harness *label* resolves separately: env signals first, then known executable names
+ * in the process ancestry — harness env vars are not a stable API (OpenCode set
+ * OPENCODE_RUN_ID through v1.16.x and removed it in v1.17.0 with no replacement).
  */
 
 import { execFileSync } from "node:child_process";
 import os from "node:os";
+import path from "node:path";
 import type { IdSource } from "../store/store.ts";
 
 export interface Identity {
@@ -16,9 +21,14 @@ export interface Identity {
 
 type Env = Record<string, string | undefined>;
 
-/** Per-harness session-id env vars, confirmed in Phase 0. Order = precedence. */
+/**
+ * Per-harness session-id env vars. Order = precedence. These come and go with harness
+ * releases: OpenCode ≤1.16.x set OPENCODE_RUN_ID (removed in v1.17.0 with no replacement);
+ * OPENCODE_SESSION_ID is its proposed successor (anomalyco/opencode#12158).
+ */
 export const HARNESS_SESSION_ENVS: ReadonlyArray<readonly [label: string, env: string]> = [
   ["claude-code", "CLAUDE_CODE_SESSION_ID"],
+  ["opencode", "OPENCODE_SESSION_ID"],
   ["opencode", "OPENCODE_RUN_ID"],
   ["codex", "CODEX_THREAD_ID"],
 ];
@@ -30,6 +40,8 @@ export interface ResolveOpts {
   host?: string;
   /** Injection seam for tests; defaults to the real `ps`-based lookup. */
   ttyResolver?: (pid: number) => { device: string; viaAncestry: boolean } | null;
+  /** Injection seam for tests; defaults to the real `ps`-based ancestry walk. */
+  harnessResolver?: (pid: number) => string | null;
 }
 
 function parseSessionArg(argv: string[]): string | undefined {
@@ -50,6 +62,46 @@ function detectLabel(env: Env): string {
 }
 
 const isRealTty = (t: string): boolean => !!t && !/^\?+$/.test(t);
+
+/** Executable basenames that identify a harness when seen in the process ancestry. */
+const HARNESS_PROCESS_NAMES: ReadonlyMap<string, string> = new Map([
+  ["claude", "claude-code"],
+  ["opencode", "opencode"],
+  ["codex", "codex"],
+  ["pi", "pi"],
+  ["cursor-agent", "cursor"],
+]);
+
+/**
+ * Walk the process ancestry looking for a known harness executable. Labels harnesses that
+ * expose no env signal to subprocesses (e.g. OpenCode ≥1.17). Label only — never identity.
+ */
+export function detectHarnessFromAncestry(pid: number): string | null {
+  const read = (p: number): { ppid: number; comm: string } | null => {
+    try {
+      const raw = execFileSync("ps", ["-o", "ppid=,comm=", "-p", String(p)], {
+        stdio: ["ignore", "pipe", "ignore"],
+      })
+        .toString()
+        .trim();
+      const m = /^(\d+)\s+(.*)$/.exec(raw);
+      return m ? { ppid: Number(m[1]), comm: m[2] ?? "" } : null;
+    } catch {
+      return null;
+    }
+  };
+
+  let cur = pid;
+  for (let i = 0; i < 8; i++) {
+    const row = read(cur);
+    if (!row) return null;
+    const label = HARNESS_PROCESS_NAMES.get(path.basename(row.comm).toLowerCase());
+    if (label) return label;
+    if (!row.ppid || row.ppid <= 1) return null;
+    cur = row.ppid;
+  }
+  return null;
+}
 
 /** Controlling terminal of the process, then its nearest ancestor. Returns null if none. */
 export function resolveTtyDevice(pid: number): { device: string; viaAncestry: boolean } | null {
@@ -83,21 +135,28 @@ export function resolveIdentity(opts: ResolveOpts = {}): Identity | null {
   const env = opts.env ?? (process.env as Env);
   const host = opts.host ?? os.hostname();
   const argv = opts.argv ?? process.argv.slice(2);
+  const pid = opts.pid ?? process.pid;
+
+  // Env signals first; harness executables in the ancestry when the env says nothing.
+  const label = (): string => {
+    const fromEnv = detectLabel(env);
+    if (fromEnv !== "unknown") return fromEnv;
+    return (opts.harnessResolver ?? detectHarnessFromAncestry)(pid) ?? "unknown";
+  };
 
   // 1. explicit override
   const explicit = (parseSessionArg(argv) ?? env.WEAVER_SESSION)?.trim();
-  if (explicit) return { key: `explicit:${explicit}@${host}`, source: "explicit", label: detectLabel(env) };
+  if (explicit) return { key: `explicit:${explicit}@${host}`, source: "explicit", label: label() };
 
   // 2. harness-native session id (most reliable on the tool-call path)
-  for (const [label, key] of HARNESS_SESSION_ENVS) {
+  for (const [harness, key] of HARNESS_SESSION_ENVS) {
     const value = env[key];
-    if (value) return { key: `harness:${label}:${value}@${host}`, source: "harness", label };
+    if (value) return { key: `harness:${harness}:${value}@${host}`, source: "harness", label: harness };
   }
 
   // 3. controlling TTY (self → nearest ancestor)
-  const tty = (opts.ttyResolver ?? resolveTtyDevice)(opts.pid ?? process.pid);
-  if (tty)
-    return { key: `tty:${tty.device}@${host}`, source: tty.viaAncestry ? "ancestry" : "tty", label: detectLabel(env) };
+  const tty = (opts.ttyResolver ?? resolveTtyDevice)(pid);
+  if (tty) return { key: `tty:${tty.device}@${host}`, source: tty.viaAncestry ? "ancestry" : "tty", label: label() };
 
   // 4. none — caller decides (observer reads ok; mutating commands fail with a hint)
   return null;

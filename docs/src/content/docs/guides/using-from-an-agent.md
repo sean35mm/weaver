@@ -95,8 +95,8 @@ top of every task without bloating your context.
 ## Identity & sessions
 
 Each session gets a stable key, resolved as: an explicit `WEAVER_SESSION` / `--session`
-override → a harness-native session id (e.g. `CLAUDE_CODE_SESSION_ID`, `OPENCODE_RUN_ID`,
-`CODEX_THREAD_ID`) → the controlling terminal. If none can be resolved, observer commands
+override → a harness-native session id (e.g. `CLAUDE_CODE_SESSION_ID`, `CODEX_THREAD_ID`)
+→ the controlling terminal. If none can be resolved, observer commands
 (`status`, `check`, …) still work, but mutating commands fail with a hint to set
 `WEAVER_SESSION`. Details: [Coordinating many agents](/weaver/guides/multiple-agents/).
 

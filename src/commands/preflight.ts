@@ -3,9 +3,8 @@ import { flagBool, flagStr } from "../args.ts";
 import type { ConflictHit } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
 import { hasBroadClaim, type PreflightResult, type PreflightSeverity, runPreflight } from "../preflight.ts";
-import { ago, shortId } from "../render.ts";
+import { ago, sessionName, shortId, who } from "../render.ts";
 import { normalizeTarget } from "../repo/paths.ts";
-import type { SessionRow } from "../store/store.ts";
 import { type TerminalTheme, themeFromCtx } from "../terminal/color.ts";
 import { terminalWidth, wrapWithPrefix } from "../terminal/format.ts";
 import { CliError } from "../validate.ts";
@@ -118,10 +117,6 @@ function shouldFail(severity: PreflightSeverity, failOn: FailOn): boolean {
   return severity === "hard" || severity === "soft";
 }
 
-function who(session: SessionRow): string {
-  return `${session.harness}#${shortId(session.id)}`;
-}
-
 function hitSummary(hit: ConflictHit, now: number, theme: TerminalTheme): string {
   const broad = hasBroadClaim(hit) ? ` ${theme.warn("[broad]")}` : "";
   if (hit.claim) {
@@ -222,6 +217,7 @@ function jsonHit(hit: ConflictHit, now: number): unknown {
   return {
     session: {
       shortId: shortId(hit.session.id),
+      name: sessionName(hit.session),
       harness: hit.session.harness,
       source: hit.session.idSource,
       intent: hit.session.intent,
@@ -275,6 +271,7 @@ function formatJson(result: PreflightResult, opts: RenderOpts, now: number): str
       stale: stale.map((c) => ({ path: c.path, tier: c.tier, hits: c.hits.map((h) => jsonHit(h, now)) })),
       unrelatedSessions: unrelatedSessions.map((s) => ({
         shortId: shortId(s.id),
+        name: sessionName(s),
         harness: s.harness,
         source: s.idSource,
         intent: s.intent,
