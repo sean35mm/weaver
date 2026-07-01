@@ -53,9 +53,10 @@ aware of them. If the `weaver` command isn't found, ignore this section.
 - **Claim the area you'll work in, once:** `weaver claim '<glob>' --reason "<why>"`
   (e.g. `weaver claim 'src/auth/**' --reason "refactoring token flow"`).
 - **Record durable learnings** about this repo (gotchas, conventions, "X breaks Y"):
-  `weaver note "<learning>"`. If you discover an existing note is wrong or obsolete, fix the
-  record: `weaver note "<correction>" --update <id>`, or `weaver forget <id> "<why>"` if
-  it's just noise.
+  `weaver note "<learning>"`. Scope file/area-specific notes with `--path <path-or-glob>`,
+  add `--tag <topic>` when useful, and reserve `--pin` for rare repo-wide facts. If you
+  discover an existing note is wrong or obsolete, fix the record: `weaver note "<correction>"
+  --update <id>`, or `weaver forget <id> "<why>"` if it's just noise.
 - **When finished:** `weaver done`.
 
 **On a conflict** (`status`/`claim` shows another *live* session in your area): exit 1 from
@@ -72,6 +73,9 @@ wait for another session to run `weaver done` unless the user explicitly asks yo
 
 **Optional (when useful):** `weaver check <path>` before touching a file you're unsure
 about; `weaver log <kind> <path> "<summary>"` after a notable change so others see it.
+If setup seems incomplete, `weaver doctor` shows instruction and hook coverage. In repos where
+Claude Code edits files, prefer project hooks via `weaver init --project --hooks` so edits are
+logged and conflicts are surfaced automatically.
 
 Keep reasons/notes short, specific, and free of secrets — other agents read them to coordinate.
 <!-- weaver:end -->

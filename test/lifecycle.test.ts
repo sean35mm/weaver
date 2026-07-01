@@ -8,6 +8,7 @@ import * as deinit from "../src/commands/deinit.ts";
 import * as doctor from "../src/commands/doctor.ts";
 import * as init from "../src/commands/init.ts";
 import * as toggle from "../src/commands/toggle.ts";
+import * as uninstall from "../src/commands/uninstall.ts";
 import type { Ctx } from "../src/context.ts";
 import { hasBlock, injectBlock } from "../src/instructions/block.ts";
 import { installHooks } from "../src/instructions/hooks.ts";
@@ -144,11 +145,12 @@ test("doctor reports setup coverage, weak identity, and stale state", async () =
   };
 
   assert.equal(doctor.run(ctx), 0);
-  assert.match(out, /quality\s+: weak \(ancestry\)/);
-  assert.match(out, /stale\s+: 1 unended session/);
-  assert.match(out, /claims\s+: 0 active, 1 expired open/);
-  assert.match(out, /project\s+: instructions 1\/2 missing CLAUDE\.md/);
-  assert.match(out, /hooks\s+: missing/);
+  // content matches only — the report's column layout is presentation, not contract
+  assert.match(out, /weak \(ancestry\)/);
+  assert.match(out, /1 unended session/);
+  assert.match(out, /0 active, 1 expired open/);
+  assert.match(out, /instructions 1\/2 missing CLAUDE\.md/);
+  assert.match(out, /hooks[^\n]*missing/);
   ctx.store.close();
 });
 
@@ -164,8 +166,8 @@ test("doctor reports installed project instructions and hooks", async () => {
   };
 
   assert.equal(doctor.run(ctx), 0);
-  assert.match(out, /project\s+: instructions 2\/2/);
-  assert.match(out, /hooks\s+: installed/);
+  assert.match(out, /instructions 2\/2/);
+  assert.match(out, /hooks[^\n]*installed/);
   ctx.store.close();
 });
 
@@ -199,4 +201,20 @@ test("deinit --global removes global blocks", async () => {
   ctxB.store.close();
 
   assert.ok(!hasBlock(fs.readFileSync(claude, "utf8")));
+});
+
+test("uninstall refuses when not running the standalone binary", async () => {
+  const root = tmpDir("weaver-repo-");
+  let err = "";
+  const base = await ctxFor(root, ["uninstall", "--yes"]);
+  const ctx = {
+    ...base,
+    err: (s: string) => {
+      err += s;
+    },
+  };
+
+  assert.equal(await uninstall.run(ctx), 1);
+  assert.match(err, /only applies to the standalone/);
+  ctx.store.close();
 });

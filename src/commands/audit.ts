@@ -5,7 +5,7 @@ import { hasBlock } from "../instructions/block.ts";
 import { type HookStatus, hookStatusForRepo } from "../instructions/hooks.ts";
 import { type InstructionScope, instructionTargets } from "../instructions/targets.ts";
 import { DEFAULT_ACTIVITY_MAX_EVENTS } from "../store/reap.ts";
-import type { ActivityKind, NoteRow, SessionRow } from "../store/store.ts";
+import type { ActivityKind, CommandEventRow, NoteRow, SessionRow } from "../store/store.ts";
 
 const AUDIT_LIMIT = DEFAULT_ACTIVITY_MAX_EVENTS;
 
@@ -58,6 +58,15 @@ function currentNotes(notes: NoteRow[]): NoteRow[] {
   return notes.filter((note) => note.retiredAt === null && !note.superseded);
 }
 
+function lastCommandSeen(events: CommandEventRow[], now: number): Record<string, number> {
+  const seen: Record<string, number> = {};
+  for (const event of events) {
+    if (seen[event.command] !== undefined) continue;
+    seen[event.command] = now - event.ts;
+  }
+  return seen;
+}
+
 function recommendations(opts: {
   selfWeak: boolean;
   weakSessions: number;
@@ -65,6 +74,7 @@ function recommendations(opts: {
   expiredOpenClaims: number;
   activityByKind: Record<string, number>;
   currentNotes: NoteRow[];
+  commandByName: Record<string, number>;
   project: InstructionCoverage;
   global: InstructionCoverage;
   hooks: HookStatus;
@@ -82,6 +92,12 @@ function recommendations(opts: {
     recs.push("Expired open claims exist; they are ignored as active but can make diagnostics noisy.");
   if ((opts.activityByKind.edit ?? 0) === 0)
     recs.push("No edit activity is retained; install Claude Code hooks or use `weaver log` for important edits.");
+  if ((opts.commandByName.status ?? 0) === 0)
+    recs.push("No `weaver status` usage is recorded yet; agents may not be checking shared context at task start.");
+  if ((opts.commandByName.check ?? 0) === 0)
+    recs.push("No `weaver check` usage is recorded yet; agents may be relying only on broad claims.");
+  if ((opts.commandByName.preflight ?? 0) === 0)
+    recs.push("No `weaver preflight` usage is recorded yet; commit/push overlap checks may be missing.");
   if (opts.hooks !== "installed")
     recs.push("Claude Code hooks are not fully installed; run `weaver init --project --hooks`.");
   if (opts.project.present === 0 && opts.global.present === 0)
@@ -112,6 +128,8 @@ export function run(ctx: Ctx): number {
   const releasedClaims = claims.filter((claim) => claim.releasedAt !== null).length;
   const activity = ctx.store.listRecentActivity(AUDIT_LIMIT);
   const activityByKind = countBy(activity.map((row) => row.kind as ActivityKind));
+  const commandEvents = ctx.store.listRecentCommandEvents(AUDIT_LIMIT);
+  const commandByName = countBy(commandEvents.map((row) => row.command));
   const notes = ctx.store.listAllNotes(AUDIT_LIMIT);
   const current = currentNotes(notes);
   const project = instructionCoverage(ctx, "project");
@@ -125,6 +143,7 @@ export function run(ctx: Ctx): number {
     staleUnended,
     expiredOpenClaims,
     activityByKind,
+    commandByName,
     currentNotes: current,
     project,
     global,
@@ -155,6 +174,11 @@ export function run(ctx: Ctx): number {
       byKind: activityByKind,
       distinctTargets: new Set(activity.map((row) => row.target).filter(Boolean)).size,
     },
+    commands: {
+      total: commandEvents.length,
+      byCommand: commandByName,
+      lastSeenMsAgo: lastCommandSeen(commandEvents, ctx.now),
+    },
     notes: {
       total: notes.length,
       current: current.length,
@@ -183,6 +207,7 @@ export function run(ctx: Ctx): number {
   ctx.out(
     `activity : ${data.activity.total} retained, ${data.activity.distinctTargets} target(s), ${JSON.stringify(data.activity.byKind)}\n`,
   );
+  ctx.out(`commands : ${data.commands.total} retained, ${JSON.stringify(data.commands.byCommand)}\n`);
   ctx.out(
     `notes    : ${data.notes.current} current, ${data.notes.pathScoped} scoped, ${data.notes.tagged} tagged, ${data.notes.pinned} pinned\n`,
   );

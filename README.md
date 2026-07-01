@@ -120,7 +120,7 @@ After setup, Weaver is built to be called mostly by agents.
 | --- | --- | --- |
 | Human setup | `weaver init`, `weaver disable`, `weaver enable`, `weaver deinit` | Turn coordination on, pause it, or remove it from a repo. |
 | Agents | `task`, `claim`, `check`, `note`, `log`, `preflight`, `done` | Announce intent, avoid collisions, record learnings, and check risk before commit/push/PR. |
-| Humans | `status`, `watch`, `dashboard`, `notes`, `activity`, `doctor` | Watch the shared picture and diagnose setup when something looks wrong. |
+| Humans | `status`, `watch`, `dashboard`, `notes`, `activity`, `audit`, `doctor` | Watch the shared picture and diagnose setup when something looks wrong. |
 
 Day to day, humans usually run one of these:
 
@@ -157,8 +157,9 @@ weaver done
 
 ## Safety model
 
-- **Local only**: coordination data lives under `~/.weaver/`. Weaver does not send your code or
-  notes anywhere.
+- **Local only**: coordination data — including Weaver's own content-free usage metrics, which
+  `weaver audit` reports on — lives under `~/.weaver/`. Weaver does not send your code or notes
+  anywhere.
 - **Serverless**: there is no daemon or coordination server to start, expose, authenticate, or keep
   alive.
 - **Advisory, not blocking**: claims surface risk. They do not replace git, file locks, review, or
@@ -187,6 +188,7 @@ Human commands:
   weaver dashboard                       live local web view
   weaver notes                           list repo notes
   weaver activity                        list recent activity
+  weaver audit                           summarize retained usage, setup, and improvements
   weaver doctor                          show identity, repo, store, and runtime diagnostics
 
 Lifecycle commands:

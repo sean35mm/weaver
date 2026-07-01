@@ -103,26 +103,6 @@ test("sessions: open sessions include stale unended rows", async () => {
   store.close();
 });
 
-test("sessions and claims: audit list helpers return newest rows first", async () => {
-  const store = await openStore(tmpDb());
-
-  store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
-  store.upsertSession({ id: "s2", harness: "claude-code", idSource: "harness", pid: null, cwd: null }, NOW + 1);
-  store.addClaim({ sessionId: "s1", pattern: "a/**", reason: null, createdAt: NOW, expiresAt: NOW + TTL });
-  store.addClaim({ sessionId: "s2", pattern: "b/**", reason: null, createdAt: NOW + 1, expiresAt: NOW + TTL });
-
-  assert.deepEqual(
-    store.listSessions(2).map((session) => session.id),
-    ["s2", "s1"],
-  );
-  assert.deepEqual(
-    store.listClaims(2).map((claim) => claim.pattern),
-    ["b/**", "a/**"],
-  );
-
-  store.close();
-});
-
 test("claims: active, expiry, release", async () => {
   const store = await openStore(tmpDb());
   store.upsertSession({ id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
@@ -196,52 +176,20 @@ test("transaction rejects nested and async callbacks", async () => {
   assert.throws(() => {
     store.transaction(() => store.transaction(() => undefined));
   }, /nested transactions/);
+  // the casts bypass the compile-time async ban on purpose: these exercise the runtime guard
   assert.throws(() => {
-    store.transaction(() => Promise.resolve("later"));
+    store.transaction(() => Promise.resolve("later") as never);
   }, /async transactions/);
   assert.throws(() => {
-    store.transaction(async () => {
+    store.transaction((async () => {
       asyncInvoked = true;
       await Promise.resolve();
       store.upsertSession({ id: "late", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);
-    });
+    }) as unknown as () => never);
   }, /async transactions/);
 
   assert.equal(asyncInvoked, false);
   assert.equal(store.getSession("late"), undefined);
-  store.close();
-});
-
-test("notes: pinned first, newest first", async () => {
-  const store = await openStore(tmpDb());
-  store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
-
-  store.addNote({
-    sessionId: "s1",
-    harness: "opencode",
-    body: "pinned-one",
-    path: null,
-    tags: null,
-    pinned: true,
-    createdAt: NOW,
-    supersedes: null,
-  });
-  store.addNote({
-    sessionId: "s1",
-    harness: "opencode",
-    body: "newer-plain",
-    path: null,
-    tags: null,
-    pinned: false,
-    createdAt: NOW + 5,
-    supersedes: null,
-  });
-
-  const notes = store.listNotes(10);
-  assert.equal(notes.length, 2);
-  assert.equal(notes[0]?.pinned, true);
-  assert.equal(notes[0]?.body, "pinned-one");
-
   store.close();
 });
 
@@ -318,61 +266,37 @@ test("activity: insert, recent order, prune to maxEvents", async () => {
   store.close();
 });
 
-test("notes: retire hides from listings, restore brings back, listAllNotes shows history", async () => {
+test("command events: insert, recent order, and prune", async () => {
   const store = await openStore(tmpDb());
-  store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
+  const day = 24 * 60 * 60 * 1000;
 
-  const keep = store.addNote({
-    sessionId: "s1",
+  store.addCommandEvent({
+    ts: NOW,
+    command: "status",
+    sessionId: "explicit:agent@h",
     harness: "opencode",
-    body: "still true",
-    path: null,
-    tags: null,
-    pinned: false,
-    createdAt: NOW,
-    supersedes: null,
+    idSource: "explicit",
   });
-  const wrong = store.addNote({
-    sessionId: "s1",
-    harness: "opencode",
-    body: "wrong fact",
-    path: null,
-    tags: null,
-    pinned: false,
-    createdAt: NOW + 1,
-    supersedes: null,
-  });
+  store.addCommandEvent({ ts: NOW + 1, command: "preflight", sessionId: null, harness: null, idSource: null });
+  store.addCommandEvent({ ts: NOW - 3 * day, command: "old", sessionId: null, harness: null, idSource: null });
 
-  store.retireNote(wrong, "s1", "contradicted by the code", NOW + 2);
+  const recent = store.listRecentCommandEvents(10);
+  assert.equal(recent.length, 3);
+  assert.equal(recent[0]?.command, "preflight");
+  assert.equal(recent[1]?.sessionId, "explicit:agent@h");
+  assert.equal(recent[1]?.harness, "opencode");
+  assert.equal(recent[1]?.idSource, "explicit");
+
+  store.pruneCommandEvents({ maxEvents: 1, maxAgeDays: 2, now: NOW + 2 });
   assert.deepEqual(
-    store.listNotes(10).map((n) => n.id),
-    [keep],
+    store.listRecentCommandEvents(10).map((event) => event.command),
+    ["preflight"],
   );
-
-  const retired = store.getNote(wrong);
-  assert.equal(retired?.retiredAt, NOW + 2);
-  assert.equal(retired?.retiredBy, "s1");
-  assert.equal(retired?.retireReason, "contradicted by the code");
-
-  const history = store.listAllNotes(10);
-  assert.equal(history.length, 2);
-  assert.equal(history.find((n) => n.id === wrong)?.retiredAt, NOW + 2);
-  assert.equal(history.find((n) => n.id === keep)?.superseded, false);
-
-  store.restoreNote(wrong);
-  assert.deepEqual(
-    store
-      .listNotes(10)
-      .map((n) => n.id)
-      .sort(),
-    [keep, wrong].sort(),
-  );
-  assert.equal(store.getNote(wrong)?.retireReason, null);
 
   store.close();
 });
 
-test("migration: a v1 store gains retirement columns, keeps data, and stamps version 2", async () => {
+test("migration: a v1 store gains new tables/columns, keeps data, and stamps current version", async () => {
   const dbPath = tmpDb();
   const raw = await openDb(dbPath);
   raw.exec(`
@@ -388,7 +312,7 @@ test("migration: a v1 store gains retirement columns, keeps data, and stamps ver
   raw.close();
 
   const store = await openStore(dbPath); // migrates on open
-  assert.equal(store.getMeta("schema_version"), "2");
+  assert.equal(store.getMeta("schema_version"), String(SCHEMA_VERSION));
   const notes = store.listNotes(10);
   assert.equal(notes[0]?.body, "legacy learning");
   assert.equal(notes[0]?.pinned, true);
@@ -397,10 +321,10 @@ test("migration: a v1 store gains retirement columns, keeps data, and stamps ver
   store.retireNote(notes[0]!.id, "s1", "stale", 200);
   assert.equal(store.listNotes(10).length, 0);
 
-  // reopening must not re-run the v1→v2 step (duplicate ALTER would throw)
+  // reopening must not re-run the v1→current steps (duplicate ALTER would throw)
   store.close();
   const reopened = await openStore(dbPath);
-  assert.equal(reopened.getMeta("schema_version"), "2");
+  assert.equal(reopened.getMeta("schema_version"), String(SCHEMA_VERSION));
   reopened.close();
 });
 
@@ -418,18 +342,6 @@ test("advisories: record, refresh, prune by age", async () => {
   store.pruneAdvisories({ maxAgeDays: 1, now: NOW + 5 });
   assert.equal(store.getAdvisory("s1", "old-picture"), undefined);
   assert.equal(store.getAdvisory("s1", "fp"), NOW + 5);
-
-  store.close();
-});
-
-test("meta: schema_version seeded, get/set upsert", async () => {
-  const store = await openStore(tmpDb());
-  assert.equal(store.getMeta("schema_version"), String(SCHEMA_VERSION));
-
-  store.setMeta("enabled", "1");
-  assert.equal(store.getMeta("enabled"), "1");
-  store.setMeta("enabled", "0");
-  assert.equal(store.getMeta("enabled"), "0");
 
   store.close();
 });

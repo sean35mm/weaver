@@ -12,6 +12,8 @@ export const DEFAULT_COMPLETED_SESSION_RECENT_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_ACTIVITY_MAX_EVENTS = 5000;
 export const DEFAULT_ACTIVITY_MAX_AGE_DAYS = 14;
 export const DEFAULT_CLAIM_RETENTION_DAYS = 7;
+export const DEFAULT_COMMAND_EVENT_MAX_EVENTS = 5000;
+export const DEFAULT_COMMAND_EVENT_MAX_AGE_DAYS = 30;
 
 // Pre-edit hook advisories: repeat the same warning to the same session at most this often
 // (a changed conflict picture re-warns immediately); rows only matter for minutes, prune in a day.

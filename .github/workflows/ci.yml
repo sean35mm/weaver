@@ -56,3 +56,5 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - run: bun run test:bun
+      # smoke the compiled standalone binary — the artifact users actually install
+      - run: npm run test:e2e-binary

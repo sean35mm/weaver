@@ -2,7 +2,7 @@
 
 import type { Db } from "./db.ts";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -52,6 +52,16 @@ CREATE TABLE IF NOT EXISTS activity (
   meta        TEXT
 );
 
+-- Lightweight local protocol metrics. No raw args, paths, note bodies, or repo content.
+CREATE TABLE IF NOT EXISTS command_events (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts          INTEGER NOT NULL,
+  command     TEXT NOT NULL,
+  session_id  TEXT,
+  harness     TEXT,
+  id_source   TEXT
+);
+
 -- Pre-edit advisory cooldown: when a session was last warned about a given conflict picture.
 -- No FK to sessions: a session's first pre-edit hook can fire before any session row exists.
 CREATE TABLE IF NOT EXISTS advisories (
@@ -71,6 +81,8 @@ CREATE INDEX IF NOT EXISTS idx_claims_active      ON claims(released_at, expires
 CREATE INDEX IF NOT EXISTS idx_claims_session     ON claims(session_id);
 CREATE INDEX IF NOT EXISTS idx_activity_recent    ON activity(ts);
 CREATE INDEX IF NOT EXISTS idx_activity_target    ON activity(target);
+CREATE INDEX IF NOT EXISTS idx_command_events_recent ON command_events(ts);
+CREATE INDEX IF NOT EXISTS idx_command_events_command ON command_events(command, ts);
 CREATE INDEX IF NOT EXISTS idx_notes_surface      ON notes(pinned, created_at);
 `;
 
@@ -88,6 +100,8 @@ export function migrate(db: Db): void {
       ALTER TABLE notes ADD COLUMN retire_reason TEXT;
     `);
   }
+
+  // v2 → v3: command_events table is created by the idempotent DDL above.
 
   if (!row || version < SCHEMA_VERSION) {
     db.run(

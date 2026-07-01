@@ -6,8 +6,8 @@ sidebar:
 ---
 
 Run `weaver --help` for a summary, or `weaver <command> --help` where available. Commands fall
-into three groups: **agent** commands (register your presence), **observer** commands (read
-only — they never make you appear as a participant), and **lifecycle/maintenance**.
+into three groups: **agent** commands (register your presence), **observer** commands (passive —
+they never make you appear as a participant), and **lifecycle/maintenance**.
 
 ## Agent commands
 
@@ -53,7 +53,12 @@ End your session and release its claims.
 
 ## Observer commands
 
-The commands **you** run as a human. Read-only — they never register you as a participant.
+The commands **you** run as a human. They never register you as a participant and never touch
+the shared coordination state (sessions, claims, notes, activity). The one thing they do write
+is a single content-free usage event in the repo's local store — the command name and when it
+ran, never arguments, paths, or content — which `weaver audit` uses to show whether the
+protocol is actually being followed. If the store isn't writable, the event is skipped and the
+command works anyway.
 
 ### `weaver status [--json] [--full]`
 The current picture: other live sessions, active claims, recent activity, and notes. **Silent
@@ -63,7 +68,7 @@ when nothing is relevant.** `--json` for machine consumption; `--full` removes t
 Is anyone else working on this path/area? Exits `0` if clear, `1` on a conflict, and prints the
 conflicting session's context. Observer-safe — works even without a resolved session. By default
 it refreshes the caller's heartbeat if the caller already has a live session; use `--no-touch`
-for strict read-only checks.
+to skip that heartbeat refresh.
 
 ### `weaver preflight [paths…|--staged|--upstream|--base <ref>]`
 A bounded commit/push/PR risk check. It checks only the supplied or inferred paths, never polls,
@@ -101,6 +106,17 @@ retired notes (with their reason) and superseded ones.
 
 ### `weaver activity [--json] [--full]`
 The recent activity feed across sessions.
+
+### `weaver audit [--json]`
+A self-audit of how Weaver is being used in this repo: session identity quality, stale
+sessions, expired claims, retained activity by kind, observer-command usage (from the local
+usage events), note curation state, and setup coverage (instruction files, Claude Code hooks) —
+followed by concrete recommendations, e.g. when agents never run `status`, `check`, or
+`preflight`. Command-usage counts include the `audit` invocation itself.
+```sh
+weaver audit
+weaver audit --json
+```
 
 ### `weaver doctor`
 Diagnostics: resolved session key + source, repo id, store path, runtime/binding, enabled
@@ -151,7 +167,7 @@ Update the installed binary to the latest release (`--check` only checks). See
 
 | Flag | Applies to | Meaning |
 | --- | --- | --- |
-| `--json` | `status`, `activity`, `preflight` | machine-readable output |
+| `--json` | `status`, `activity`, `preflight`, `audit` | machine-readable output |
 | `--full` | `status`, `notes`, `activity`, `preflight` | remove output caps |
 | `--color` | supported human output | force ANSI colors (`--color=always`, `auto`, or `never`) |
 | `--no-color` | supported human output | disable ANSI colors |
@@ -165,7 +181,7 @@ Update the installed binary to the latest release (`--check` only checks). See
 | `--update` | `note` | supersede an existing note by id |
 | `--all` | `notes` | include retired and superseded notes |
 | `--undo` | `forget` | restore a retired note |
-| `--no-touch` | `check` | do not refresh heartbeat |
+| `--no-touch` | `check` | skip the caller's heartbeat refresh |
 | `--reason` | `claim` | why you're claiming the area |
 | `--ttl` | `claim` | claim lifetime (`90s`, `30m`, `2h`, `1d`) |
 | `--pin` | `note` | surface the note prominently |

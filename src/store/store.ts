@@ -85,6 +85,18 @@ export interface ActivityRow extends ActivityInput {
   id: number;
 }
 
+export interface CommandEventInput {
+  ts: number;
+  command: string;
+  sessionId: string | null;
+  harness: string | null;
+  idSource: IdSource | null;
+}
+
+export interface CommandEventRow extends CommandEventInput {
+  id: number;
+}
+
 export interface PruneOptions {
   maxEvents: number;
   maxAgeDays: number;
@@ -140,6 +152,11 @@ export interface Store {
   addActivity(input: ActivityInput): number;
   listRecentActivity(limit: number): ActivityRow[];
   pruneActivity(opts: PruneOptions): void;
+
+  // command usage (privacy-safe protocol metrics; no args/paths/content)
+  addCommandEvent(input: CommandEventInput): number;
+  listRecentCommandEvents(limit: number): CommandEventRow[];
+  pruneCommandEvents(opts: PruneOptions): void;
 
   // pre-edit advisory cooldown (warned session × conflict-picture fingerprint → last warned)
   getAdvisory(sessionId: string, fingerprint: string): number | undefined;

@@ -5,6 +5,8 @@ import type {
   ClaimInput,
   ClaimPruneOptions,
   ClaimRow,
+  CommandEventInput,
+  CommandEventRow,
   NoteInput,
   NoteRow,
   PruneOptions,
@@ -121,6 +123,18 @@ export class EmptyStore implements Store {
   }
 
   pruneActivity(_opts: PruneOptions): void {
+    readonlyStoreWrite();
+  }
+
+  addCommandEvent(_input: CommandEventInput): number {
+    return readonlyStoreWrite();
+  }
+
+  listRecentCommandEvents(_limit: number): CommandEventRow[] {
+    return [];
+  }
+
+  pruneCommandEvents(_opts: PruneOptions): void {
     readonlyStoreWrite();
   }
 

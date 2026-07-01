@@ -15,7 +15,7 @@ function tmpDir(prefix: string): string {
 }
 
 function env(home: string, session: string | null): NodeJS.ProcessEnv {
-  const out = { ...process.env, WEAVER_HOME: home };
+  const out: NodeJS.ProcessEnv = { ...process.env, WEAVER_HOME: home };
   delete out.CLAUDE_CODE_SESSION_ID;
   delete out.CODEX_THREAD_ID;
   delete out.OPENCODE_RUN_ID;
@@ -39,7 +39,7 @@ function run(
   return { status: result.status ?? 1, stdout: result.stdout, stderr: result.stderr };
 }
 
-test("multiple sessions coordinate through one store", () => {
+test("multiple sessions coordinate through one store", { timeout: 10_000 }, () => {
   const root = tmpDir("weaver-repo-");
   const home = tmpDir("weaver-home-");
 
@@ -295,6 +295,56 @@ test("audit with missing store does not create Weaver home", () => {
   assert.ok(Array.isArray(parsed.recommendations));
 });
 
+test("observer command usage is recorded without creating presence", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+
+  assert.equal(run(root, home, "agent-a", ["task", "seed store"]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["done"]).status, 0);
+
+  assert.equal(run(root, home, "observer", ["status", "--json"]).status, 0);
+  assert.equal(run(root, home, "observer", ["check", "src/app.ts", "--no-touch"]).status, 0);
+  assert.equal(run(root, home, "observer", ["preflight", "src/app.ts", "--fail-on", "never", "--json"]).status, 0);
+
+  const audit = run(root, home, "observer", ["audit", "--json"]);
+  assert.equal(audit.status, 0);
+  const parsed = JSON.parse(audit.stdout) as {
+    commands: { byCommand: Record<string, number> };
+    sessions: { active: number };
+  };
+  assert.equal(parsed.commands.byCommand.status, 1);
+  assert.equal(parsed.commands.byCommand.check, 1);
+  assert.equal(parsed.commands.byCommand.preflight, 1);
+  assert.equal(parsed.commands.byCommand.audit, 1);
+  assert.equal(parsed.sessions.active, 0);
+});
+
+test("observer commands survive an unwritable store", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  const repoId = resolveRepoId(fs.realpathSync(root)).repoId;
+
+  assert.equal(run(root, home, "agent-a", ["task", "seed store"]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["done"]).status, 0);
+
+  const dbPath = path.join(home, `${repoId}.db`);
+  fs.chmodSync(dbPath, 0o444);
+  try {
+    const status = run(root, home, "observer", ["status", "--json"]);
+    assert.equal(status.status, 0);
+    const parsed = JSON.parse(status.stdout) as { sessions: unknown[] };
+    assert.ok(Array.isArray(parsed.sessions));
+
+    // usage metrics must degrade silently: the command works, nothing is recorded
+    const audit = run(root, home, "observer", ["audit", "--json"]);
+    assert.equal(audit.status, 0);
+    const auditParsed = JSON.parse(audit.stdout) as { commands: { total: number } };
+    assert.equal(auditParsed.commands.total, 0);
+  } finally {
+    fs.chmodSync(dbPath, 0o644);
+  }
+});
+
 test("write bootstrap failures use the friendly error boundary", () => {
   const root = tmpDir("weaver-repo-");
   const home = path.join(root, "not-a-dir");
@@ -417,4 +467,64 @@ test("preflight --staged reports relevant hard overlaps without polling", () => 
     "never",
   ]);
   assert.equal(reportOnly.status, 0);
+});
+
+test("entry points: help, version, and unknown commands", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+
+  const help = run(root, home, null, ["--help"]);
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /commands:/);
+
+  const version = run(root, home, null, ["--version"]);
+  assert.equal(version.status, 0);
+  assert.match(version.stdout.trim(), /^\d+\.\d+\.\d+/);
+
+  const unknown = run(root, home, null, ["frobnicate"]);
+  assert.equal(unknown.status, 1);
+  assert.match(unknown.stderr, /unknown command: frobnicate/);
+});
+
+test("preflight --base and --upstream honor soft and hard thresholds", { timeout: 15_000 }, () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  const git = (...args: string[]): void => {
+    execFileSync("git", args, { cwd: root, stdio: "ignore" });
+  };
+
+  git("init", "--initial-branch=main");
+  git("config", "user.email", "test@example.com");
+  git("config", "user.name", "test");
+  fs.mkdirSync(path.join(root, "src", "auth"), { recursive: true });
+  fs.writeFileSync(path.join(root, "src", "auth", "login.ts"), "export const login = true;\n");
+  git("add", ".");
+  git("commit", "-m", "base");
+  git("checkout", "-b", "feature");
+  fs.writeFileSync(path.join(root, "src", "auth", "login.ts"), "export const login = false;\n");
+  git("add", ".");
+  git("commit", "-m", "change login");
+
+  // soft signal: another live session recently edited the same file, without a claim
+  assert.equal(run(root, home, "agent-b", ["task", "auth cleanup"]).status, 0);
+  assert.equal(run(root, home, "agent-b", ["log", "edit", "src/auth/login.ts", "tweak"]).status, 0);
+
+  const soft = run(root, home, "agent-a", ["preflight", "--base", "main", "--operation", "pr", "--json"]);
+  assert.equal(soft.status, 1); // default threshold is --fail-on soft
+  assert.equal((JSON.parse(soft.stdout) as { severity: string }).severity, "soft");
+  const softBelowHard = run(root, home, "agent-a", ["preflight", "--base", "main", "--fail-on", "hard"]);
+  assert.equal(softBelowHard.status, 0); // soft overlap does not trip the hard threshold
+
+  // hard signal: the other session claims the area (with an explicit ttl)
+  const claim = run(root, home, "agent-b", ["claim", "src/auth/**", "--reason", "auth work", "--ttl", "30m"]);
+  assert.equal(claim.status, 0);
+  const hard = run(root, home, "agent-a", ["preflight", "--base", "main", "--fail-on", "hard", "--json"]);
+  assert.equal(hard.status, 1);
+  assert.equal((JSON.parse(hard.stdout) as { severity: string }).severity, "hard");
+
+  // --upstream resolves the same branch diff through tracking info
+  git("branch", "--set-upstream-to=main");
+  const upstream = run(root, home, "agent-a", ["preflight", "--upstream", "--fail-on", "never", "--json"]);
+  assert.equal(upstream.status, 0); // report-only
+  assert.equal((JSON.parse(upstream.stdout) as { severity: string }).severity, "hard");
 });

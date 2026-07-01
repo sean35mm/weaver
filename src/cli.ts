@@ -2,7 +2,7 @@
 /** Weaver CLI entry: parse → bootstrap (repo + store + identity) → dispatch → exit. */
 
 import fs from "node:fs";
-import { flagBool, type ParsedArgs, parseArgs } from "./args.ts";
+import { type ParsedArgs, parseArgs } from "./args.ts";
 import * as activity from "./commands/activity.ts";
 import * as audit from "./commands/audit.ts";
 import * as check from "./commands/check.ts";
@@ -30,6 +30,7 @@ import { resolveRepoId } from "./repo/identity.ts";
 import { EmptyStore } from "./store/empty.ts";
 import { ensureWeaverDir, storePathForRepo } from "./store/location.ts";
 import { openStore } from "./store/open.ts";
+import { DEFAULT_COMMAND_EVENT_MAX_AGE_DAYS, DEFAULT_COMMAND_EVENT_MAX_EVENTS } from "./store/reap.ts";
 import { SCHEMA_VERSION } from "./store/schema.ts";
 import { CliError } from "./validate.ts";
 import { VERSION } from "./version.ts";
@@ -61,12 +62,13 @@ const BOOLEAN_FLAGS = new Set([
 ]);
 // Mutating writes that are paused when the project is disabled (done/lifecycle still work).
 const WRITE_GATED = new Set(["task", "claim", "release", "note", "forget", "log"]);
+const COMMAND_USAGE = new Set(["status", "notes", "activity", "audit", "check", "preflight", "doctor"]);
 
 interface Handler {
   run: (ctx: Ctx) => number | Promise<number>;
   /** Agent/mutating commands require identity and register presence; observers don't. */
   agent: boolean;
-  /** `read` never creates a store, `touch` writes only when one exists, `create` creates/migrates. */
+  /** `read` never creates a store, `touch` writes only when one exists (read-only fallback if unwritable), `create` creates/migrates. */
   store: StoreMode | ((args: ParsedArgs) => StoreMode);
   /** Skip ladder resolution (incl. the `ps` TTY walk) — for hot paths that derive identity themselves. */
   skipIdentity?: boolean;
@@ -86,13 +88,13 @@ const REGISTRY: Record<string, Handler> = {
   forget: { run: forget.run, agent: true, store: "create" },
   log: { run: log.run, agent: true, store: "create" },
   done: { run: done.run, agent: true, store: "create" },
-  status: { run: status.run, agent: false, store: "read" },
-  notes: { run: note.runNotes, agent: false, store: "read" },
-  activity: { run: activity.run, agent: false, store: "read" },
-  audit: { run: audit.run, agent: false, store: "read" },
-  check: { run: check.run, agent: false, store: (args) => (flagBool(args, "no-touch") ? "read" : "touch") },
-  preflight: { run: preflight.run, agent: false, store: "read" },
-  doctor: { run: doctor.run, agent: false, store: "read" },
+  status: { run: status.run, agent: false, store: "touch" },
+  notes: { run: note.runNotes, agent: false, store: "touch" },
+  activity: { run: activity.run, agent: false, store: "touch" },
+  audit: { run: audit.run, agent: false, store: "touch" },
+  check: { run: check.run, agent: false, store: "touch" },
+  preflight: { run: preflight.run, agent: false, store: "touch" },
+  doctor: { run: doctor.run, agent: false, store: "touch" },
   // Viewers intentionally `create`: they poll the store file, so it must exist even before
   // the first agent writes.
   dashboard: { run: dashboard.runDashboard, agent: false, store: "create" },
@@ -113,8 +115,16 @@ const REGISTRY: Record<string, Handler> = {
 
 async function openStoreForMode(repoId: string, mode: StoreMode): Promise<Ctx["store"]> {
   const dbPath = storePathForRepo(repoId);
-  if (mode === "read") {
+  if (mode === "read" || mode === "touch") {
     if (!fs.existsSync(dbPath)) return new EmptyStore();
+    if (mode === "touch") {
+      try {
+        return await openStore(dbPath);
+      } catch {
+        // Unwritable store (permissions, read-only filesystem): fall through to the read
+        // path so observer commands keep working; usage metrics degrade on their own.
+      }
+    }
     let opened = await openStore(dbPath, { readOnly: true, migrate: false });
     try {
       // An older store must be migrated even for readers (queries reference new columns):
@@ -131,11 +141,29 @@ async function openStoreForMode(repoId: string, mode: StoreMode): Promise<Ctx["s
     }
     return opened;
   }
-  if (mode === "touch") {
-    return fs.existsSync(dbPath) ? openStore(dbPath) : new EmptyStore();
-  }
   ensureWeaverDir();
   return openStore(dbPath);
+}
+
+function recordCommandUsage(ctx: Ctx, command: string): void {
+  try {
+    ctx.store.transaction(() => {
+      ctx.store.addCommandEvent({
+        ts: ctx.now,
+        command,
+        sessionId: ctx.identity?.key ?? null,
+        harness: ctx.identity?.label ?? null,
+        idSource: ctx.identity?.source ?? null,
+      });
+      ctx.store.pruneCommandEvents({
+        maxEvents: DEFAULT_COMMAND_EVENT_MAX_EVENTS,
+        maxAgeDays: DEFAULT_COMMAND_EVENT_MAX_AGE_DAYS,
+        now: ctx.now,
+      });
+    });
+  } catch {
+    // Usage metrics are best-effort and must never break observer commands or missing-store reads.
+  }
 }
 
 function printHelp(write: (s: string) => void): void {
@@ -145,7 +173,9 @@ function printHelp(write: (s: string) => void): void {
   write("  task <intent…>                           announce what you're working on\n");
   write("  claim <glob> [--reason …] [--ttl 30m]    stake out an area (exit 1 = recorded, but conflicts exist)\n");
   write("  release <glob>                           free an area\n");
-  write("  check <path> [--no-touch]                is anyone else here? (exit 1 on conflict)\n");
+  write(
+    "  check <path> [--no-touch]                is anyone else here? (exit 1 on conflict; --no-touch skips heartbeat refresh)\n",
+  );
   write("  preflight [paths…|--staged|--upstream|--base REF]  bounded commit/push/PR risk check\n");
   write("  note <text…> [--pin] [--path …] [--tag …] [--update <id>]  record a durable learning\n");
   write(
@@ -231,6 +261,8 @@ async function main(): Promise<number> {
         { id: identity.key, harness: identity.label, idSource: identity.source, pid: process.pid, cwd: process.cwd() },
         now,
       );
+    } else if (enabled && COMMAND_USAGE.has(first)) {
+      recordCommandUsage(ctx, first);
     }
     return await handler.run(ctx);
   } catch (e) {

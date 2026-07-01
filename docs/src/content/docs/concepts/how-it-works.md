@@ -48,6 +48,11 @@ Weaver is local by design, and that's a guarantee, not an optimization:
 
 - **All data is local.** Sessions, claims, notes, activity — everything lives in plain SQLite
   files under `~/.weaver/` on your machine. You can open them, back them up, or delete them.
+- **Self-diagnostics are local too.** Observer commands (`status`, `check`, `preflight`, …)
+  record a content-free usage event in that same local store — the command name, a timestamp,
+  and the session label; never arguments, paths, note bodies, or repo content. `weaver audit`
+  reads these to show whether your agents actually follow the protocol. Events are pruned
+  after 30 days (or past the most recent 5,000) and, like everything else, never transmitted.
 - **Nothing goes over the network.** Weaver sends no telemetry, requires no account, and never
   transmits anything about you, your repo, or your agents' activity. The *only* network call
   it ever makes is `weaver upgrade` (and the install script) **downloading** its own binary

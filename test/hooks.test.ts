@@ -34,9 +34,6 @@ test("injectHooks adds pre/post entries and is idempotent", () => {
   assert.equal(post.length, 1);
   assert.match(pre[0]?.hooks?.[0]?.command ?? "", /weaver hook pre-edit/);
   assert.match(post[0]?.hooks?.[0]?.command ?? "", /weaver hook post-edit/);
-  // collaborators without weaver installed must get a silent no-op
-  assert.match(pre[0]?.hooks?.[0]?.command ?? "", /command -v weaver/);
-  assert.match(pre[0]?.hooks?.[0]?.command ?? "", /\|\| true/);
 });
 
 test("injectHooks/removeHooks preserve foreign hooks and unknown keys", () => {

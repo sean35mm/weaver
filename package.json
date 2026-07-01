@@ -32,7 +32,9 @@
     "lint:fix": "biome check --write .",
     "test": "node --test test/*.test.ts test/integration/*.test.ts",
     "test:bun": "bun test test/",
-    "typecheck": "tsc --noEmit"
+    "test:coverage": "node --test --experimental-test-coverage test/*.test.ts test/integration/*.test.ts",
+    "test:e2e-binary": "node --test test/e2e/*.test.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "picomatch": "^4.0.2"

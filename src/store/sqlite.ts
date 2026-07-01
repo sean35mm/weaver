@@ -9,6 +9,8 @@ import type {
   ClaimInput,
   ClaimPruneOptions,
   ClaimRow,
+  CommandEventInput,
+  CommandEventRow,
   NoteInput,
   NoteRow,
   PruneOptions,
@@ -62,6 +64,14 @@ interface RawActivity {
   summary: string | null;
   meta: string | null;
 }
+interface RawCommandEvent {
+  id: number;
+  ts: number;
+  command: string;
+  session_id: string | null;
+  harness: string | null;
+  id_source: string | null;
+}
 
 const toSession = (r: RawSession): SessionRow => ({
   id: r.id,
@@ -106,6 +116,14 @@ const toActivity = (r: RawActivity): ActivityRow => ({
   target: r.target,
   summary: r.summary,
   meta: r.meta,
+});
+const toCommandEvent = (r: RawCommandEvent): CommandEventRow => ({
+  id: r.id,
+  ts: r.ts,
+  command: r.command,
+  sessionId: r.session_id,
+  harness: r.harness,
+  idSource: r.id_source as CommandEventRow["idSource"],
 });
 
 export class SqliteStore implements Store {
@@ -326,6 +344,34 @@ export class SqliteStore implements Store {
     this.db.run(
       `DELETE FROM activity WHERE id NOT IN (
          SELECT id FROM activity ORDER BY ts DESC, id DESC LIMIT ?
+       )`,
+      opts.maxEvents,
+    );
+  }
+
+  addCommandEvent(input: CommandEventInput): number {
+    return this.db.run(
+      `INSERT INTO command_events (ts, command, session_id, harness, id_source)
+       VALUES (?, ?, ?, ?, ?)`,
+      input.ts,
+      input.command,
+      input.sessionId,
+      input.harness,
+      input.idSource,
+    ).lastInsertRowid;
+  }
+
+  listRecentCommandEvents(limit: number): CommandEventRow[] {
+    return this.db
+      .all<RawCommandEvent>("SELECT * FROM command_events ORDER BY ts DESC, id DESC LIMIT ?", limit)
+      .map(toCommandEvent);
+  }
+
+  pruneCommandEvents(opts: PruneOptions): void {
+    this.db.run("DELETE FROM command_events WHERE ts < ?", ageCutoff(opts.now, opts.maxAgeDays));
+    this.db.run(
+      `DELETE FROM command_events WHERE id NOT IN (
+         SELECT id FROM command_events ORDER BY ts DESC, id DESC LIMIT ?
        )`,
       opts.maxEvents,
     );
