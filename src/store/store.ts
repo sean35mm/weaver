@@ -108,8 +108,11 @@ export interface Store {
   setIntent(id: string, intent: string, now: number): void;
   endSession(id: string, now: number): void;
   getSession(id: string): SessionRow | undefined;
+  listSessions(limit: number): SessionRow[];
   /** Live = not ended and seen within `ttlMs`. */
   listActiveSessions(now: number, ttlMs: number): SessionRow[];
+  /** Not explicitly ended, including stale sessions. */
+  listOpenSessions(): SessionRow[];
   listRecentEndedSessions(limit: number, since?: number): SessionRow[];
 
   // claims (advisory, TTL'd, co-claims allowed)
@@ -118,6 +121,7 @@ export interface Store {
   releaseAllClaims(sessionId: string, now: number): void;
   /** Not released and not expired at `now`. */
   listActiveClaims(now: number): ClaimRow[];
+  listClaims(limit: number): ClaimRow[];
   /** Not released, regardless of expiry — used by conflict detection to surface stale holds. */
   listOpenClaims(): ClaimRow[];
   pruneClaims(opts: ClaimPruneOptions): void;

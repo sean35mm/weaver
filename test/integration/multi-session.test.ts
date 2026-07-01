@@ -133,6 +133,40 @@ test("note --update supersedes, inherits pin, and rejects unknown ids", () => {
   assert.match(garbage.stderr, /--update expects a note id/);
 });
 
+test("notes --path uses overlap matching and keeps unscoped notes quiet unless pinned", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+
+  assert.equal(
+    run(root, home, "agent-a", ["note", "backend area", "--path", "apps/backend/**", "--tag", "backend"]).status,
+    0,
+  );
+  assert.equal(
+    run(root, home, "agent-a", ["note", "exact file", "--path", "apps/backend/app/Foo.php", "--tag", "backend"]).status,
+    0,
+  );
+  assert.equal(
+    run(root, home, "agent-a", ["note", "frontend area", "--path", "apps/frontend/**", "--tag", "frontend"]).status,
+    0,
+  );
+  assert.equal(run(root, home, "agent-a", ["note", "global plain"]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["note", "global pinned", "--pin"]).status, 0);
+
+  const byPath = run(root, home, null, ["notes", "--path", "apps/backend/app/Foo.php"]);
+  assert.equal(byPath.status, 0);
+  assert.match(byPath.stdout, /backend area/);
+  assert.match(byPath.stdout, /exact file/);
+  assert.match(byPath.stdout, /global pinned/);
+  assert.doesNotMatch(byPath.stdout, /frontend area/);
+  assert.doesNotMatch(byPath.stdout, /global plain/);
+
+  const byTag = run(root, home, null, ["notes", "--tag", "backend"]);
+  assert.equal(byTag.status, 0);
+  assert.match(byTag.stdout, /backend area/);
+  assert.match(byTag.stdout, /exact file/);
+  assert.doesNotMatch(byTag.stdout, /frontend area/);
+});
+
 test("forget retires a note (hidden, audited, recoverable), rejects unknown ids", () => {
   const root = tmpDir("weaver-repo-");
   const home = tmpDir("weaver-home-");
@@ -247,6 +281,18 @@ test("preflight with missing store does not create Weaver home", () => {
   const parsed = JSON.parse(result.stdout) as { severity: string; conflicts: unknown[] };
   assert.equal(parsed.severity, "clear");
   assert.deepEqual(parsed.conflicts, []);
+});
+
+test("audit with missing store does not create Weaver home", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = path.join(root, "missing-home");
+
+  const result = run(root, home, null, ["audit", "--json"]);
+  assert.equal(result.status, 0);
+  assert.equal(fs.existsSync(home), false);
+  const parsed = JSON.parse(result.stdout) as { sessions: { total: number }; recommendations: string[] };
+  assert.equal(parsed.sessions.total, 0);
+  assert.ok(Array.isArray(parsed.recommendations));
 });
 
 test("write bootstrap failures use the friendly error boundary", () => {

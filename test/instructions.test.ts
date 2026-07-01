@@ -6,6 +6,8 @@ test("inject into empty content", () => {
   const out = injectBlock("");
   assert.ok(hasBlock(out));
   assert.ok(out.includes("Weaver — shared agent context"));
+  assert.ok(out.includes("--path <path-or-glob>"));
+  assert.ok(out.includes("weaver init --project --hooks"));
 });
 
 test("inject appends after existing content", () => {

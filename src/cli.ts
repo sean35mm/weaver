@@ -4,6 +4,7 @@
 import fs from "node:fs";
 import { flagBool, type ParsedArgs, parseArgs } from "./args.ts";
 import * as activity from "./commands/activity.ts";
+import * as audit from "./commands/audit.ts";
 import * as check from "./commands/check.ts";
 import * as claim from "./commands/claim.ts";
 import * as config from "./commands/config.ts";
@@ -88,6 +89,7 @@ const REGISTRY: Record<string, Handler> = {
   status: { run: status.run, agent: false, store: "read" },
   notes: { run: note.runNotes, agent: false, store: "read" },
   activity: { run: activity.run, agent: false, store: "read" },
+  audit: { run: audit.run, agent: false, store: "read" },
   check: { run: check.run, agent: false, store: (args) => (flagBool(args, "no-touch") ? "read" : "touch") },
   preflight: { run: preflight.run, agent: false, store: "read" },
   doctor: { run: doctor.run, agent: false, store: "read" },
@@ -146,10 +148,13 @@ function printHelp(write: (s: string) => void): void {
   write("  check <path> [--no-touch]                is anyone else here? (exit 1 on conflict)\n");
   write("  preflight [paths…|--staged|--upstream|--base REF]  bounded commit/push/PR risk check\n");
   write("  note <text…> [--pin] [--path …] [--tag …] [--update <id>]  record a durable learning\n");
-  write("  notes [--full] [--all]                   list notes (ids shown; --all includes retired/superseded)\n");
+  write(
+    "  notes [--full] [--all] [--path PATH] [--tag TAG]  list notes (ids shown; --all includes retired/superseded)\n",
+  );
   write("  forget <id> <why…>                       retire a wrong/obsolete note (--undo <id> restores)\n");
   write("  log <kind> <path> <summary…>             record an activity event\n");
   write("  activity [--full]                        recent activity feed\n");
+  write("  audit [--json]                           summarize retained usage, setup, and improvements\n");
   write("  done                                     end this session, release its claims\n");
   write("  doctor                                   diagnostics (identity, repo, store)\n");
   write("  dashboard [--port N] [--no-open]         live web view (Ctrl-C to stop)\n");

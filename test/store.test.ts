@@ -36,6 +36,41 @@ test("sessions: round-trip, intent, active filtering, end", async () => {
   store.close();
 });
 
+test("sessions: re-entering an ended identity starts a fresh episode", async () => {
+  const store = await openStore(tmpDb());
+
+  store.upsertSession({ id: "tty:ttys001@host", harness: "opencode", idSource: "ancestry", pid: null, cwd: null }, NOW);
+  store.setIntent("tty:ttys001@host", "old work", NOW + 1);
+  store.endSession("tty:ttys001@host", NOW + 2);
+  store.upsertSession(
+    { id: "tty:ttys001@host", harness: "opencode", idSource: "ancestry", pid: null, cwd: null },
+    NOW + 100,
+  );
+
+  const session = store.getSession("tty:ttys001@host");
+  assert.equal(session?.startedAt, NOW + 100);
+  assert.equal(session?.lastSeen, NOW + 100);
+  assert.equal(session?.endedAt, null);
+  assert.equal(session?.intent, null);
+
+  store.close();
+});
+
+test("sessions: live re-entry preserves started_at and intent", async () => {
+  const store = await openStore(tmpDb());
+
+  store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
+  store.setIntent("s1", "current work", NOW + 1);
+  store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW + 100);
+
+  const session = store.getSession("s1");
+  assert.equal(session?.startedAt, NOW);
+  assert.equal(session?.lastSeen, NOW + 100);
+  assert.equal(session?.intent, "current work");
+
+  store.close();
+});
+
 test("sessions: recent ended sessions honor cutoff", async () => {
   const store = await openStore(tmpDb());
 
@@ -47,6 +82,42 @@ test("sessions: recent ended sessions honor cutoff", async () => {
   assert.deepEqual(
     store.listRecentEndedSessions(10, NOW + 10).map((s) => s.id),
     ["recent"],
+  );
+
+  store.close();
+});
+
+test("sessions: open sessions include stale unended rows", async () => {
+  const store = await openStore(tmpDb());
+
+  store.upsertSession({ id: "old", harness: "opencode", idSource: "ancestry", pid: null, cwd: null }, NOW - TTL - 1);
+  store.upsertSession({ id: "live", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
+  store.upsertSession({ id: "done", harness: "claude-code", idSource: "harness", pid: null, cwd: null }, NOW);
+  store.endSession("done", NOW + 1);
+
+  assert.deepEqual(
+    store.listOpenSessions().map((s) => s.id),
+    ["live", "old"],
+  );
+
+  store.close();
+});
+
+test("sessions and claims: audit list helpers return newest rows first", async () => {
+  const store = await openStore(tmpDb());
+
+  store.upsertSession({ id: "s1", harness: "opencode", idSource: "harness", pid: null, cwd: null }, NOW);
+  store.upsertSession({ id: "s2", harness: "claude-code", idSource: "harness", pid: null, cwd: null }, NOW + 1);
+  store.addClaim({ sessionId: "s1", pattern: "a/**", reason: null, createdAt: NOW, expiresAt: NOW + TTL });
+  store.addClaim({ sessionId: "s2", pattern: "b/**", reason: null, createdAt: NOW + 1, expiresAt: NOW + TTL });
+
+  assert.deepEqual(
+    store.listSessions(2).map((session) => session.id),
+    ["s2", "s1"],
+  );
+  assert.deepEqual(
+    store.listClaims(2).map((claim) => claim.pattern),
+    ["b/**", "a/**"],
   );
 
   store.close();

@@ -86,6 +86,36 @@ export function removeHooks(settings: Settings): Settings {
 }
 
 export type HookInstallResult = "wrote" | "unchanged" | "invalid-json";
+export type HookStatus = "installed" | "partial" | "missing" | "invalid-json";
+
+function hasWeaverCommand(settings: Settings, event: string, weaverEvent: "pre-edit" | "post-edit"): boolean {
+  const groups = settings.hooks?.[event];
+  if (!Array.isArray(groups)) return false;
+  return groups.some((group) =>
+    group.hooks?.some((hook) => isWeaverEntry(hook) && hook.command.includes(`weaver hook ${weaverEvent}`)),
+  );
+}
+
+function hasAnyWeaverCommand(settings: Settings): boolean {
+  return Object.values(settings.hooks ?? {}).some(
+    (groups) => Array.isArray(groups) && groups.some((group) => group.hooks?.some(isWeaverEntry)),
+  );
+}
+
+export function hookStatusForRepo(root: string): HookStatus {
+  const file = settingsPathForRepo(root);
+  if (!fs.existsSync(file)) return "missing";
+  let settings: Settings;
+  try {
+    settings = JSON.parse(fs.readFileSync(file, "utf8")) as Settings;
+  } catch {
+    return "invalid-json";
+  }
+  const pre = hasWeaverCommand(settings, "PreToolUse", "pre-edit");
+  const post = hasWeaverCommand(settings, "PostToolUse", "post-edit");
+  if (pre && post) return "installed";
+  return pre || post || hasAnyWeaverCommand(settings) ? "partial" : "missing";
+}
 
 function rewrite(file: string, transform: (s: Settings) => Settings): HookInstallResult {
   let settings: Settings = {};

@@ -7,6 +7,7 @@ import { parseArgs } from "../src/args.ts";
 import { applyPostEdit, hookIdentity, parseHookPayload, preEditOutput } from "../src/commands/hook.ts";
 import type { Ctx } from "../src/context.ts";
 import {
+  hookStatusForRepo,
   injectHooks,
   installHooks,
   removeHooks,
@@ -84,8 +85,10 @@ test("user hooks sharing a matcher group with weaver's entry survive remove and 
 
 test("installHooks/uninstallHooks round-trip on disk, refusing invalid JSON", () => {
   const root = tmpDir("weaver-hooks-");
+  assert.equal(hookStatusForRepo(root), "missing");
   assert.equal(installHooks(root), "wrote");
   assert.equal(installHooks(root), "unchanged");
+  assert.equal(hookStatusForRepo(root), "installed");
 
   const file = settingsPathForRepo(root);
   const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -93,10 +96,24 @@ test("installHooks/uninstallHooks round-trip on disk, refusing invalid JSON", ()
 
   assert.equal(uninstallHooks(root), "wrote");
   assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), {});
+  assert.equal(hookStatusForRepo(root), "missing");
 
   fs.writeFileSync(file, "{ not json");
   assert.equal(installHooks(root), "invalid-json");
   assert.equal(fs.readFileSync(file, "utf8"), "{ not json"); // never clobbered
+  assert.equal(hookStatusForRepo(root), "invalid-json");
+});
+
+test("hookStatusForRepo distinguishes partial hook installs", () => {
+  const root = tmpDir("weaver-hooks-");
+  const file = settingsPathForRepo(root);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(
+    file,
+    `${JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "weaver hook pre-edit" }] }] } })}\n`,
+  );
+
+  assert.equal(hookStatusForRepo(root), "partial");
 });
 
 // ---------- hook command core ----------

@@ -1,6 +1,8 @@
 import { flagBool, flagStr, rest } from "../args.ts";
 import type { Ctx } from "../context.ts";
+import { targetsOverlap } from "../glob.ts";
 import { normalizeTarget } from "../repo/paths.ts";
+import type { NoteRow } from "../store/store.ts";
 import { CliError, clamp, requireArg, requireIdentity } from "../validate.ts";
 import { pruneAfterWrite } from "./prune.ts";
 
@@ -50,10 +52,16 @@ export function runNote(ctx: Ctx): number {
 
 export function runNotes(ctx: Ctx): number {
   const all = flagBool(ctx.args, "all");
-  const limit = flagBool(ctx.args, "full") || all ? 100 : 20;
-  const notes = all ? ctx.store.listAllNotes(limit) : ctx.store.listNotes(limit);
+  const pathRaw = flagStr(ctx.args, "path");
+  const tag = flagStr(ctx.args, "tag")?.trim() || null;
+  const path = pathRaw ? normalizeTarget(pathRaw, ctx.repo.root, ctx.cwd) : null;
+  const filtered = path !== null || tag !== null;
+  const limit = flagBool(ctx.args, "full") || all || filtered ? 100 : 20;
+  const notes = (all ? ctx.store.listAllNotes(limit) : ctx.store.listNotes(limit)).filter((note) =>
+    matchesNote(note, { path, tag }),
+  );
   if (!notes.length) {
-    ctx.out("no notes yet\n");
+    ctx.out(filtered ? "no matching notes\n" : "no notes yet\n");
     return 0;
   }
   for (const n of notes) {
@@ -67,4 +75,20 @@ export function runNotes(ctx: Ctx): number {
     ctx.out(`#${n.id} ${marker}${n.body}${n.path ? `  [${n.path}]` : ""}${history}\n`);
   }
   return 0;
+}
+
+function tagTokens(tags: string | null): string[] {
+  return (tags ?? "")
+    .split(/[\s,]+/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+function matchesNote(note: NoteRow, filters: { path: string | null; tag: string | null }): boolean {
+  if (filters.path !== null) {
+    if (!note.path && !note.pinned) return false;
+    if (note.path && !targetsOverlap(filters.path, note.path)) return false;
+  }
+  if (filters.tag !== null && !tagTokens(note.tags).includes(filters.tag)) return false;
+  return true;
 }

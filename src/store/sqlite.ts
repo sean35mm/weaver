@@ -120,18 +120,21 @@ export class SqliteStore implements Store {
   }
 
   upsertSession(input: SessionInput, now: number): void {
-    // Insert on first sight; on re-entry refresh heartbeat + identity fields but keep
-    // started_at/intent and clear any prior ended_at (the session is live again).
+    // Insert on first sight; on live re-entry refresh heartbeat + identity fields while keeping
+    // started_at/intent. If an ended identity reappears, start a fresh episode so tty/ancestry
+    // fallback IDs do not accumulate multi-day durations after `weaver done`.
     this.db.run(
       `INSERT INTO sessions (id, harness, id_source, pid, cwd, intent, started_at, last_seen, ended_at)
        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL)
        ON CONFLICT(id) DO UPDATE SET
-         harness = excluded.harness,
-         id_source = excluded.id_source,
-         pid = excluded.pid,
-         cwd = excluded.cwd,
-         last_seen = excluded.last_seen,
-         ended_at = NULL`,
+          harness = excluded.harness,
+          id_source = excluded.id_source,
+          pid = excluded.pid,
+          cwd = excluded.cwd,
+          intent = CASE WHEN sessions.ended_at IS NULL THEN sessions.intent ELSE NULL END,
+          started_at = CASE WHEN sessions.ended_at IS NULL THEN sessions.started_at ELSE excluded.started_at END,
+          last_seen = excluded.last_seen,
+          ended_at = NULL`,
       input.id,
       input.harness,
       input.idSource,
@@ -159,12 +162,24 @@ export class SqliteStore implements Store {
     return r ? toSession(r) : undefined;
   }
 
+  listSessions(limit: number): SessionRow[] {
+    return this.db
+      .all<RawSession>("SELECT * FROM sessions ORDER BY started_at DESC, last_seen DESC LIMIT ?", limit)
+      .map(toSession);
+  }
+
   listActiveSessions(now: number, ttlMs: number): SessionRow[] {
     return this.db
       .all<RawSession>(
         "SELECT * FROM sessions WHERE ended_at IS NULL AND last_seen >= ? ORDER BY started_at",
         now - ttlMs,
       )
+      .map(toSession);
+  }
+
+  listOpenSessions(): SessionRow[] {
+    return this.db
+      .all<RawSession>("SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY last_seen DESC, started_at DESC")
       .map(toSession);
   }
 
@@ -215,6 +230,10 @@ export class SqliteStore implements Store {
     return this.db
       .all<RawClaim>("SELECT * FROM claims WHERE released_at IS NULL AND expires_at > ? ORDER BY created_at", now)
       .map(toClaim);
+  }
+
+  listClaims(limit: number): ClaimRow[] {
+    return this.db.all<RawClaim>("SELECT * FROM claims ORDER BY created_at DESC, id DESC LIMIT ?", limit).map(toClaim);
   }
 
   listOpenClaims(): ClaimRow[] {

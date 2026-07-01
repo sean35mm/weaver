@@ -44,7 +44,15 @@ export class EmptyStore implements Store {
     return undefined;
   }
 
+  listSessions(_limit: number): SessionRow[] {
+    return [];
+  }
+
   listActiveSessions(_now: number, _ttlMs: number): SessionRow[] {
+    return [];
+  }
+
+  listOpenSessions(): SessionRow[] {
     return [];
   }
 
@@ -65,6 +73,10 @@ export class EmptyStore implements Store {
   }
 
   listActiveClaims(_now: number): ClaimRow[] {
+    return [];
+  }
+
+  listClaims(_limit: number): ClaimRow[] {
     return [];
   }
 

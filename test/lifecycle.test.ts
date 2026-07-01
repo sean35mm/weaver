@@ -5,10 +5,12 @@ import path from "node:path";
 import { test } from "node:test";
 import { parseArgs } from "../src/args.ts";
 import * as deinit from "../src/commands/deinit.ts";
+import * as doctor from "../src/commands/doctor.ts";
 import * as init from "../src/commands/init.ts";
 import * as toggle from "../src/commands/toggle.ts";
 import type { Ctx } from "../src/context.ts";
-import { hasBlock } from "../src/instructions/block.ts";
+import { hasBlock, injectBlock } from "../src/instructions/block.ts";
+import { installHooks } from "../src/instructions/hooks.ts";
 import { openStore } from "../src/store/open.ts";
 
 function tmpDir(prefix: string): string {
@@ -117,6 +119,53 @@ test("disable/enable toggles the enabled flag", async () => {
   assert.equal(ctx.store.getMeta("enabled"), "0");
   toggle.runEnable(ctx);
   assert.equal(ctx.store.getMeta("enabled"), "1");
+  ctx.store.close();
+});
+
+test("doctor reports setup coverage, weak identity, and stale state", async () => {
+  const root = tmpDir("weaver-repo-");
+  fs.writeFileSync(path.join(root, "AGENTS.md"), injectBlock("# Agents\n"));
+  const ctx = await ctxFor(root, ["doctor"]);
+  ctx.identity = { key: "tty:ttys001@host", source: "ancestry", label: "opencode" };
+  ctx.store.upsertSession(
+    { id: "stale", harness: "opencode", idSource: "ancestry", pid: null, cwd: null },
+    ctx.now - ctx.config.sessionTtlMs - 1,
+  );
+  ctx.store.addClaim({
+    sessionId: "stale",
+    pattern: "src/app.ts",
+    reason: null,
+    createdAt: ctx.now - ctx.config.claimTtlMs,
+    expiresAt: ctx.now - 1,
+  });
+  let out = "";
+  ctx.out = (s) => {
+    out += s;
+  };
+
+  assert.equal(doctor.run(ctx), 0);
+  assert.match(out, /quality\s+: weak \(ancestry\)/);
+  assert.match(out, /stale\s+: 1 unended session/);
+  assert.match(out, /claims\s+: 0 active, 1 expired open/);
+  assert.match(out, /project\s+: instructions 1\/2 missing CLAUDE\.md/);
+  assert.match(out, /hooks\s+: missing/);
+  ctx.store.close();
+});
+
+test("doctor reports installed project instructions and hooks", async () => {
+  const root = tmpDir("weaver-repo-");
+  fs.writeFileSync(path.join(root, "CLAUDE.md"), injectBlock("# Claude\n"));
+  fs.writeFileSync(path.join(root, "AGENTS.md"), injectBlock("# Agents\n"));
+  assert.equal(installHooks(root), "wrote");
+  const ctx = await ctxFor(root, ["doctor"]);
+  let out = "";
+  ctx.out = (s) => {
+    out += s;
+  };
+
+  assert.equal(doctor.run(ctx), 0);
+  assert.match(out, /project\s+: instructions 2\/2/);
+  assert.match(out, /hooks\s+: installed/);
   ctx.store.close();
 });
 
