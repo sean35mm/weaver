@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { type ConflictHit, detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
-import { type Identity, resolveIdentity } from "../identity/session.ts";
+import { HARNESS_SESSION_ENVS, type Identity, resolveIdentity } from "../identity/session.ts";
 import { formatConflict } from "../render.ts";
 import { normalizeTarget } from "../repo/paths.ts";
 import { DEFAULT_ADVISORY_COOLDOWN_MS } from "../store/reap.ts";
@@ -23,6 +23,8 @@ import { pruneAfterWrite } from "./prune.ts";
 
 export interface HookPayload {
   session_id?: string;
+  /** Which harness sent this (Weaver's OpenCode plugin sets "opencode"); defaults to claude-code. */
+  harness?: string;
   cwd?: string;
   tool_name?: string;
   tool_input?: { file_path?: unknown };
@@ -41,13 +43,19 @@ export function parseHookPayload(raw: string): HookPayload | null {
 /**
  * Identity must match what the agent's own weaver commands resolve, or hook events would
  * register a phantom second session. Hooks run with no TTY, so we rebuild the same ladder
- * with the payload's session_id injected as the harness-native id.
+ * with the payload's session_id injected as its harness's native env var (per
+ * `payload.harness`, default claude-code). Ambient harness vars are stripped first so the
+ * payload always wins regardless of registry precedence.
  */
 export function hookIdentity(ctx: Ctx, payload: HookPayload): Identity | null {
-  const env =
-    typeof payload.session_id === "string" && payload.session_id
-      ? { ...ctx.env, CLAUDE_CODE_SESSION_ID: payload.session_id }
-      : ctx.env;
+  let env = ctx.env;
+  if (typeof payload.session_id === "string" && payload.session_id) {
+    const envKey = HARNESS_SESSION_ENVS.find(([label]) => label === (payload.harness ?? "claude-code"))?.[1];
+    if (!envKey) return null; // unknown harness — better no identity than a mislabeled one
+    env = { ...ctx.env };
+    for (const [, key] of HARNESS_SESSION_ENVS) delete env[key];
+    env[envKey] = payload.session_id;
+  }
   // No TTY rung: hook processes have no controlling terminal, and walking ancestry here
   // could mint an identity that doesn't match the agent's own weaver commands.
   return resolveIdentity({ env, argv: [], ttyResolver: () => null });

@@ -179,11 +179,11 @@ function printHelp(write: (s: string) => void): void {
   write("  preflight [paths…|--staged|--upstream|--base REF]  bounded commit/push/PR risk check\n");
   write("  note <text…> [--pin] [--path …] [--tag …] [--update <id>]  record a durable learning\n");
   write(
-    "  notes [--full] [--all] [--path PATH] [--tag TAG]  list notes (ids shown; --all includes retired/superseded)\n",
+    "  notes [query…] [--full] [--all] [--path PATH] [--tag TAG] [--json]  list/search notes (--all includes retired/superseded)\n",
   );
   write("  forget <id> <why…>                       retire a wrong/obsolete note (--undo <id> restores)\n");
   write("  log <kind> <path> <summary…>             record an activity event\n");
-  write("  activity [--full]                        recent activity feed\n");
+  write("  activity [query…] [--kind K] [--path P] [--since 2h] [--full]  recent activity feed (searchable)\n");
   write("  audit [--json]                           summarize retained usage, setup, and improvements\n");
   write("  done                                     end this session, release its claims\n");
   write("  doctor                                   diagnostics (identity, repo, store)\n");

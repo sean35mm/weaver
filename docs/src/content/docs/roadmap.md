@@ -9,6 +9,10 @@ the project (and the way people run agents) evolves.
 
 <div class="wv-eyebrow">▸ Recently shipped</div>
 
+- **OpenCode plugin** — structural coordination for OpenCode: first-class session identity,
+  automatic edit logging and presence, conflict advisories the model sees, and session
+  cleanup — installable per repo or globally. See the
+  [plugin guide](/weaver/guides/opencode-plugin/).
 - **Usage audit & local metrics** — `weaver audit` summarizes retained usage, setup coverage,
   and concrete recommendations; observer commands record content-free usage events, locally
   only, so the audit can tell whether agents actually follow the protocol.
@@ -23,20 +27,15 @@ the project (and the way people run agents) evolves.
 
 What's actively being worked on.
 
-- **OpenCode plugin** — first-class session identity for OpenCode ≥1.17 via its `shell.env`
-  plugin hook, installed by `weaver init --hooks`. See the
-  [plugin guide](/weaver/guides/opencode-plugin/).
+- **Notes & activity search** — free-text queries and `--kind`/`--path`/`--since` filters
+  over retained notes and history.
 - **Real-world dogfooding** — running Weaver on its own repo across Claude Code and OpenCode, folding the findings back in.
 
 <div class="wv-eyebrow">▸ Next — committed, soon</div>
 
 Lined up and likely to land in the near term.
 
-- **OpenCode structural coordination** — pre/post-edit advisories and automatic session
-  cleanup through OpenCode's plugin events (`tool.execute.*`, `session.idle`/`deleted`),
-  matching what the Claude Code hooks provide today.
 - **More harness coverage** — Cursor, Gemini CLI, and Aider recognized out of the box.
-- **Notes & activity search** — query and filter notes and history instead of scanning the whole log.
 - **Dashboard & watch upgrades** — a richer live view, with filtering by area or agent.
 
 <div class="wv-eyebrow">▸ Later — directional</div>

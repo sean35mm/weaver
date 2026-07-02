@@ -15,11 +15,65 @@ type Env = Record<string, string | undefined>;
 const MARKER = "weaver:opencode-plugin";
 
 export const PLUGIN_SOURCE = `// ${MARKER} — installed by \`weaver init\`; safe to delete.
-// Exports this OpenCode session's id to shell commands so tools like weaver can tell
-// concurrent sessions apart. Content-free: only the opaque session id is exposed.
-export const WeaverPlugin = async () => ({
+// Structural coordination for OpenCode: exports this session's id to shell commands,
+// logs edits and refreshes presence, appends conflict advisories to edit-tool output,
+// and ends the weaver session when OpenCode deletes its own. Content-free: only the
+// opaque session id and edited file paths ever reach weaver. Every call is best-effort —
+// weaver being missing or failing can never break OpenCode.
+const EDIT_TOOLS = new Set(["edit", "write"]);
+
+async function weaver(argv, opts) {
+  try {
+    const proc = Bun.spawn(["weaver"].concat(argv), {
+      cwd: opts.cwd, // the project directory — a global plugin serves many repos
+      stdin: opts.stdin == null ? "ignore" : new TextEncoder().encode(opts.stdin),
+      stdout: "pipe",
+      stderr: "ignore",
+      env: opts.env || process.env,
+    });
+    const done = proc.exited;
+    const out = await new Response(proc.stdout).text();
+    await done;
+    return out;
+  } catch {
+    return "";
+  }
+}
+
+export const WeaverPlugin = async ({ directory }) => ({
   "shell.env": async (input, output) => {
     if (input.sessionID) output.env.OPENCODE_SESSION_ID = input.sessionID;
+  },
+
+  "tool.execute.after": async (input, output) => {
+    if (!EDIT_TOOLS.has(input.tool)) return;
+    const filePath = input.args && input.args.filePath;
+    if (typeof filePath !== "string" || !filePath || !input.sessionID) return;
+    const payload = JSON.stringify({
+      harness: "opencode",
+      session_id: input.sessionID,
+      cwd: directory,
+      tool_input: { file_path: filePath },
+    });
+    await weaver(["hook", "post-edit"], { cwd: directory, stdin: payload }); // log + refresh presence
+    const raw = await weaver(["hook", "pre-edit"], { cwd: directory, stdin: payload }); // conflict picture, rate-limited
+    try {
+      const advisory = JSON.parse(raw).hookSpecificOutput.additionalContext;
+      if (advisory) output.output += "\\n\\n[weaver advisory]\\n" + advisory;
+    } catch {
+      /* no advisory */
+    }
+  },
+
+  event: async ({ event }) => {
+    if (!event || event.type !== "session.deleted") return;
+    const props = event.properties || {};
+    const sid = (props.info && props.info.id) || props.sessionID || props.id;
+    if (typeof sid !== "string" || !sid) return;
+    await weaver(["done"], {
+      cwd: directory,
+      env: Object.assign({}, process.env, { OPENCODE_SESSION_ID: sid }),
+    });
   },
 });
 `;

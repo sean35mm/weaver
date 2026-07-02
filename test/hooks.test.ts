@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
 import { parseArgs } from "../src/args.ts";
 import { applyPostEdit, hookIdentity, parseHookPayload, preEditOutput } from "../src/commands/hook.ts";
 import type { Ctx } from "../src/context.ts";
@@ -348,4 +349,48 @@ test("global scope: hooks and plugin install under HOME, uninstall cleanly", () 
   assert.match(opencodePluginPathGlobal(env), /\.config\/opencode\/plugins\/weaver\.js$/);
   assert.equal(uninstallOpencodePluginGlobal(env), "wrote");
   assert.equal(opencodePluginStatusGlobal(env), "missing");
+});
+
+test("hookIdentity honors the payload's harness and rejects unknown ones", async () => {
+  const ctx = await ctxFor(tmpDir("weaver-repo-"));
+
+  const opencode = hookIdentity(ctx, { session_id: "ses_abc", harness: "opencode" });
+  assert.equal(opencode?.key, `harness:opencode:ses_abc@${HOST}`);
+  assert.equal(opencode?.label, "opencode");
+
+  // the payload wins over ambient harness env vars regardless of registry precedence
+  ctx.env = { CLAUDE_CODE_SESSION_ID: "stray" };
+  const overridden = hookIdentity(ctx, { session_id: "ses_abc", harness: "opencode" });
+  assert.equal(overridden?.key, `harness:opencode:ses_abc@${HOST}`);
+
+  assert.equal(hookIdentity(ctx, { session_id: "x", harness: "not-a-harness" }), null);
+  ctx.store.close();
+});
+
+test("plugin template parses as ESM and its hooks guard correctly", async () => {
+  const dir = tmpDir("weaver-oc-tpl-");
+  const file = path.join(dir, "weaver-plugin.mjs");
+  fs.writeFileSync(file, PLUGIN_SOURCE);
+  const mod = (await import(pathToFileURL(file).href)) as {
+    WeaverPlugin: (input: { directory: string }) => Promise<Record<string, (...args: unknown[]) => Promise<void>>>;
+  };
+  assert.equal(typeof mod.WeaverPlugin, "function");
+  const hooks = await mod.WeaverPlugin({ directory: dir });
+
+  // shell.env exports the session id
+  const env: Record<string, string> = {};
+  await hooks["shell.env"]?.({ sessionID: "ses_1" }, { env });
+  assert.equal(env.OPENCODE_SESSION_ID, "ses_1");
+  await hooks["shell.env"]?.({}, { env: {} }); // no session id → no write, no throw
+
+  // non-edit tools, missing paths, and missing session ids never touch tool output
+  const out = { title: "t", output: "original", metadata: {} };
+  await hooks["tool.execute.after"]?.({ tool: "read", sessionID: "ses_1", callID: "c", args: { filePath: "x" } }, out);
+  await hooks["tool.execute.after"]?.({ tool: "edit", sessionID: "ses_1", callID: "c", args: {} }, out);
+  await hooks["tool.execute.after"]?.({ tool: "write", callID: "c", args: { filePath: "x" } }, out);
+  assert.equal(out.output, "original");
+
+  // unrelated events are ignored
+  await hooks.event?.({ event: { type: "session.updated", properties: {} } });
+  await hooks.event?.({ event: { type: "session.deleted", properties: {} } }); // no id → no-op
 });

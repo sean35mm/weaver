@@ -528,3 +528,40 @@ test("preflight --base and --upstream honor soft and hard thresholds", { timeout
   assert.equal(upstream.status, 0); // report-only
   assert.equal((JSON.parse(upstream.stdout) as { severity: string }).severity, "hard");
 });
+
+test("notes and activity support free-text queries and filters", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+
+  assert.equal(run(root, home, "agent-a", ["task", "auth work"]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["note", "pg runs on :5433 in tests", "--tag", "infra"]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["note", "auth tokens rotate hourly"]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["log", "edit", "src/auth/login.ts", "extract token refresh"]).status, 0);
+
+  const query = run(root, home, "agent-a", ["notes", "tokens"]);
+  assert.equal(query.status, 0);
+  assert.match(query.stdout, /auth tokens rotate hourly/);
+  assert.doesNotMatch(query.stdout, /pg runs/);
+
+  const jsonNotes = run(root, home, "agent-a", ["notes", "--json"]);
+  assert.equal(jsonNotes.status, 0);
+  assert.equal((JSON.parse(jsonNotes.stdout) as Array<{ body: string }>).length, 2);
+
+  const byKind = run(root, home, "agent-a", ["activity", "--kind", "edit", "--json"]);
+  const editRows = JSON.parse(byKind.stdout) as Array<{ kind: string }>;
+  assert.equal(editRows.length, 1);
+  assert.equal(editRows[0]?.kind, "edit");
+
+  const byPath = run(root, home, "agent-a", ["activity", "--path", "src/auth/**", "--json"]);
+  assert.ok((JSON.parse(byPath.stdout) as unknown[]).length >= 1);
+
+  const byQuery = run(root, home, "agent-a", ["activity", "token", "refresh"]);
+  assert.match(byQuery.stdout, /extract token refresh/);
+
+  const since = run(root, home, "agent-a", ["activity", "--since", "30m", "--json"]);
+  assert.ok((JSON.parse(since.stdout) as unknown[]).length >= 3);
+
+  const badSince = run(root, home, "agent-a", ["activity", "--since", "eventually"]);
+  assert.equal(badSince.status, 1);
+  assert.match(badSince.stderr, /--since expects a duration/);
+});

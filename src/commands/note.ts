@@ -55,11 +55,34 @@ export function runNotes(ctx: Ctx): number {
   const pathRaw = flagStr(ctx.args, "path");
   const tag = flagStr(ctx.args, "tag")?.trim() || null;
   const path = pathRaw ? normalizeTarget(pathRaw, ctx.repo.root, ctx.cwd) : null;
-  const filtered = path !== null || tag !== null;
+  const terms = ctx.args._.slice(1)
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+  const filtered = path !== null || tag !== null || terms.length > 0;
   const limit = flagBool(ctx.args, "full") || all || filtered ? 100 : 20;
-  const notes = (all ? ctx.store.listAllNotes(limit) : ctx.store.listNotes(limit)).filter((note) =>
-    matchesNote(note, { path, tag }),
-  );
+  // Filters scan everything retained, then cap the display; unfiltered stays cheap.
+  const fetch = filtered ? 5000 : limit;
+  const notes = (all ? ctx.store.listAllNotes(fetch) : ctx.store.listNotes(fetch))
+    .filter((note) => matchesNote(note, { path, tag, terms }))
+    .slice(0, limit);
+
+  if (flagBool(ctx.args, "json")) {
+    ctx.out(
+      `${JSON.stringify(
+        notes.map((n) => ({
+          id: n.id,
+          body: n.body,
+          path: n.path,
+          tags: n.tags,
+          pinned: n.pinned,
+          retired: n.retiredAt !== null,
+          superseded: n.superseded ?? false,
+        })),
+      )}\n`,
+    );
+    return 0;
+  }
+
   if (!notes.length) {
     ctx.out(filtered ? "no matching notes\n" : "no notes yet\n");
     return 0;
@@ -84,11 +107,15 @@ function tagTokens(tags: string | null): string[] {
     .filter(Boolean);
 }
 
-function matchesNote(note: NoteRow, filters: { path: string | null; tag: string | null }): boolean {
+function matchesNote(note: NoteRow, filters: { path: string | null; tag: string | null; terms: string[] }): boolean {
   if (filters.path !== null) {
     if (!note.path && !note.pinned) return false;
     if (note.path && !targetsOverlap(filters.path, note.path)) return false;
   }
   if (filters.tag !== null && !tagTokens(note.tags).includes(filters.tag)) return false;
+  if (filters.terms.length) {
+    const haystack = `${note.body} ${note.tags ?? ""} ${note.path ?? ""}`.toLowerCase();
+    if (!filters.terms.every((term) => haystack.includes(term))) return false;
+  }
   return true;
 }

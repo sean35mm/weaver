@@ -99,13 +99,27 @@ weaver forget 12 "npm distribution was removed; this no longer applies"
 weaver forget --undo 12
 ```
 
-### `weaver notes [--full] [--all]`
+### `weaver notes [query…] [--full] [--all] [--json]`
 List durable notes with their ids (pinned first, newest first). Superseded and retired notes are
 hidden — only the current picture appears. `--all` shows the full curation history, marking
 retired notes (with their reason) and superseded ones.
 
-### `weaver activity [--json] [--full]`
-The recent activity feed across sessions.
+Free-text terms search body, tags, and path (case-insensitive, all terms must match) and
+compose with `--path`/`--tag`; `--json` emits machine-readable rows.
+```sh
+weaver notes docker postgres
+weaver notes --tag infra --json
+```
+
+### `weaver activity [query…] [--kind <kind>] [--path <glob>] [--since <dur>] [--json] [--full]`
+The recent activity feed across sessions, searchable: free-text terms match summary and
+target, `--kind` filters by event kind (`edit`, `note`, `task`, …), `--path` by area
+overlap, and `--since` by age (`90s`, `30m`, `2h`, `3d`). Filters scan everything retained
+(not just the newest page).
+```sh
+weaver activity --kind edit --path 'src/auth/**' --since 2h
+weaver activity "token refresh" --json
+```
 
 ### `weaver audit [--json]`
 A self-audit of how Weaver is being used in this repo: session identity quality, stale
@@ -172,7 +186,7 @@ Update the installed binary to the latest release (`--check` only checks). See
 
 | Flag | Applies to | Meaning |
 | --- | --- | --- |
-| `--json` | `status`, `activity`, `preflight`, `audit` | machine-readable output |
+| `--json` | `status`, `notes`, `activity`, `preflight`, `audit` | machine-readable output |
 | `--full` | `status`, `notes`, `activity`, `preflight` | remove output caps |
 | `--color` | supported human output | force ANSI colors (`--color=always`, `auto`, or `never`) |
 | `--no-color` | supported human output | disable ANSI colors |
@@ -186,6 +200,8 @@ Update the installed binary to the latest release (`--check` only checks). See
 | `--update` | `note` | supersede an existing note by id |
 | `--all` | `notes` | include retired and superseded notes |
 | `--undo` | `forget` | restore a retired note |
+| `--kind` | `activity` | filter by event kind |
+| `--since` | `activity` | only events newer than a duration (`30m`, `2h`, `3d`) |
 | `--no-touch` | `check` | skip the caller's heartbeat refresh |
 | `--reason` | `claim` | why you're claiming the area |
 | `--ttl` | `claim` | claim lifetime (`90s`, `30m`, `2h`, `1d`) |

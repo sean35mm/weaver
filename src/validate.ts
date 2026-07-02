@@ -45,17 +45,23 @@ export function normalizeKind(raw: string | undefined): { kind: ActivityKind; wa
   return { kind: "run", warning: `unknown activity kind ${JSON.stringify(raw)} — recorded as "run"` };
 }
 
-const TTL_RE = /^(\d+)\s*([smhd])?$/i;
+const DURATION_RE = /^(\d+)\s*([smhd])?$/i;
 const TTL_MIN_MS = 60_000;
 const TTL_MAX_MS = 24 * 60 * 60 * 1000;
 const UNIT_MS: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
 
-/** Parse "30m" / "2h" / "90s" → bounded ms. Falls back on garbage (lenient). */
+/** Parse "90s" / "30m" / "2h" / "3d" → ms (unbounded; bare numbers are minutes). Null on garbage. */
+export function parseDuration(raw: string | undefined): number | null {
+  if (!raw) return null;
+  const m = DURATION_RE.exec(raw.trim());
+  if (!m) return null;
+  return Number(m[1]) * (UNIT_MS[(m[2] ?? "m").toLowerCase()] ?? 60_000);
+}
+
+/** Parse a claim TTL → bounded ms. Falls back on garbage (lenient). */
 export function parseTtl(raw: string | undefined, fallbackMs: number): number {
-  if (!raw) return fallbackMs;
-  const m = TTL_RE.exec(raw.trim());
-  if (!m) return fallbackMs;
-  const ms = Number(m[1]) * (UNIT_MS[(m[2] ?? "m").toLowerCase()] ?? 60_000);
+  const ms = parseDuration(raw);
+  if (ms === null) return fallbackMs;
   return Math.min(Math.max(ms, TTL_MIN_MS), TTL_MAX_MS);
 }
 
