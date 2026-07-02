@@ -2,12 +2,23 @@ import fs from "node:fs";
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { hasBlock } from "../instructions/block.ts";
-import { type HookStatus, hookStatusForRepo } from "../instructions/hooks.ts";
+import { type HookStatus, hookStatusForRepo, hookStatusGlobal } from "../instructions/hooks.ts";
+import {
+  type OpencodePluginStatus,
+  opencodePluginStatusForRepo,
+  opencodePluginStatusGlobal,
+} from "../instructions/opencode.ts";
 import { type InstructionScope, instructionTargets } from "../instructions/targets.ts";
 import { DEFAULT_ACTIVITY_MAX_EVENTS } from "../store/reap.ts";
 import type { ActivityKind, CommandEventRow, NoteRow, SessionRow } from "../store/store.ts";
 
 const AUDIT_LIMIT = DEFAULT_ACTIVITY_MAX_EVENTS;
+
+/** Harness integrations exist at project and global scope; either one makes them effective. */
+interface ScopedStatus<T extends string> {
+  project: T;
+  global: T;
+}
 
 interface InstructionCoverage {
   present: number;
@@ -77,7 +88,8 @@ function recommendations(opts: {
   commandByName: Record<string, number>;
   project: InstructionCoverage;
   global: InstructionCoverage;
-  hooks: HookStatus;
+  hooks: ScopedStatus<HookStatus>;
+  opencodePlugin: ScopedStatus<OpencodePluginStatus>;
 }): string[] {
   const recs: string[] = [];
   const scopedNotes = opts.currentNotes.filter((note) => note.path).length;
@@ -98,8 +110,12 @@ function recommendations(opts: {
     recs.push("No `weaver check` usage is recorded yet; agents may be relying only on broad claims.");
   if ((opts.commandByName.preflight ?? 0) === 0)
     recs.push("No `weaver preflight` usage is recorded yet; commit/push overlap checks may be missing.");
-  if (opts.hooks !== "installed")
-    recs.push("Claude Code hooks are not fully installed; run `weaver init --project --hooks`.");
+  if (opts.hooks.project !== "installed" && opts.hooks.global !== "installed")
+    recs.push("Claude Code hooks are not installed at project or global scope; run `weaver init --hooks`.");
+  if (opts.opencodePlugin.project !== "installed" && opts.opencodePlugin.global !== "installed")
+    recs.push(
+      "The OpenCode identity plugin is not installed at project or global scope; run `weaver init --hooks` so OpenCode sessions get first-class identity.",
+    );
   if (opts.project.present === 0 && opts.global.present === 0)
     recs.push("No Weaver instruction blocks were found; run `weaver init --project` or `weaver init --global`.");
   if (opts.currentNotes.length > 0 && scopedNotes === 0)
@@ -134,7 +150,14 @@ export function run(ctx: Ctx): number {
   const current = currentNotes(notes);
   const project = instructionCoverage(ctx, "project");
   const global = instructionCoverage(ctx, "global");
-  const hooks = hookStatusForRepo(ctx.repo.root);
+  const hooks: ScopedStatus<HookStatus> = {
+    project: hookStatusForRepo(ctx.repo.root),
+    global: hookStatusGlobal(ctx.env),
+  };
+  const opencodePlugin: ScopedStatus<OpencodePluginStatus> = {
+    project: opencodePluginStatusForRepo(ctx.repo.root),
+    global: opencodePluginStatusGlobal(ctx.env),
+  };
   const weakSessions = sessions.filter(isWeakIdentity).length;
   const selfWeak = ctx.identity?.source === "tty" || ctx.identity?.source === "ancestry";
   const recs = recommendations({
@@ -148,6 +171,7 @@ export function run(ctx: Ctx): number {
     project,
     global,
     hooks,
+    opencodePlugin,
   });
 
   const data = {
@@ -188,7 +212,7 @@ export function run(ctx: Ctx): number {
       retired: notes.filter((note) => note.retiredAt !== null).length,
       superseded: notes.filter((note) => note.superseded).length,
     },
-    setup: { projectInstructions: project, globalInstructions: global, hooks },
+    setup: { projectInstructions: project, globalInstructions: global, hooks, opencodePlugin },
     recommendations: recs,
   };
 
@@ -213,7 +237,8 @@ export function run(ctx: Ctx): number {
   );
   ctx.out(`project  : instructions ${coverageText(project)}\n`);
   ctx.out(`global   : instructions ${coverageText(global)}\n`);
-  ctx.out(`hooks    : ${hooks}\n`);
+  ctx.out(`hooks    : project ${hooks.project} · global ${hooks.global}\n`);
+  ctx.out(`plugin   : project ${opencodePlugin.project} · global ${opencodePlugin.global}\n`);
   ctx.out("\nrecommendations:\n");
   for (const rec of recs) ctx.out(`  - ${rec}\n`);
   return 0;

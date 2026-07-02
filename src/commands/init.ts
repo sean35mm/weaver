@@ -3,7 +3,13 @@ import path from "node:path";
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { injectBlock } from "../instructions/block.ts";
-import { installHooks, settingsPathForRepo } from "../instructions/hooks.ts";
+import { globalSettingsPath, installHooks, installHooksGlobal, settingsPathForRepo } from "../instructions/hooks.ts";
+import {
+  installOpencodePlugin,
+  installOpencodePluginGlobal,
+  opencodePluginPathForRepo,
+  opencodePluginPathGlobal,
+} from "../instructions/opencode.ts";
 import { type InstructionScope, instructionTargets, scopeFromFlags } from "../instructions/targets.ts";
 import { storePathForRepo } from "../store/location.ts";
 
@@ -46,7 +52,10 @@ async function chooseScope(ctx: Ctx): Promise<InstructionScope | null> {
 }
 
 /**
- * Claude Code hooks are always project-scoped (.claude/settings.json in this repo).
+ * Harness integrations follow the chosen scope: Claude Code hooks (.claude/settings.json or
+ * ~/.claude/settings.json) and the OpenCode identity plugin (.opencode/plugins/weaver.js or
+ * ~/.config/opencode/plugins/weaver.js). Both are harmless where weaver isn't set up — the
+ * hook command no-ops and the plugin only exports an env var — so global installs are safe.
  * Interactive runs prompt (default yes); non-interactive runs install only on explicit
  * --hooks, so scripted inits never write settings the user didn't ask for.
  */
@@ -54,8 +63,9 @@ async function chooseHooks(ctx: Ctx): Promise<boolean> {
   if (flagBool(ctx.args, "hooks")) return true;
   if (flagBool(ctx.args, "no-hooks")) return false;
   if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
-  ctx.out("\nInstall Claude Code hooks for this repo? They warn agents before they edit an area\n");
-  ctx.out("another agent is working in, and keep busy agents visibly live. [Y/n]: ");
+  ctx.out("\nInstall harness integrations for this repo? Claude Code hooks warn agents before they\n");
+  ctx.out("edit an area another agent is working in; the OpenCode plugin gives OpenCode sessions\n");
+  ctx.out("first-class identity. [Y/n]: ");
   const answer = await readAnswer();
   return answer === "" || answer === "y" || answer === "yes";
 }
@@ -87,16 +97,27 @@ export async function run(ctx: Ctx): Promise<number> {
   }
 
   let hooksLine: string | null = null;
+  let pluginLine: string | null = null;
   if (await chooseHooks(ctx)) {
-    const result = installHooks(ctx.repo.root);
-    const file = settingsPathForRepo(ctx.repo.root);
+    const globalScope = scope === "global";
+    const settingsFile = globalScope ? globalSettingsPath(ctx.env) : settingsPathForRepo(ctx.repo.root);
+    const settingsLabel = globalScope ? "~/.claude/settings.json" : ".claude/settings.json";
+    const result = globalScope ? installHooksGlobal(ctx.env) : installHooks(ctx.repo.root);
     if (result === "invalid-json") {
       ctx.err(
-        `weaver: ${file} isn't valid JSON — skipped installing hooks; fix it and re-run \`weaver init --hooks\`.\n`,
+        `weaver: ${settingsFile} isn't valid JSON — skipped installing hooks; fix it and re-run \`weaver init --hooks\`.\n`,
       );
     } else {
-      hooksLine =
-        result === "wrote" ? ".claude/settings.json (Claude Code hooks)" : ".claude/settings.json (already current)";
+      hooksLine = result === "wrote" ? `${settingsLabel} (Claude Code hooks)` : `${settingsLabel} (already current)`;
+    }
+
+    const pluginFile = globalScope ? opencodePluginPathGlobal(ctx.env) : opencodePluginPathForRepo(ctx.repo.root);
+    const pluginLabel = globalScope ? "~/.config/opencode/plugins/weaver.js" : ".opencode/plugins/weaver.js";
+    const plugin = globalScope ? installOpencodePluginGlobal(ctx.env) : installOpencodePlugin(ctx.repo.root);
+    if (plugin === "foreign") {
+      ctx.err(`weaver: ${pluginFile} exists but isn't Weaver's — skipped installing the OpenCode plugin.\n`);
+    } else {
+      pluginLine = plugin === "wrote" ? `${pluginLabel} (OpenCode plugin)` : `${pluginLabel} (already current)`;
     }
   }
 
@@ -107,6 +128,7 @@ export async function run(ctx: Ctx): Promise<number> {
   if (wrote.length) ctx.out(`  wrote : ${wrote.join(", ")}\n`);
   if (unchanged.length) ctx.out(`  ok    : ${unchanged.join(", ")} (already current)\n`);
   if (hooksLine) ctx.out(`  hooks : ${hooksLine}\n`);
+  if (pluginLine) ctx.out(`  plugin: ${pluginLine}\n`);
   if (scope === "global") {
     ctx.out("\nGlobal instructions cover every repo on this machine — no per-repo init needed.\n");
     ctx.out("Each repo's store is created automatically the first time an agent uses weaver there.\n");

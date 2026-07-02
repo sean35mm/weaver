@@ -2,7 +2,7 @@
 title: Configuration
 description: Tune Weaver's TTLs and inspect settings with the config command.
 sidebar:
-  order: 5
+  order: 6
 ---
 
 Weaver works with sensible defaults; a few timing knobs are tunable per repo.

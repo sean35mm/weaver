@@ -24,7 +24,9 @@ type Env = Record<string, string | undefined>;
 /**
  * Per-harness session-id env vars. Order = precedence. These come and go with harness
  * releases: OpenCode ≤1.16.x set OPENCODE_RUN_ID (removed in v1.17.0 with no replacement);
- * OPENCODE_SESSION_ID is its proposed successor (anomalyco/opencode#12158).
+ * OpenCode ≥1.17 never sets OPENCODE_SESSION_ID itself — Weaver's OpenCode plugin
+ * (`weaver init --hooks` → .opencode/plugins/weaver.js) injects it via the `shell.env`
+ * plugin hook, which resolved sst/opencode#12158.
  */
 export const HARNESS_SESSION_ENVS: ReadonlyArray<readonly [label: string, env: string]> = [
   ["claude-code", "CLAUDE_CODE_SESSION_ID"],

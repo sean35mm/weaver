@@ -11,7 +11,12 @@ import * as toggle from "../src/commands/toggle.ts";
 import * as uninstall from "../src/commands/uninstall.ts";
 import type { Ctx } from "../src/context.ts";
 import { hasBlock, injectBlock } from "../src/instructions/block.ts";
-import { installHooks } from "../src/instructions/hooks.ts";
+import { hookStatusGlobal, installHooks } from "../src/instructions/hooks.ts";
+import {
+  installOpencodePlugin,
+  opencodePluginStatusForRepo,
+  opencodePluginStatusGlobal,
+} from "../src/instructions/opencode.ts";
 import { openStore } from "../src/store/open.ts";
 
 function tmpDir(prefix: string): string {
@@ -126,7 +131,7 @@ test("disable/enable toggles the enabled flag", async () => {
 test("doctor reports setup coverage, weak identity, and stale state", async () => {
   const root = tmpDir("weaver-repo-");
   fs.writeFileSync(path.join(root, "AGENTS.md"), injectBlock("# Agents\n"));
-  const ctx = await ctxFor(root, ["doctor"]);
+  const ctx = await ctxFor(root, ["doctor"], { HOME: tmpDir("weaver-home-") });
   ctx.identity = { key: "tty:ttys001@host", source: "ancestry", label: "opencode" };
   ctx.store.upsertSession(
     { id: "stale", harness: "opencode", idSource: "ancestry", pid: null, cwd: null },
@@ -151,6 +156,7 @@ test("doctor reports setup coverage, weak identity, and stale state", async () =
   assert.match(out, /0 active, 1 expired open/);
   assert.match(out, /instructions 1\/2 missing CLAUDE\.md/);
   assert.match(out, /hooks[^\n]*missing/);
+  assert.match(out, /plugin[^\n]*missing/);
   ctx.store.close();
 });
 
@@ -159,7 +165,8 @@ test("doctor reports installed project instructions and hooks", async () => {
   fs.writeFileSync(path.join(root, "CLAUDE.md"), injectBlock("# Claude\n"));
   fs.writeFileSync(path.join(root, "AGENTS.md"), injectBlock("# Agents\n"));
   assert.equal(installHooks(root), "wrote");
-  const ctx = await ctxFor(root, ["doctor"]);
+  assert.equal(installOpencodePlugin(root), "wrote");
+  const ctx = await ctxFor(root, ["doctor"], { HOME: tmpDir("weaver-home-") });
   let out = "";
   ctx.out = (s) => {
     out += s;
@@ -168,6 +175,7 @@ test("doctor reports installed project instructions and hooks", async () => {
   assert.equal(doctor.run(ctx), 0);
   assert.match(out, /instructions 2\/2/);
   assert.match(out, /hooks[^\n]*installed/);
+  assert.match(out, /plugin[^\n]*installed/);
   ctx.store.close();
 });
 
@@ -217,4 +225,48 @@ test("uninstall refuses when not running the standalone binary", async () => {
   assert.equal(await uninstall.run(ctx), 1);
   assert.match(err, /only applies to the standalone/);
   ctx.store.close();
+});
+
+test("init --hooks installs the OpenCode plugin; deinit removes it", async () => {
+  const root = tmpDir("weaver-repo-");
+  const ctxA = await ctxFor(root, ["init", "--project", "--hooks"]);
+  await init.run(ctxA);
+  assert.equal(opencodePluginStatusForRepo(root), "installed");
+  ctxA.store.close();
+
+  const ctxB = await ctxFor(root, ["deinit"]);
+  deinit.run(ctxB);
+  assert.equal(opencodePluginStatusForRepo(root), "missing");
+  ctxB.store.close();
+});
+
+test("init --global --hooks installs global integrations; deinit --global removes them", async () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  const env = { HOME: home, CODEX_HOME: path.join(home, "codex-home") };
+
+  const ctxA = await ctxFor(root, ["init", "--global", "--hooks"], env);
+  await init.run(ctxA);
+  ctxA.store.close();
+
+  // global files exist; nothing was written into the repo
+  assert.equal(hookStatusGlobal(env), "installed");
+  assert.equal(opencodePluginStatusGlobal(env), "installed");
+  assert.ok(fs.existsSync(path.join(home, ".claude", "settings.json")));
+  assert.ok(fs.existsSync(path.join(home, ".config", "opencode", "plugins", "weaver.js")));
+  assert.equal(fs.existsSync(path.join(root, ".claude")), false);
+  assert.equal(fs.existsSync(path.join(root, ".opencode")), false);
+
+  // project deinit leaves global integrations alone
+  const ctxB = await ctxFor(root, ["deinit"], env);
+  deinit.run(ctxB);
+  ctxB.store.close();
+  assert.equal(hookStatusGlobal(env), "installed");
+  assert.equal(opencodePluginStatusGlobal(env), "installed");
+
+  const ctxC = await ctxFor(root, ["deinit", "--global"], env);
+  deinit.run(ctxC);
+  ctxC.store.close();
+  assert.equal(hookStatusGlobal(env), "missing");
+  assert.equal(opencodePluginStatusGlobal(env), "missing");
 });

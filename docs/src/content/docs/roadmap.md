@@ -9,6 +9,11 @@ the project (and the way people run agents) evolves.
 
 <div class="wv-eyebrow">▸ Recently shipped</div>
 
+- **Usage audit & local metrics** — `weaver audit` summarizes retained usage, setup coverage,
+  and concrete recommendations; observer commands record content-free usage events, locally
+  only, so the audit can tell whether agents actually follow the protocol.
+- **Ancestry harness labels** — sessions from harnesses that expose no env signal are now
+  labeled by walking the process tree.
 - **Claude Code hooks** — coordination is now structural for Claude Code: an advisory warning
   before any edit that overlaps another live session, and automatic presence after every edit.
   See the [hooks guide](/weaver/guides/claude-code-hooks/).
@@ -18,15 +23,18 @@ the project (and the way people run agents) evolves.
 
 What's actively being worked on.
 
-- **Docs & landing polish** — homepage redesign, typography, and this roadmap.
+- **OpenCode plugin** — first-class session identity for OpenCode ≥1.17 via its `shell.env`
+  plugin hook, installed by `weaver init --hooks`. See the
+  [plugin guide](/weaver/guides/opencode-plugin/).
 - **Real-world dogfooding** — running Weaver on its own repo across Claude Code and OpenCode, folding the findings back in.
-- **Tighten cross-harness session identity** — more reliable detection of distinct sessions across Claude Code, Codex, OpenCode, and Pi.
 
 <div class="wv-eyebrow">▸ Next — committed, soon</div>
 
 Lined up and likely to land in the near term.
 
-- **Hook coverage for more harnesses** — bring the structural pre/post-edit coordination to other agents as their hook systems allow.
+- **OpenCode structural coordination** — pre/post-edit advisories and automatic session
+  cleanup through OpenCode's plugin events (`tool.execute.*`, `session.idle`/`deleted`),
+  matching what the Claude Code hooks provide today.
 - **More harness coverage** — Cursor, Gemini CLI, and Aider recognized out of the box.
 - **Notes & activity search** — query and filter notes and history instead of scanning the whole log.
 - **Dashboard & watch upgrades** — a richer live view, with filtering by area or agent.

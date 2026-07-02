@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import type { Ctx } from "../context.ts";
 import { hasBlock } from "../instructions/block.ts";
-import { hookStatusForRepo } from "../instructions/hooks.ts";
+import { hookStatusForRepo, hookStatusGlobal } from "../instructions/hooks.ts";
+import { opencodePluginStatusForRepo, opencodePluginStatusGlobal } from "../instructions/opencode.ts";
 import { type InstructionScope, instructionTargets } from "../instructions/targets.ts";
 
 const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
@@ -26,12 +27,10 @@ function identityQuality(ctx: Ctx): string {
   return `weak (${id.source}) — session may be reused across terminal lifetimes; set WEAVER_SESSION for critical work`;
 }
 
-function hookHint(status: ReturnType<typeof hookStatusForRepo>): string {
-  if (status === "installed") return "installed";
-  if (status === "partial") return "partial — re-run `weaver init --project --hooks`";
-  if (status === "invalid-json")
-    return "invalid JSON — fix .claude/settings.json, then re-run `weaver init --project --hooks`";
-  return "missing — run `weaver init --project --hooks` to enable Claude Code edit advisories";
+/** Either scope makes the integration effective; hint only when neither is installed. */
+function integrationLine(project: string, globalStatus: string, hint: string): string {
+  const line = `project ${project} · global ${globalStatus}`;
+  return project !== "installed" && globalStatus !== "installed" ? `${line} — ${hint}` : line;
 }
 
 export function run(ctx: Ctx): number {
@@ -57,6 +56,19 @@ export function run(ctx: Ctx): number {
   ctx.out(`claims   : ${activeClaims} active, ${expiredOpenClaims} expired open\n`);
   ctx.out(`project  : instructions ${blockCoverage(ctx, "project")}\n`);
   ctx.out(`global   : instructions ${blockCoverage(ctx, "global")}\n`);
-  ctx.out(`hooks    : ${hookHint(hookStatusForRepo(ctx.repo.root))}\n`);
+  ctx.out(
+    `hooks    : ${integrationLine(
+      hookStatusForRepo(ctx.repo.root),
+      hookStatusGlobal(ctx.env),
+      "run `weaver init --hooks` for Claude Code edit advisories",
+    )}\n`,
+  );
+  ctx.out(
+    `plugin   : ${integrationLine(
+      opencodePluginStatusForRepo(ctx.repo.root),
+      opencodePluginStatusGlobal(ctx.env),
+      "run `weaver init --hooks` for first-class OpenCode identity",
+    )}\n`,
+  );
   return 0;
 }

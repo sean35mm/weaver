@@ -7,13 +7,28 @@ import { parseArgs } from "../src/args.ts";
 import { applyPostEdit, hookIdentity, parseHookPayload, preEditOutput } from "../src/commands/hook.ts";
 import type { Ctx } from "../src/context.ts";
 import {
+  globalSettingsPath,
   hookStatusForRepo,
+  hookStatusGlobal,
   injectHooks,
   installHooks,
+  installHooksGlobal,
   removeHooks,
   settingsPathForRepo,
   uninstallHooks,
+  uninstallHooksGlobal,
 } from "../src/instructions/hooks.ts";
+import {
+  installOpencodePlugin,
+  installOpencodePluginGlobal,
+  opencodePluginPathForRepo,
+  opencodePluginPathGlobal,
+  opencodePluginStatusForRepo,
+  opencodePluginStatusGlobal,
+  PLUGIN_SOURCE,
+  uninstallOpencodePlugin,
+  uninstallOpencodePluginGlobal,
+} from "../src/instructions/opencode.ts";
 import { openStore } from "../src/store/open.ts";
 import { DEFAULT_ADVISORY_COOLDOWN_MS } from "../src/store/reap.ts";
 
@@ -271,4 +286,66 @@ test("applyPostEdit registers presence and logs the edit", async () => {
   assert.equal(applyPostEdit(ctx, { cwd: root, tool_input: { file_path: path.join(root, "b.ts") } }), false);
 
   ctx.store.close();
+});
+
+// ---------- OpenCode identity plugin install/remove ----------
+
+test("opencode plugin: install writes the marked file, is idempotent, refreshes stale content", () => {
+  const root = tmpDir("weaver-oc-");
+  assert.equal(opencodePluginStatusForRepo(root), "missing");
+
+  assert.equal(installOpencodePlugin(root), "wrote");
+  assert.equal(opencodePluginStatusForRepo(root), "installed");
+  assert.equal(installOpencodePlugin(root), "unchanged");
+
+  const file = opencodePluginPathForRepo(root);
+  assert.equal(fs.readFileSync(file, "utf8"), PLUGIN_SOURCE);
+  assert.match(PLUGIN_SOURCE, /shell\.env/);
+  assert.match(PLUGIN_SOURCE, /OPENCODE_SESSION_ID/);
+
+  // a stale (older-template) weaver file is refreshed as long as it carries the marker
+  fs.writeFileSync(file, "// weaver:opencode-plugin — old template\n");
+  assert.equal(installOpencodePlugin(root), "wrote");
+  assert.equal(fs.readFileSync(file, "utf8"), PLUGIN_SOURCE);
+});
+
+test("opencode plugin: a user-owned weaver.js is never written over or removed", () => {
+  const root = tmpDir("weaver-oc-");
+  const file = opencodePluginPathForRepo(root);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "export const MyPlugin = async () => ({});\n");
+
+  assert.equal(opencodePluginStatusForRepo(root), "foreign");
+  assert.equal(installOpencodePlugin(root), "foreign");
+  assert.equal(uninstallOpencodePlugin(root), "foreign");
+  assert.equal(fs.readFileSync(file, "utf8"), "export const MyPlugin = async () => ({});\n");
+});
+
+test("opencode plugin: uninstall removes our file and no-ops when missing", () => {
+  const root = tmpDir("weaver-oc-");
+  assert.equal(uninstallOpencodePlugin(root), "unchanged");
+
+  installOpencodePlugin(root);
+  assert.equal(uninstallOpencodePlugin(root), "wrote");
+  assert.equal(fs.existsSync(opencodePluginPathForRepo(root)), false);
+  assert.equal(opencodePluginStatusForRepo(root), "missing");
+});
+
+test("global scope: hooks and plugin install under HOME, uninstall cleanly", () => {
+  const env = { HOME: tmpDir("weaver-ghome-") };
+
+  assert.equal(hookStatusGlobal(env), "missing");
+  assert.equal(installHooksGlobal(env), "wrote");
+  assert.equal(hookStatusGlobal(env), "installed");
+  assert.ok(fs.existsSync(globalSettingsPath(env)));
+  assert.equal(uninstallHooksGlobal(env), "wrote");
+  assert.equal(hookStatusGlobal(env), "missing");
+
+  assert.equal(opencodePluginStatusGlobal(env), "missing");
+  assert.equal(installOpencodePluginGlobal(env), "wrote");
+  assert.equal(opencodePluginStatusGlobal(env), "installed");
+  assert.equal(fs.readFileSync(opencodePluginPathGlobal(env), "utf8"), PLUGIN_SOURCE);
+  assert.match(opencodePluginPathGlobal(env), /\.config\/opencode\/plugins\/weaver\.js$/);
+  assert.equal(uninstallOpencodePluginGlobal(env), "wrote");
+  assert.equal(opencodePluginStatusGlobal(env), "missing");
 });

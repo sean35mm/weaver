@@ -6,6 +6,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { homeDirFromEnv } from "./targets.ts";
+
+type Env = Record<string, string | undefined>;
 
 /** Tool matcher covering every file-mutating Claude Code tool. */
 const MATCHER = "Edit|Write|MultiEdit|NotebookEdit";
@@ -36,6 +39,11 @@ interface Settings {
 
 export function settingsPathForRepo(root: string): string {
   return path.join(root, ".claude", "settings.json");
+}
+
+/** Global Claude Code settings — hooks here fire in every repo (the marker command no-ops where weaver isn't set up). */
+export function globalSettingsPath(env: Env): string {
+  return path.join(homeDirFromEnv(env), ".claude", "settings.json");
 }
 
 const isWeaverEntry = (h: HookEntry): boolean => typeof h?.command === "string" && h.command.includes(MARKER);
@@ -103,7 +111,14 @@ function hasAnyWeaverCommand(settings: Settings): boolean {
 }
 
 export function hookStatusForRepo(root: string): HookStatus {
-  const file = settingsPathForRepo(root);
+  return hookStatusForFile(settingsPathForRepo(root));
+}
+
+export function hookStatusGlobal(env: Env): HookStatus {
+  return hookStatusForFile(globalSettingsPath(env));
+}
+
+function hookStatusForFile(file: string): HookStatus {
   if (!fs.existsSync(file)) return "missing";
   let settings: Settings;
   try {
@@ -140,7 +155,18 @@ export function installHooks(root: string): HookInstallResult {
 }
 
 export function uninstallHooks(root: string): HookInstallResult {
-  const file = settingsPathForRepo(root);
+  return uninstallAt(settingsPathForRepo(root));
+}
+
+export function installHooksGlobal(env: Env): HookInstallResult {
+  return rewrite(globalSettingsPath(env), injectHooks);
+}
+
+export function uninstallHooksGlobal(env: Env): HookInstallResult {
+  return uninstallAt(globalSettingsPath(env));
+}
+
+function uninstallAt(file: string): HookInstallResult {
   if (!fs.existsSync(file)) return "unchanged";
   return rewrite(file, removeHooks);
 }

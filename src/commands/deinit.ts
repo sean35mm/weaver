@@ -2,7 +2,8 @@ import fs from "node:fs";
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
 import { removeBlock } from "../instructions/block.ts";
-import { uninstallHooks } from "../instructions/hooks.ts";
+import { uninstallHooks, uninstallHooksGlobal } from "../instructions/hooks.ts";
+import { uninstallOpencodePlugin, uninstallOpencodePluginGlobal } from "../instructions/opencode.ts";
 import { instructionTargets, scopeFromFlags } from "../instructions/targets.ts";
 import { storePathForRepo } from "../store/location.ts";
 
@@ -25,9 +26,21 @@ export function run(ctx: Ctx): number {
   }
   ctx.out(`✓ removed Weaver instructions${cleaned.length ? ` from ${cleaned.join(", ")}` : " (none found)"}\n`);
 
-  // Hooks are always project-scoped, so remove them whenever this repo is being deinited.
-  if (scope === "project" && uninstallHooks(ctx.repo.root) === "wrote") {
-    ctx.out("✓ removed Claude Code hooks from .claude/settings.json\n");
+  // Harness integrations are removed for the scope being deinited.
+  if (scope === "project") {
+    if (uninstallHooks(ctx.repo.root) === "wrote") {
+      ctx.out("✓ removed Claude Code hooks from .claude/settings.json\n");
+    }
+    if (uninstallOpencodePlugin(ctx.repo.root) === "wrote") {
+      ctx.out("✓ removed OpenCode plugin at .opencode/plugins/weaver.js\n");
+    }
+  } else {
+    if (uninstallHooksGlobal(ctx.env) === "wrote") {
+      ctx.out("✓ removed Claude Code hooks from ~/.claude/settings.json\n");
+    }
+    if (uninstallOpencodePluginGlobal(ctx.env) === "wrote") {
+      ctx.out("✓ removed OpenCode plugin at ~/.config/opencode/plugins/weaver.js\n");
+    }
   }
 
   if (flagBool(ctx.args, "purge")) {

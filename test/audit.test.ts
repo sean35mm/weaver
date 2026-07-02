@@ -90,7 +90,11 @@ test("audit summarizes retained usage and recommendations as JSON", async () => 
     claims: { expiredOpen: number };
     notes: { current: number; pathScoped: number; tagged: number };
     commands: { total: number; byCommand: Record<string, number>; lastSeenMsAgo: Record<string, number> };
-    setup: { projectInstructions: { present: number; total: number }; hooks: string };
+    setup: {
+      projectInstructions: { present: number; total: number };
+      hooks: { project: string; global: string };
+      opencodePlugin: { project: string; global: string };
+    };
     recommendations: string[];
   };
   assert.equal(parsed.sessions.total, 1);
@@ -105,7 +109,8 @@ test("audit summarizes retained usage and recommendations as JSON", async () => 
   assert.equal(parsed.commands.byCommand.audit, 1);
   assert.equal(parsed.commands.lastSeenMsAgo.audit, 25);
   assert.deepEqual(parsed.setup.projectInstructions, { present: 1, total: 2, missing: ["CLAUDE.md"] });
-  assert.equal(parsed.setup.hooks, "missing");
+  assert.deepEqual(parsed.setup.hooks, { project: "missing", global: "missing" });
+  assert.deepEqual(parsed.setup.opencodePlugin, { project: "missing", global: "missing" });
   assert.ok(parsed.recommendations.some((rec) => rec.includes("weak")));
   assert.ok(parsed.recommendations.some((rec) => rec.includes("--path")));
 

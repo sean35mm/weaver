@@ -25,15 +25,15 @@ Weaver resolves a stable per-session key in this order:
    useful for tests, headless runs, and any harness where the below don't work.
 2. **Harness-native session id** — a stable per-session environment variable. Known:
    `CLAUDE_CODE_SESSION_ID` (Claude Code), `CODEX_THREAD_ID` (Codex), and for OpenCode
-   `OPENCODE_SESSION_ID` or `OPENCODE_RUN_ID` (set by OpenCode ≤1.16.x; v1.17.0 removed it,
-   so newer OpenCode sessions resolve via the terminal instead). These are per-session
-   UUIDs, so three Codex sessions get three distinct keys.
+   `OPENCODE_SESSION_ID` (injected by [Weaver's OpenCode plugin](/weaver/guides/opencode-plugin/) —
+   OpenCode ≥1.17 sets nothing itself) or `OPENCODE_RUN_ID` (built into OpenCode ≤1.16.x).
+   These are per-session UUIDs, so three Codex sessions get three distinct keys.
 3. **Controlling terminal** — the session's TTY, found by walking the process tree (used when
    there's no session env var, e.g. Pi, or for a human running `weaver` directly).
 
 The *displayed* harness name resolves separately: environment signals first, then known
 harness executables found while walking the process ancestry — so a harness that exposes no
-env vars to subprocesses (e.g. OpenCode ≥1.17) is still labeled correctly.
+env vars to subprocesses (e.g. OpenCode ≥1.17 without the plugin) is still labeled correctly.
 
 If none resolve, there's **no anonymous fallback**: observer reads still work, but
 session-mutating commands fail with a concise hint to set `WEAVER_SESSION`.

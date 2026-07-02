@@ -17,10 +17,15 @@ function envPath(value: string | undefined): string | undefined {
   return trimmed ? path.resolve(trimmed) : undefined;
 }
 
-function homeDir(ctx: Ctx): string {
-  const home = envPath(ctx.env.HOME) ?? envPath(os.homedir());
-  if (!home) throw new Error("couldn't resolve home directory for global instructions");
+/** Home directory with `env.HOME` override (the seam tests use for global-scope paths). */
+export function homeDirFromEnv(env: Record<string, string | undefined>): string {
+  const home = envPath(env.HOME) ?? envPath(os.homedir());
+  if (!home) throw new Error("couldn't resolve home directory for global scope");
   return home;
+}
+
+function homeDir(ctx: Ctx): string {
+  return homeDirFromEnv(ctx.env);
 }
 
 export function scopeFromFlags(ctx: Ctx): InstructionScope | null | "conflict" {

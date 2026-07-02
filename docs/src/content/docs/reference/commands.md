@@ -130,9 +130,12 @@ global files (`~/.claude/CLAUDE.md`, `~/.config/opencode/AGENTS.md`, `~/.codex/A
 TTY, `init` prompts with project files as the first/default choice. Non-interactive runs default
 to project files. `--project` and `--global` are mutually exclusive.
 
-`init` can also install [Claude Code hooks](/weaver/guides/claude-code-hooks/) into the repo's
-`.claude/settings.json` (always project-scoped). On a TTY it asks (default yes); non-interactive
-runs install them only with an explicit `--hooks`.
+`init` can also install the harness integrations — [Claude Code hooks](/weaver/guides/claude-code-hooks/)
+and the [OpenCode identity plugin](/weaver/guides/opencode-plugin/). They follow the chosen
+scope: project writes `.claude/settings.json` and `.opencode/plugins/weaver.js` in the repo;
+global writes `~/.claude/settings.json` and `~/.config/opencode/plugins/weaver.js`, covering
+every repo. On a TTY it asks (default yes); non-interactive runs install them only with an
+explicit `--hooks`.
 
 Project scope covers the current checkout only — run `init` in each repo you want covered. Global
 scope is a one-time setup that covers every repo where your agents read their global instruction
@@ -146,7 +149,9 @@ Pause / resume agent writes for this repo. While disabled, mutating commands no-
 
 ### `weaver deinit [--project|--global] [--purge]`
 Remove the instruction block from project files by default, or from global files with `--global`.
-Project-scope deinit also removes Weaver's Claude Code hook entries from `.claude/settings.json`.
+Each scope also removes its own harness integrations: project deinit cleans `.claude/settings.json`
+and `.opencode/plugins/weaver.js` in the repo; `--global` cleans `~/.claude/settings.json` and
+`~/.config/opencode/plugins/weaver.js`.
 `--purge` also deletes the current repo's store.
 
 ### `weaver hook <pre-edit|post-edit>`
@@ -177,7 +182,7 @@ Update the installed binary to the latest release (`--check` only checks). See
 | `--fail-on` | `preflight` | exit threshold: `soft`, `hard`, or `never` |
 | `--project` | `init`, `deinit` | use project instruction files |
 | `--global` | `init`, `deinit` | use global instruction files |
-| `--hooks` / `--no-hooks` | `init` | install / skip Claude Code hooks |
+| `--hooks` / `--no-hooks` | `init` | install / skip harness integrations (Claude Code hooks + OpenCode plugin) |
 | `--update` | `note` | supersede an existing note by id |
 | `--all` | `notes` | include retired and superseded notes |
 | `--undo` | `forget` | restore a retired note |

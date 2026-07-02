@@ -27,15 +27,17 @@ Two hooks are installed, both **advisory** — Weaver never blocks an edit:
 ## Install
 
 ```sh
-weaver init            # interactive: prompts "Install Claude Code hooks?" (default yes)
-weaver init --hooks    # non-interactive: install hooks explicitly
-weaver init --no-hooks # skip them
+weaver init                     # interactive: prompts to install integrations (default yes)
+weaver init --hooks             # non-interactive: this repo's .claude/settings.json
+weaver init --global --hooks    # non-interactive: ~/.claude/settings.json — every repo, once
+weaver init --no-hooks          # skip them
 ```
 
-Hooks are always **project-scoped**: they're merged into `.claude/settings.json` in the repo
-(regardless of whether the instruction block went to project or global files). The merge is
-idempotent and preserves everything else in the file — your own hooks, permissions, and any
-unknown keys. If the file isn't valid JSON, Weaver refuses to touch it and tells you.
+Hooks follow the chosen scope: **project** merges into the repo's `.claude/settings.json`,
+**global** into `~/.claude/settings.json`, where they fire in every repo — safe, because the
+hook command no-ops in repos that haven't opted into Weaver (no store is ever created). The
+merge is idempotent and preserves everything else in the file — your own hooks, permissions,
+and any unknown keys. If the file isn't valid JSON, Weaver refuses to touch it and tells you.
 
 The registered command is guarded:
 
