@@ -1,6 +1,6 @@
 {
   "name": "weaver",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Shared situational awareness for multiple coding agents working in the same repo.",
   "type": "module",
   "license": "MIT",
