@@ -5,6 +5,14 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.11.0](https://github.com/sean35mm/weaver/compare/v0.10.1...v0.11.0) (2026-07-01)
+
+
+### Features
+
+* add usage audit and setup diagnostics ([c80ea1d](https://github.com/sean35mm/weaver/commit/c80ea1d10303e34e4b6fa311a265d777d3ca4664))
+* record local command usage metrics and consolidate the test suite ([ed15054](https://github.com/sean35mm/weaver/commit/ed15054931691af790e806825049b28446cac8df))
+
 ## [0.10.1](https://github.com/sean35mm/weaver/compare/v0.10.0...v0.10.1) (2026-06-11)
 
 
