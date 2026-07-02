@@ -20,61 +20,60 @@ function tmpDir(prefix: string): string {
 
 const bunAvailable = spawnSync("bun", ["--version"], { encoding: "utf8" }).status === 0;
 
-test(
-  "compiled standalone binary runs the core agent story",
-  { skip: !bunAvailable && "bun is not installed", timeout: 120_000 },
-  () => {
-    const bin = path.join(tmpDir("weaver-bin-"), "weaver-smoke");
-    execFileSync("bun", ["build", "src/cli.ts", "--compile", `--outfile=${bin}`], {
-      cwd: repoRoot,
-      stdio: "ignore",
-    });
+test("compiled standalone binary runs the core agent story", {
+  skip: !bunAvailable && "bun is not installed",
+  timeout: 120_000,
+}, () => {
+  const bin = path.join(tmpDir("weaver-bin-"), "weaver-smoke");
+  execFileSync("bun", ["build", "src/cli.ts", "--compile", `--outfile=${bin}`], {
+    cwd: repoRoot,
+    stdio: "ignore",
+  });
 
-    const root = tmpDir("weaver-repo-");
-    const home = tmpDir("weaver-home-");
-    const run = (session: string | null, args: string[]): { status: number; stdout: string; stderr: string } => {
-      const env: NodeJS.ProcessEnv = { ...process.env, WEAVER_HOME: home };
-      delete env.CLAUDE_CODE_SESSION_ID;
-      delete env.CODEX_THREAD_ID;
-      delete env.OPENCODE_RUN_ID;
-      if (session) env.WEAVER_SESSION = session;
-      else delete env.WEAVER_SESSION;
-      const result = spawnSync(bin, args, { cwd: root, env, encoding: "utf8", input: "" });
-      return { status: result.status ?? 1, stdout: result.stdout, stderr: result.stderr };
-    };
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  const run = (session: string | null, args: string[]): { status: number; stdout: string; stderr: string } => {
+    const env: NodeJS.ProcessEnv = { ...process.env, WEAVER_HOME: home };
+    delete env.CLAUDE_CODE_SESSION_ID;
+    delete env.CODEX_THREAD_ID;
+    delete env.OPENCODE_RUN_ID;
+    if (session) env.WEAVER_SESSION = session;
+    else delete env.WEAVER_SESSION;
+    const result = spawnSync(bin, args, { cwd: root, env, encoding: "utf8", input: "" });
+    return { status: result.status ?? 1, stdout: result.stdout, stderr: result.stderr };
+  };
 
-    // the artifact reports a version (the dev sentinel outside release builds)
-    const version = run(null, ["--version"]);
-    assert.equal(version.status, 0);
-    assert.match(version.stdout.trim(), /^\d+\.\d+\.\d+/);
+  // the artifact reports a version (the dev sentinel outside release builds)
+  const version = run(null, ["--version"]);
+  assert.equal(version.status, 0);
+  assert.match(version.stdout.trim(), /^\d+\.\d+\.\d+/);
 
-    // init installs the instruction files
-    assert.equal(run(null, ["init", "--project", "--no-hooks"]).status, 0);
-    assert.ok(fs.readFileSync(path.join(root, "CLAUDE.md"), "utf8").includes("weaver"));
-    assert.ok(fs.existsSync(path.join(root, "AGENTS.md")));
+  // init installs the instruction files
+  assert.equal(run(null, ["init", "--project", "--no-hooks"]).status, 0);
+  assert.ok(fs.readFileSync(path.join(root, "CLAUDE.md"), "utf8").includes("weaver"));
+  assert.ok(fs.existsSync(path.join(root, "AGENTS.md")));
 
-    // agent story: task → claim → conflicting check → preflight → status → done
-    assert.equal(run("agent-a", ["task", "auth refactor"]).status, 0);
-    assert.equal(run("agent-a", ["claim", "src/auth/**", "--reason", "token flow"]).status, 0);
+  // agent story: task → claim → conflicting check → preflight → status → done
+  assert.equal(run("agent-a", ["task", "auth refactor"]).status, 0);
+  assert.equal(run("agent-a", ["claim", "src/auth/**", "--reason", "token flow"]).status, 0);
 
-    const conflict = run("agent-b", ["check", "src/auth/login.ts"]);
-    assert.equal(conflict.status, 1);
-    assert.match(conflict.stdout, /token flow/);
+  const conflict = run("agent-b", ["check", "src/auth/login.ts"]);
+  assert.equal(conflict.status, 1);
+  assert.match(conflict.stdout, /token flow/);
 
-    const preflight = run("agent-b", ["preflight", "src/auth/login.ts", "--json"]);
-    assert.equal(preflight.status, 1);
-    assert.equal((JSON.parse(preflight.stdout) as { severity: string }).severity, "hard");
+  const preflight = run("agent-b", ["preflight", "src/auth/login.ts", "--json"]);
+  assert.equal(preflight.status, 1);
+  assert.equal((JSON.parse(preflight.stdout) as { severity: string }).severity, "hard");
 
-    const status = run("agent-b", ["status", "--json"]);
-    assert.equal(status.status, 0);
-    const parsed = JSON.parse(status.stdout) as { sessions: unknown[]; claims: unknown[] };
-    assert.equal(parsed.sessions.length, 1);
-    assert.equal(parsed.claims.length, 1);
+  const status = run("agent-b", ["status", "--json"]);
+  assert.equal(status.status, 0);
+  const parsed = JSON.parse(status.stdout) as { sessions: unknown[]; claims: unknown[] };
+  assert.equal(parsed.sessions.length, 1);
+  assert.equal(parsed.claims.length, 1);
 
-    assert.equal(run("agent-a", ["done"]).status, 0);
-    const after = run("agent-b", ["status", "--json"]);
-    const afterParsed = JSON.parse(after.stdout) as { sessions: unknown[]; claims: unknown[] };
-    assert.equal(afterParsed.sessions.length, 0);
-    assert.equal(afterParsed.claims.length, 0);
-  },
-);
+  assert.equal(run("agent-a", ["done"]).status, 0);
+  const after = run("agent-b", ["status", "--json"]);
+  const afterParsed = JSON.parse(after.stdout) as { sessions: unknown[]; claims: unknown[] };
+  assert.equal(afterParsed.sessions.length, 0);
+  assert.equal(afterParsed.claims.length, 0);
+});
