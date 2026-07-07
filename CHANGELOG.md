@@ -5,6 +5,14 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.12.0](https://github.com/sean35mm/weaver/compare/v0.11.0...v0.12.0) (2026-07-02)
+
+
+### Features
+
+* OpenCode identity plugin installable at project or global scope ([bc11387](https://github.com/sean35mm/weaver/commit/bc11387c2fd48b1d050e6eddee01ebfe67607dcd))
+* OpenCode structural coordination and notes/activity search ([3c01e79](https://github.com/sean35mm/weaver/commit/3c01e79b44a6394def1638ac7a23b3e7430a8a43))
+
 ## [0.11.0](https://github.com/sean35mm/weaver/compare/v0.10.1...v0.11.0) (2026-07-01)
 
 
