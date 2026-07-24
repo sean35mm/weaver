@@ -5,6 +5,13 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.13.0](https://github.com/sean35mm/weaver/compare/v0.12.0...v0.13.0) (2026-07-24)
+
+
+### Features
+
+* make conflicts worktree-aware ([19da825](https://github.com/sean35mm/weaver/commit/19da8252f61bddc9984ac280c0de0a419e893e62))
+
 ## [0.12.0](https://github.com/sean35mm/weaver/compare/v0.11.0...v0.12.0) (2026-07-02)
 
 
