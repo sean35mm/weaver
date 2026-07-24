@@ -15,7 +15,7 @@ import path from "node:path";
 import { type ConflictHit, detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
 import { HARNESS_SESSION_ENVS, type Identity, resolveIdentity } from "../identity/session.ts";
-import { formatConflict } from "../render.ts";
+import { formatConflict, formatInformationalConflict } from "../render.ts";
 import { normalizeTarget } from "../repo/paths.ts";
 import { DEFAULT_ADVISORY_COOLDOWN_MS } from "../store/reap.ts";
 import { plainTheme } from "../terminal/color.ts";
@@ -96,7 +96,10 @@ function targetPath(ctx: Ctx, payload: HookPayload): string | null {
 /** Stable digest of a conflict picture: who holds what, at which tier. Order-insensitive. */
 export function advisoryFingerprint(hits: ConflictHit[]): string {
   return hits
-    .map((h) => `${h.tier}:${h.session.id}:${h.claim ? `c:${h.claim.pattern}` : `a:${h.activity?.target ?? ""}`}`)
+    .map(
+      (h) =>
+        `${h.relation}:${h.tier}:${h.session.id}:${h.claim ? `c:${h.claim.pattern}` : `a:${h.activity?.target ?? ""}`}`,
+    )
     .sort()
     .join("|");
 }
@@ -120,26 +123,36 @@ export function preEditOutput(ctx: Ctx, payload: HookPayload): string | null {
     now: ctx.now,
     sessionTtlMs: ctx.config.sessionTtlMs,
     recentMs: ctx.config.recentMs,
+    worktreeId: ctx.repo.worktreeId,
   });
-  if (conflict.tier !== "hard" && conflict.tier !== "soft") return null;
+  const blocking = conflict.tier === "hard" || conflict.tier === "soft";
+  if (!blocking && !conflict.informationalHits.length) return null;
 
   // Cooldown: an agent editing a contested area gets warned once, not on every edit. The
   // same picture re-warns only after the cooldown; a CHANGED picture (new holder, new claim,
   // soft→hard escalation) re-warns immediately because its fingerprint differs.
   if (self) {
-    const fingerprint = advisoryFingerprint(conflict.hits);
+    const fingerprint = advisoryFingerprint([...conflict.hits, ...conflict.informationalHits]);
     const lastWarned = ctx.store.getAdvisory(self.key, fingerprint);
     if (lastWarned !== undefined && ctx.now - lastWarned < DEFAULT_ADVISORY_COOLDOWN_MS) return null;
     ctx.store.recordAdvisory(self.key, fingerprint, ctx.now);
   }
 
-  const summary = formatConflict(conflict, ctx.now, plainTheme).trimEnd();
+  const summary = [
+    ...(blocking ? [formatConflict(conflict, ctx.now, plainTheme).trimEnd()] : []),
+    ...(conflict.informationalHits.length
+      ? [formatInformationalConflict(conflict.informationalHits, ctx.now, plainTheme).trimEnd()]
+      : []),
+  ].join("\n\n");
+  const context = blocking
+    ? `weaver: ${payload.tool_input?.file_path} overlaps another active session.\n${summary}\nOther-worktree entries are informational because those files are isolated. Coordinate or ask the user before overwriting the active session's work; \`weaver status\` has the full picture.`
+    : `weaver: ${payload.tool_input?.file_path} overlaps activity in a different worktree.\n${summary}\nThese checkouts are isolated, so continuing is safe; coordinate later if integration could overlap.`;
   return `${JSON.stringify({
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "allow",
-      permissionDecisionReason: "Weaver: another agent is active in this area (advisory).",
-      additionalContext: `weaver: ${payload.tool_input?.file_path} overlaps another active session.\n${summary}\nCoordinate or ask the user before overwriting their work; \`weaver status\` has the full picture.`,
+      permissionDecisionReason: "Weaver: worktree-aware overlap advisory.",
+      additionalContext: context,
     },
   })}\n`;
 }
@@ -152,10 +165,25 @@ export function applyPostEdit(ctx: Ctx, payload: HookPayload): boolean {
 
   ctx.store.transaction(() => {
     ctx.store.upsertSession(
-      { id: self.key, harness: self.label, idSource: self.source, pid: null, cwd: ctx.cwd },
+      {
+        id: self.key,
+        harness: self.label,
+        idSource: self.source,
+        pid: null,
+        cwd: ctx.cwd,
+        worktreeId: ctx.repo.worktreeId,
+      },
       ctx.now,
     );
-    ctx.store.addActivity({ sessionId: self.key, ts: ctx.now, kind: "edit", target, summary: null, meta: null });
+    ctx.store.addActivity({
+      sessionId: self.key,
+      ts: ctx.now,
+      kind: "edit",
+      target,
+      summary: null,
+      meta: null,
+      worktreeId: ctx.repo.worktreeId,
+    });
     pruneAfterWrite(ctx.store, ctx.now);
   });
   return true;

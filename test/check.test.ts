@@ -65,3 +65,57 @@ test("check does not revive an ended session", async () => {
   assert.notEqual(store.getSession("me")?.endedAt, null); // still ended
   store.close();
 });
+
+test("check returns zero and reports an informational known-different-worktree overlap", async () => {
+  const store = await openStore(tmpDb());
+  store.upsertSession(
+    { id: "other", harness: "x", idSource: "explicit", pid: null, cwd: null, worktreeId: "wt-b" },
+    1000,
+  );
+  store.addClaim({
+    sessionId: "other",
+    pattern: "src/a.ts",
+    reason: null,
+    createdAt: 1000,
+    expiresAt: 1000 + DEFAULT_CLAIM_TTL_MS,
+    worktreeId: "wt-b",
+  });
+  let output = "";
+  const ctx = ctxFor(store, "me", 1001, ["check", "src/a.ts"]);
+  ctx.repo.worktreeId = "wt-a";
+  ctx.out = (text) => {
+    output += text;
+  };
+  assert.equal(check.run(ctx), 0);
+  assert.match(output, /OTHER WORKTREE/);
+  store.close();
+});
+
+test("check renders blocking and informational overlaps together", async () => {
+  const store = await openStore(tmpDb());
+  for (const [id, worktreeId] of [
+    ["blocker", "wt-a"],
+    ["other", "wt-b"],
+  ] as const) {
+    store.upsertSession({ id, harness: "x", idSource: "explicit", pid: null, cwd: null, worktreeId }, 1000);
+    store.addClaim({
+      sessionId: id,
+      pattern: "src/a.ts",
+      reason: null,
+      createdAt: 1000,
+      expiresAt: 1000 + DEFAULT_CLAIM_TTL_MS,
+      worktreeId,
+    });
+  }
+  let output = "";
+  const ctx = ctxFor(store, "me", 1001, ["check", "src/a.ts"]);
+  ctx.repo.worktreeId = "wt-a";
+  ctx.out = (text) => {
+    output += text;
+  };
+
+  assert.equal(check.run(ctx), 1);
+  assert.match(output, /CONFLICT/);
+  assert.match(output, /OTHER WORKTREE/);
+  store.close();
+});

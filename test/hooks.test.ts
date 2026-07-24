@@ -195,8 +195,16 @@ test("preEditOutput emits advisory allow JSON on a conflicting claim, silence wh
   assert.equal(clear, null);
 
   // the claim holder's own edits must not warn about themselves
+  ctx.repo.worktreeId = "wt-a";
   ctx.store.upsertSession(
-    { id: `harness:claude-code:sess-1@${HOST}`, harness: "claude-code", idSource: "harness", pid: null, cwd: null },
+    {
+      id: `harness:claude-code:sess-1@${HOST}`,
+      harness: "claude-code",
+      idSource: "harness",
+      pid: null,
+      cwd: null,
+      worktreeId: "wt-a",
+    },
     ctx.now,
   );
   ctx.store.addClaim({
@@ -205,6 +213,7 @@ test("preEditOutput emits advisory allow JSON on a conflicting claim, silence wh
     reason: null,
     createdAt: ctx.now,
     expiresAt: ctx.now + 60_000,
+    worktreeId: "wt-a",
   });
   const own = preEditOutput(ctx, { ...payload, tool_input: { file_path: path.join(root, "src/web/app.ts") } });
   assert.equal(own, null);
@@ -254,6 +263,96 @@ test("preEditOutput rate-limits repeat warnings, re-warns on a changed picture o
   assert.ok(preEditOutput(later, payload));
   assert.equal(preEditOutput(later, payload), null); // and rate-limits again
 
+  ctx.store.close();
+});
+
+test("preEditOutput permits a different worktree with isolated-files wording", async () => {
+  const root = tmpDir("weaver-repo-");
+  const ctx = await ctxFor(root);
+  ctx.repo.worktreeId = "wt-a";
+  ctx.store.upsertSession(
+    { id: "other", harness: "codex", idSource: "explicit", pid: null, cwd: null, worktreeId: "wt-b" },
+    ctx.now,
+  );
+  ctx.store.addClaim({
+    sessionId: "other",
+    pattern: "src/auth/**",
+    reason: "token flow",
+    createdAt: ctx.now,
+    expiresAt: ctx.now + 60_000,
+    worktreeId: "wt-b",
+  });
+  const output = preEditOutput(ctx, {
+    session_id: "sess-worktree",
+    cwd: root,
+    tool_input: { file_path: path.join(root, "src/auth/login.ts") },
+  });
+  assert.ok(output);
+  const parsed = JSON.parse(output);
+  assert.equal(parsed.hookSpecificOutput.permissionDecision, "allow");
+  assert.match(parsed.hookSpecificOutput.additionalContext, /checkouts are isolated/i);
+  ctx.store.close();
+});
+
+test("preEditOutput keeps a reused identity in another worktree informational", async () => {
+  const root = tmpDir("weaver-repo-");
+  const ctx = await ctxFor(root);
+  ctx.repo.worktreeId = "wt-a";
+  const id = `harness:claude-code:sess-worktree@${HOST}`;
+  ctx.store.upsertSession(
+    { id, harness: "claude-code", idSource: "harness", pid: null, cwd: null, worktreeId: "wt-b" },
+    ctx.now,
+  );
+  ctx.store.addClaim({
+    sessionId: id,
+    pattern: "src/auth/**",
+    reason: "token flow",
+    createdAt: ctx.now,
+    expiresAt: ctx.now + 60_000,
+    worktreeId: "wt-b",
+  });
+
+  const output = preEditOutput(ctx, {
+    session_id: "sess-worktree",
+    cwd: root,
+    tool_input: { file_path: path.join(root, "src/auth/login.ts") },
+  });
+  assert.ok(output);
+  const parsed = JSON.parse(output);
+  assert.match(parsed.hookSpecificOutput.additionalContext, /different worktree/i);
+  assert.doesNotMatch(parsed.hookSpecificOutput.additionalContext, /CONFLICT/);
+  ctx.store.close();
+});
+
+test("preEditOutput includes blocking and informational worktree context together", async () => {
+  const root = tmpDir("weaver-repo-");
+  const ctx = await ctxFor(root);
+  ctx.repo.worktreeId = "wt-a";
+  for (const [id, worktreeId] of [
+    ["blocker", "wt-a"],
+    ["other", "wt-b"],
+  ] as const) {
+    ctx.store.upsertSession({ id, harness: "codex", idSource: "explicit", pid: null, cwd: null, worktreeId }, ctx.now);
+    ctx.store.addClaim({
+      sessionId: id,
+      pattern: "src/auth/**",
+      reason: null,
+      createdAt: ctx.now,
+      expiresAt: ctx.now + 60_000,
+      worktreeId,
+    });
+  }
+
+  const output = preEditOutput(ctx, {
+    session_id: "sess-mixed",
+    cwd: root,
+    tool_input: { file_path: path.join(root, "src/auth/login.ts") },
+  });
+  assert.ok(output);
+  const parsed = JSON.parse(output);
+  assert.match(parsed.hookSpecificOutput.additionalContext, /CONFLICT/);
+  assert.match(parsed.hookSpecificOutput.additionalContext, /OTHER WORKTREE/);
+  assert.match(parsed.hookSpecificOutput.additionalContext, /files are isolated/i);
   ctx.store.close();
 });
 

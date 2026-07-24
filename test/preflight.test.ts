@@ -59,6 +59,81 @@ test("preflight: unrelated active sessions are informational only", async () => 
   s.close();
 });
 
+test("preflight: a different-worktree-only overlap recommends continue and is additive JSON data", async () => {
+  const s = await store();
+  s.upsertSession(
+    { id: "other", harness: "codex", idSource: "harness", pid: null, cwd: null, worktreeId: "wt-b" },
+    NOW,
+  );
+  s.addClaim({
+    sessionId: "other",
+    pattern: "src/auth/**",
+    reason: "login flow",
+    createdAt: NOW,
+    expiresAt: NOW + 60_000,
+    worktreeId: "wt-b",
+  });
+  const result = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+    worktreeId: "wt-a",
+  });
+  assert.equal(result.severity, "info");
+  assert.equal(result.recommendation, "continue");
+  assert.equal(result.conflicts.length, 0);
+  assert.equal(result.informational[0]?.hits[0]?.relation, "different-worktree");
+  s.close();
+});
+
+test("preflight: a reused identity remains informational across worktrees and blocks when legacy worktree data is unknown", async () => {
+  const s = await store();
+  s.upsertSession({ id: "me", harness: "codex", idSource: "harness", pid: null, cwd: null, worktreeId: "wt-b" }, NOW);
+  s.addClaim({
+    sessionId: "me",
+    pattern: "src/auth/**",
+    reason: null,
+    createdAt: NOW,
+    expiresAt: NOW + 60_000,
+    worktreeId: "wt-b",
+  });
+
+  const different = runPreflight({
+    store: s,
+    paths: ["src/auth/login.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+    worktreeId: "wt-a",
+  });
+  assert.equal(different.severity, "info");
+  assert.equal(different.informational[0]?.hits[0]?.relation, "different-worktree");
+
+  s.addClaim({
+    sessionId: "me",
+    pattern: "src/legacy/**",
+    reason: null,
+    createdAt: NOW,
+    expiresAt: NOW + 60_000,
+  });
+  const unknown = runPreflight({
+    store: s,
+    paths: ["src/legacy/login.ts"],
+    selfId: "me",
+    now: NOW + 1000,
+    sessionTtlMs: SESSION_TTL,
+    recentMs: RECENT,
+    worktreeId: "wt-a",
+  });
+  assert.equal(unknown.severity, "hard");
+  assert.equal(unknown.conflicts[0]?.hits[0]?.relation, "unknown-worktree");
+  s.close();
+});
+
 test("preflight: hard overlap is a user decision point", async () => {
   const s = await store();
   s.upsertSession({ id: "other", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);

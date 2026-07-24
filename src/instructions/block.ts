@@ -33,6 +33,11 @@ intent + reason + recent activity, then — (1) prefer to work elsewhere and re-
 and **ask the user how to split the work**. Never silently edit over another agent's active
 area.
 
+**Across git worktrees:** Weaver keeps one shared store, but known different worktrees have
+isolated files. Treat those overlaps as informational: continue without asking solely because of
+them, and coordinate later only when integration could collide. Same-worktree or unknown-location
+overlaps still need the conflict playbook above.
+
 **Before commit/push/PR:** run \`weaver preflight --staged\`, \`weaver preflight --upstream\`,
 or \`weaver preflight --base <ref>\` when available. If it reports relevant soft/hard overlaps,
 pause and ask the user whether to continue, wait briefly, or coordinate. Do not silently poll or

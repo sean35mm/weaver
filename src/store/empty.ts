@@ -66,11 +66,20 @@ export class EmptyStore implements Store {
     return readonlyStoreWrite();
   }
 
-  releaseClaim(_sessionId: string, _pattern: string, _now: number): void {
+  releaseClaim(_sessionId: string, _pattern: string, _now: number): void;
+  releaseClaim(_sessionId: string, _pattern: string, _worktreeId: string | null | undefined, _now: number): void;
+  releaseClaim(
+    _sessionId: string,
+    _pattern: string,
+    _worktreeIdOrNow: string | number | null | undefined,
+    _maybeNow?: number,
+  ): void {
     readonlyStoreWrite();
   }
 
-  releaseAllClaims(_sessionId: string, _now: number): void {
+  releaseAllClaims(_sessionId: string, _now: number): void;
+  releaseAllClaims(_sessionId: string, _worktreeId: string | null | undefined, _now: number): void;
+  releaseAllClaims(_sessionId: string, _worktreeIdOrNow: string | number | null | undefined, _maybeNow?: number): void {
     readonlyStoreWrite();
   }
 

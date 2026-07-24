@@ -30,6 +30,7 @@ export interface SessionInput {
   idSource: IdSource;
   pid: number | null;
   cwd: string | null;
+  worktreeId?: string | null;
 }
 
 export interface SessionRow extends SessionInput {
@@ -45,6 +46,8 @@ export interface ClaimInput {
   reason: string | null;
   createdAt: number;
   expiresAt: number;
+  /** Immutable checkout snapshot; null preserves conservative legacy behavior. */
+  worktreeId?: string | null;
 }
 
 export interface ClaimRow extends ClaimInput {
@@ -79,6 +82,8 @@ export interface ActivityInput {
   target: string | null;
   summary: string | null;
   meta: string | null;
+  /** Immutable checkout snapshot; null preserves conservative legacy behavior. */
+  worktreeId?: string | null;
 }
 
 export interface ActivityRow extends ActivityInput {
@@ -130,7 +135,9 @@ export interface Store {
   // claims (advisory, TTL'd, co-claims allowed)
   addClaim(input: ClaimInput): number;
   releaseClaim(sessionId: string, pattern: string, now: number): void;
+  releaseClaim(sessionId: string, pattern: string, worktreeId: string | null | undefined, now: number): void;
   releaseAllClaims(sessionId: string, now: number): void;
+  releaseAllClaims(sessionId: string, worktreeId: string | null | undefined, now: number): void;
   /** Not released and not expired at `now`. */
   listActiveClaims(now: number): ClaimRow[];
   listClaims(limit: number): ClaimRow[];

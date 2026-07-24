@@ -1,7 +1,7 @@
 import { flagBool } from "../args.ts";
 import { detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
-import { formatConflict } from "../render.ts";
+import { formatConflict, formatInformationalConflict } from "../render.ts";
 import { normalizeTarget } from "../repo/paths.ts";
 import { themeFromCtx } from "../terminal/color.ts";
 import { requireArg } from "../validate.ts";
@@ -25,13 +25,18 @@ export function run(ctx: Ctx): number {
     now: ctx.now,
     sessionTtlMs: ctx.config.sessionTtlMs,
     recentMs: ctx.config.recentMs,
+    worktreeId: ctx.repo.worktreeId,
   });
 
   if (conflict.tier === "clear" || conflict.tier === "stale") {
     const note = conflict.tier === "stale" ? " (a stale claim exists; treated as free)" : "";
     ctx.out(`${theme.success("✓ clear:")} ${theme.path(target)}${theme.dim(note)}\n`);
+    if (conflict.informationalHits.length)
+      ctx.out(formatInformationalConflict(conflict.informationalHits, ctx.now, theme));
     return 0;
   }
   ctx.out(formatConflict(conflict, ctx.now, theme));
+  if (conflict.informationalHits.length)
+    ctx.out(formatInformationalConflict(conflict.informationalHits, ctx.now, theme));
   return 1;
 }

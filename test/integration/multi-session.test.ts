@@ -106,6 +106,129 @@ test("multiple sessions coordinate through one store", { timeout: 10_000 }, () =
   );
 });
 
+test("real git worktrees share a store but treat overlapping files as isolated", { timeout: 15_000 }, () => {
+  const root = tmpDir("weaver-worktree-repo-");
+  const other = path.join(tmpDir("weaver-worktree-parent-"), "other");
+  const home = tmpDir("weaver-home-");
+  const git = (...args: string[]): void => {
+    execFileSync("git", args, { cwd: root, stdio: "ignore" });
+  };
+  git("init", "--initial-branch=main");
+  git("config", "user.email", "test@example.com");
+  git("config", "user.name", "test");
+  fs.mkdirSync(path.join(root, "src"), { recursive: true });
+  fs.writeFileSync(path.join(root, "src", "app.ts"), "export const app = true;\n");
+  git("add", ".");
+  git("commit", "-m", "base");
+  git("worktree", "add", "-b", "other", other);
+
+  assert.equal(run(root, home, "root-agent", ["task", "root work"]).status, 0);
+  assert.equal(run(other, home, "other-agent", ["task", "other work"]).status, 0);
+  assert.equal(run(root, home, "root-agent", ["claim", "src/app.ts", "--reason", "root edit"]).status, 0);
+
+  const isolated = run(other, home, "other-agent", ["check", "src/app.ts"]);
+  assert.equal(isolated.status, 0);
+  assert.match(isolated.stdout, /OTHER WORKTREE/);
+
+  const coClaim = run(other, home, "other-agent", ["claim", "src/app.ts", "--reason", "other edit"]);
+  assert.equal(coClaim.status, 0);
+  assert.match(coClaim.stdout, /OTHER WORKTREE/);
+
+  const preflight = run(other, home, "other-agent", ["preflight", "src/app.ts", "--json"]);
+  assert.equal(preflight.status, 0);
+  const preflightJson = JSON.parse(preflight.stdout) as {
+    severity: string;
+    recommendation: string;
+    informational: unknown[];
+  };
+  assert.equal(preflightJson.severity, "info");
+  assert.equal(preflightJson.recommendation, "continue");
+  assert.equal(preflightJson.informational.length, 1);
+
+  const same = run(root, home, "same-root-agent", ["check", "src/app.ts"]);
+  assert.equal(same.status, 1);
+  assert.match(same.stdout, /CONFLICT/);
+
+  // A reused fallback identity in two live checkouts is ambiguous: it must not silently
+  // release the root claim or let done in the other checkout end the root presence.
+  assert.equal(run(root, home, "reused-agent", ["task", "root work"]).status, 0);
+  assert.equal(run(root, home, "reused-agent", ["claim", "src/reused.ts"]).status, 0);
+  assert.equal(run(other, home, "reused-agent", ["task", "other work"]).status, 0);
+
+  const thirdParty = run(root, home, "third-agent", ["check", "src/reused.ts"]);
+  assert.equal(thirdParty.status, 1);
+  assert.match(thirdParty.stdout, /CONFLICT/);
+
+  assert.equal(run(other, home, "reused-agent", ["done"]).status, 0);
+  const afterOtherDone = run(root, home, "third-agent", ["check", "src/reused.ts"]);
+  assert.equal(afterOtherDone.status, 1);
+  assert.match(afterOtherDone.stdout, /CONFLICT/);
+});
+
+test("a reused identity sees same-worktree status records excluded but different and unknown worktree records", {
+  timeout: 15_000,
+}, () => {
+  const root = tmpDir("weaver-worktree-repo-");
+  const other = path.join(tmpDir("weaver-worktree-parent-"), "other");
+  const home = tmpDir("weaver-home-");
+  const git = (...args: string[]): void => {
+    execFileSync("git", args, { cwd: root, stdio: "ignore" });
+  };
+  git("init", "--initial-branch=main");
+  git("config", "user.email", "test@example.com");
+  git("config", "user.name", "test");
+  fs.writeFileSync(path.join(root, "README.md"), "base\n");
+  git("add", "README.md");
+  git("commit", "-m", "base");
+  git("worktree", "add", "-b", "other", other);
+
+  assert.equal(run(root, home, "reused", ["task", "root work"]).status, 0);
+  assert.equal(run(root, home, "reused", ["claim", "src/self.ts"]).status, 0);
+  assert.equal(run(root, home, "reused", ["log", "edit", "src/self.ts", "self edit"]).status, 0);
+  const sameActive = JSON.parse(run(root, home, "reused", ["status", "--json", "--full"]).stdout) as {
+    sessions: unknown[];
+    claims: unknown[];
+    recentActivity: unknown[];
+  };
+  assert.deepEqual(sameActive.sessions, []);
+  assert.deepEqual(sameActive.claims, []);
+  assert.deepEqual(sameActive.recentActivity, []);
+
+  assert.equal(run(root, home, "reused", ["done"]).status, 0);
+  const sameCompleted = JSON.parse(run(root, home, "reused", ["status", "--json", "--full"]).stdout) as {
+    completed: unknown[];
+  };
+  assert.deepEqual(sameCompleted.completed, []);
+
+  const differentCompleted = JSON.parse(run(other, home, "reused", ["status", "--json", "--full"]).stdout) as {
+    completed: Array<{ worktree: string }>;
+  };
+  assert.equal(differentCompleted.completed.length, 1);
+  assert.notEqual(differentCompleted.completed[0]?.worktree, "unknown");
+
+  assert.equal(run(root, home, "reused", ["task", "root work again"]).status, 0);
+  assert.equal(run(root, home, "reused", ["claim", "src/app.ts"]).status, 0);
+  assert.equal(run(root, home, "reused", ["log", "edit", "src/app.ts", "root edit"]).status, 0);
+  const different = JSON.parse(run(other, home, "reused", ["status", "--json", "--full"]).stdout) as {
+    sessions: unknown[];
+    claims: Array<{ worktree: string }>;
+    recentActivity: Array<{ worktree: string }>;
+  };
+  assert.equal(different.sessions.length, 1);
+  assert.ok(different.claims.some((claim) => claim.worktree !== "unknown"));
+  assert.ok(different.recentActivity.some((activity) => activity.worktree !== "unknown"));
+
+  assert.equal(run(other, home, "reused", ["task", "other work"]).status, 0);
+  const unknown = JSON.parse(run(other, home, "reused", ["status", "--json", "--full"]).stdout) as {
+    sessions: Array<{ worktree: string }>;
+    claims: Array<{ worktree: string }>;
+    recentActivity: Array<{ worktree: string }>;
+  };
+  assert.ok(unknown.sessions.some((session) => session.worktree === "unknown"));
+  assert.ok(unknown.claims.some((claim) => claim.worktree !== "unknown"));
+  assert.ok(unknown.recentActivity.some((activity) => activity.worktree !== "unknown"));
+});
+
 test("note --update supersedes, inherits pin, and rejects unknown ids", () => {
   const root = tmpDir("weaver-repo-");
   const home = tmpDir("weaver-home-");
@@ -455,7 +578,10 @@ test("preflight --staged reports relevant hard overlaps without polling", () => 
   assert.equal(parsed.recommendation, "ask-user");
   assert.deepEqual(
     parsed.conflicts.map((c) => [c.path, c.tier]),
-    [["src/auth/login.ts", "hard"]],
+    [
+      ["src/auth/login.ts", "hard"],
+      ["src/auth/login.ts", "soft"],
+    ],
   );
 
   const reportOnly = run(root, home, "agent-b", [

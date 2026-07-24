@@ -16,7 +16,15 @@ export function run(ctx: Ctx): number {
   const summary = summaryRaw ? clamp(summaryRaw) : null;
 
   ctx.store.transaction(() => {
-    ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind, target, summary, meta: null });
+    ctx.store.addActivity({
+      sessionId: id.key,
+      ts: ctx.now,
+      kind,
+      target,
+      summary,
+      meta: null,
+      worktreeId: ctx.repo.worktreeId,
+    });
     pruneAfterWrite(ctx.store, ctx.now);
   });
 

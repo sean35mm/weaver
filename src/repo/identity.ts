@@ -5,6 +5,7 @@
 
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 
 export type RepoBasis = "remote" | "root-commit" | "path";
@@ -13,6 +14,8 @@ export interface RepoIdentity {
   repoId: string;
   root: string;
   basis: RepoBasis;
+  /** Opaque identifier for this physical checkout; never a path. */
+  worktreeId?: string;
 }
 
 function git(args: string[], cwd: string): string | null {
@@ -42,18 +45,26 @@ function shortHash(input: string): string {
 }
 
 export function resolveRepoId(cwd: string = process.cwd()): RepoIdentity {
-  const root = git(["rev-parse", "--show-toplevel"], cwd) ?? path.resolve(cwd);
+  const discoveredRoot = git(["rev-parse", "--show-toplevel"], cwd) ?? path.resolve(cwd);
+  const root = (() => {
+    try {
+      return fs.realpathSync.native(discoveredRoot);
+    } catch {
+      return path.resolve(discoveredRoot);
+    }
+  })();
+  const worktreeId = shortHash("worktree:" + root);
 
   const remote = git(["remote", "get-url", "origin"], root);
   if (remote) {
-    return { repoId: shortHash("remote:" + normalizeRemoteUrl(remote)), root, basis: "remote" };
+    return { repoId: shortHash("remote:" + normalizeRemoteUrl(remote)), root, basis: "remote", worktreeId };
   }
 
   const rootCommit = git(["rev-list", "--max-parents=0", "HEAD"], root);
   if (rootCommit) {
     const first = rootCommit.split("\n")[0]!;
-    return { repoId: shortHash("commit:" + first), root, basis: "root-commit" };
+    return { repoId: shortHash("commit:" + first), root, basis: "root-commit", worktreeId };
   }
 
-  return { repoId: shortHash("path:" + path.resolve(root)), root, basis: "path" };
+  return { repoId: shortHash("path:" + path.resolve(root)), root, basis: "path", worktreeId };
 }

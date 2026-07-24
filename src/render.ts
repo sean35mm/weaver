@@ -1,7 +1,7 @@
 /** Terse human + JSON rendering for the read paths. Kept compact to stay token-cheap. */
 
 import { createHash } from "node:crypto";
-import type { ConflictResult } from "./conflict.ts";
+import type { ConflictHit, ConflictResult } from "./conflict.ts";
 import type { ActivityRow, ClaimRow, NoteRow, SessionRow, Store } from "./store/store.ts";
 import { plainTheme, type TerminalTheme } from "./terminal/color.ts";
 import { padEndVisible, terminalWidth, truncateVisible, visibleLength, wrapWithPrefix } from "./terminal/format.ts";
@@ -51,6 +51,11 @@ export function sessionName(s: SessionLike): string {
 /** Explicit names are unique per host by construction, so they need no hash suffix. */
 export function who(s: SessionLike): string {
   return s.idSource === "explicit" ? sessionName(s) : `${s.harness}#${shortId(s.id)}`;
+}
+
+/** Non-sensitive checkout label for UI and JSON; absolute roots never leave identity resolution. */
+export function worktreeLabel(worktreeId: string | null | undefined): string {
+  return worktreeId ? `wt-${worktreeId.slice(0, 6)}` : "unknown";
 }
 
 function appendWrapped(
@@ -130,6 +135,25 @@ export function formatConflict(
   return lines.join("\n") + "\n";
 }
 
+export function formatInformationalConflict(
+  hits: ConflictHit[],
+  now: number,
+  theme: TerminalTheme = plainTheme,
+): string {
+  const lines = [`ℹ ${theme.severity("info", "OTHER WORKTREE")} ${theme.dim("on this area:")}`];
+  for (const hit of hits) {
+    const target = hit.claim?.pattern ?? hit.activity?.target ?? "";
+    lines.push(
+      `  ${theme.dim("•")} ${theme.accent(who(hit.session))} ${theme.dim("—")} ${target ? theme.path(target) : ""} ${theme.dim(`(${worktreeLabel(hit.claim?.worktreeId ?? hit.activity?.worktreeId)})`)}`,
+    );
+    lines.push(`      ${theme.dim(`active ${ago(now - hit.session.lastSeen)}`)}`);
+  }
+  lines.push(
+    theme.dim("  → files are isolated in another checkout; continue and coordinate integration later if needed."),
+  );
+  return lines.join("\n") + "\n";
+}
+
 export interface StatusData {
   sessions: SessionRow[];
   completed: SessionRow[];
@@ -154,7 +178,14 @@ export function formatStatus(
   );
   for (const s of d.sessions) {
     const label = `  ${padEndVisible(theme.accent(who(s)), 22)} `;
-    out.push(compactRow(label, s.intent ?? theme.dim("(no intent)"), `   ${theme.dim(ago(now - s.lastSeen))}`, width));
+    out.push(
+      compactRow(
+        label,
+        s.intent ?? theme.dim("(no intent)"),
+        ` ${theme.dim(worktreeLabel(s.worktreeId))} ${theme.dim(ago(now - s.lastSeen))}`,
+        width,
+      ),
+    );
   }
   if (d.activity.length) {
     pushSection(out, theme.heading("recent:"));
@@ -174,7 +205,7 @@ export function formatStatus(
     pushSection(out, theme.heading("claims:"));
     for (const c of d.claims) {
       const holder = store.getSession(c.sessionId);
-      const base = `  ${padEndVisible(theme.path(c.pattern), 24)} ${holder ? theme.accent(who(holder)) : theme.dim("?")}`;
+      const base = `  ${padEndVisible(theme.path(c.pattern), 24)} ${holder ? theme.accent(who(holder)) : theme.dim("?")} ${theme.dim(worktreeLabel(c.worktreeId))}`;
       if (c.reason) appendWrapped(out, `${base} ${theme.dim("—")} `, c.reason, width);
       else out.push(base);
     }
@@ -225,6 +256,7 @@ export function statusJson(repoId: string, d: StatusData, now: number, store: St
       source: s.idSource,
       intent: s.intent,
       lastSeenMsAgo: now - s.lastSeen,
+      worktree: worktreeLabel(s.worktreeId),
     })),
     completed: d.completed.map((s) => ({
       shortId: shortId(s.id),
@@ -233,12 +265,14 @@ export function statusJson(repoId: string, d: StatusData, now: number, store: St
       source: s.idSource,
       intent: s.intent,
       endedMsAgo: now - (s.endedAt ?? s.lastSeen),
+      worktree: worktreeLabel(s.worktreeId),
     })),
     claims: d.claims.map((c) => ({
       pattern: c.pattern,
       reason: c.reason,
       by: byName(c.sessionId),
       createdMsAgo: now - c.createdAt,
+      worktree: worktreeLabel(c.worktreeId),
     })),
     recentActivity: d.activity.map((a) => ({
       kind: a.kind,
@@ -246,6 +280,7 @@ export function statusJson(repoId: string, d: StatusData, now: number, store: St
       summary: a.summary,
       by: byName(a.sessionId),
       tsMsAgo: now - a.ts,
+      worktree: worktreeLabel(a.worktreeId),
     })),
     notes: d.notes.map((n) => ({ body: n.body, path: n.path, pinned: n.pinned })),
   };

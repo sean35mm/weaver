@@ -2,7 +2,7 @@
 
 import type { Db } from "./db.ts";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   id_source   TEXT NOT NULL,
   pid         INTEGER,
   cwd         TEXT,
+  worktree_id TEXT,
   intent      TEXT,
   started_at  INTEGER NOT NULL,
   last_seen   INTEGER NOT NULL,
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS claims (
   created_at  INTEGER NOT NULL,
   expires_at  INTEGER NOT NULL,
   released_at INTEGER
+  ,worktree_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS notes (
@@ -50,6 +52,7 @@ CREATE TABLE IF NOT EXISTS activity (
   target      TEXT,
   summary     TEXT,
   meta        TEXT
+  ,worktree_id TEXT
 );
 
 -- Lightweight local protocol metrics. No raw args, paths, note bodies, or repo content.
@@ -102,6 +105,16 @@ export function migrate(db: Db): void {
   }
 
   // v2 → v3: command_events table is created by the idempotent DDL above.
+  // v3 → v4: worktree snapshots distinguish isolated checkouts without changing repo identity.
+  if (version < 4) {
+    const hasColumn = (table: string, column: string): boolean =>
+      db.all<{ name: string }>(`PRAGMA table_info(${table})`).some((row) => row.name === column);
+    // A v1 store can be missing whole tables, which the current DDL creates before this step.
+    // Check each resulting table so ALTER remains safe for that mixed historical shape.
+    if (!hasColumn("sessions", "worktree_id")) db.exec("ALTER TABLE sessions ADD COLUMN worktree_id TEXT");
+    if (!hasColumn("claims", "worktree_id")) db.exec("ALTER TABLE claims ADD COLUMN worktree_id TEXT");
+    if (!hasColumn("activity", "worktree_id")) db.exec("ALTER TABLE activity ADD COLUMN worktree_id TEXT");
+  }
 
   if (!row || version < SCHEMA_VERSION) {
     db.run(

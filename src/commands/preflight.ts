@@ -3,7 +3,7 @@ import { flagBool, flagStr } from "../args.ts";
 import type { ConflictHit } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
 import { hasBroadClaim, type PreflightResult, type PreflightSeverity, runPreflight } from "../preflight.ts";
-import { ago, sessionName, shortId, who } from "../render.ts";
+import { ago, sessionName, shortId, who, worktreeLabel } from "../render.ts";
 import { normalizeTarget } from "../repo/paths.ts";
 import { type TerminalTheme, themeFromCtx } from "../terminal/color.ts";
 import { terminalWidth, wrapWithPrefix } from "../terminal/format.ts";
@@ -180,6 +180,18 @@ export function formatHuman(result: PreflightResult, opts: RenderOpts, now: numb
       lines.push(theme.dim(`  ... ${result.stale.length - 20} more stale path(s); rerun with --full`));
   }
 
+  if (result.informational.length) {
+    lines.push("");
+    lines.push(theme.heading("other-worktree overlaps (files are isolated):"));
+    for (const info of capped(result.informational, opts.full)) {
+      lines.push(theme.path(info.path));
+      for (const hit of info.hits)
+        lines.push(...wrapWithPrefix("  info: ", hitSummary(hit, now, theme), width, "    "));
+    }
+    if (!opts.full && result.informational.length > 20)
+      lines.push(theme.dim(`  ... ${result.informational.length - 20} more informational path(s); rerun with --full`));
+  }
+
   if (result.unrelatedSessions.length) {
     lines.push("");
     lines.push(
@@ -204,7 +216,9 @@ export function formatHuman(result: PreflightResult, opts: RenderOpts, now: numb
     lines.push(
       ...wrapWithPrefix(
         `${theme.success("Recommendation:")} `,
-        "continue; no relevant active overlap was found.",
+        result.informational.length
+          ? "continue; files in known different worktrees are isolated. Coordinate later if integration could overlap."
+          : "continue; no relevant active overlap was found.",
         width,
       ),
     );
@@ -215,6 +229,7 @@ export function formatHuman(result: PreflightResult, opts: RenderOpts, now: numb
 
 function jsonHit(hit: ConflictHit, now: number): unknown {
   return {
+    relation: hit.relation,
     session: {
       shortId: shortId(hit.session.id),
       name: sessionName(hit.session),
@@ -222,6 +237,7 @@ function jsonHit(hit: ConflictHit, now: number): unknown {
       source: hit.session.idSource,
       intent: hit.session.intent,
       lastSeenMsAgo: now - hit.session.lastSeen,
+      worktree: worktreeLabel(hit.session.worktreeId),
     },
     claim: hit.claim
       ? {
@@ -229,6 +245,7 @@ function jsonHit(hit: ConflictHit, now: number): unknown {
           reason: hit.claim.reason,
           broad: hasBroadClaim(hit),
           createdMsAgo: now - hit.claim.createdAt,
+          worktree: worktreeLabel(hit.claim.worktreeId),
         }
       : null,
     activity: hit.activity
@@ -237,6 +254,7 @@ function jsonHit(hit: ConflictHit, now: number): unknown {
           target: hit.activity.target,
           summary: hit.activity.summary,
           tsMsAgo: now - hit.activity.ts,
+          worktree: worktreeLabel(hit.activity.worktreeId),
         }
       : null,
   };
@@ -258,17 +276,24 @@ function formatJson(result: PreflightResult, opts: RenderOpts, now: number): str
         paths: result.paths.length,
         conflicts: result.conflicts.length,
         stale: result.stale.length,
+        informational: result.informational.length,
         unrelatedSessions: result.unrelatedSessions.length,
       },
       truncated: {
         paths: truncatedCount(result.paths, opts.full),
         conflicts: truncatedCount(result.conflicts, opts.full),
         stale: truncatedCount(result.stale, opts.full),
+        informational: truncatedCount(result.informational, opts.full),
         unrelatedSessions: truncatedCount(result.unrelatedSessions, opts.full),
       },
       paths,
       conflicts: conflicts.map((c) => ({ path: c.path, tier: c.tier, hits: c.hits.map((h) => jsonHit(h, now)) })),
       stale: stale.map((c) => ({ path: c.path, tier: c.tier, hits: c.hits.map((h) => jsonHit(h, now)) })),
+      informational: capped(result.informational, opts.full).map((c) => ({
+        path: c.path,
+        tier: c.tier,
+        hits: c.hits.map((h) => jsonHit(h, now)),
+      })),
       unrelatedSessions: unrelatedSessions.map((s) => ({
         shortId: shortId(s.id),
         name: sessionName(s),
@@ -293,6 +318,7 @@ export function run(ctx: Ctx): number {
     now: ctx.now,
     sessionTtlMs: ctx.config.sessionTtlMs,
     recentMs: ctx.config.recentMs,
+    worktreeId: ctx.repo.worktreeId,
   });
   const renderOpts = { operation, source: pathSource.source, failOn, full: flagBool(ctx.args, "full") };
   ctx.out(

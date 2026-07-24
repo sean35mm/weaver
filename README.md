@@ -110,7 +110,14 @@ no background process. Liveness is based on heartbeats and TTLs, so crashed agen
 of leaving permanent locks.
 
 The store is keyed by repo identity, not by directory. Multiple terminals and git worktrees for
-the same repo share one commons under `~/.weaver/`.
+the same repo share one commons under `~/.weaver/`. Weaver recognizes the checkout for each
+session: a known different-worktree overlap is informational because files are isolated, while
+same-worktree and unknown-location overlaps still require coordination.
+
+If a live session identity appears in two known worktrees, Weaver treats its location as
+ambiguous rather than guessing that it moved. Existing claims remain in force until released from
+their own checkout or they age out; `done` only releases claims from the current checkout and does
+not end ambiguous presence.
 
 ## Who runs what
 

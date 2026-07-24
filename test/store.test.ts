@@ -124,6 +124,50 @@ test("claims: active, expiry, release", async () => {
   store.close();
 });
 
+test("worktree snapshots preserve claims and mark a live identity as ambiguous across worktrees", async () => {
+  const store = await openStore(tmpDb());
+  store.upsertSession(
+    { id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null, worktreeId: "wt-a" },
+    NOW,
+  );
+  store.addClaim({
+    sessionId: "s1",
+    pattern: "src/auth/**",
+    reason: null,
+    createdAt: NOW,
+    expiresAt: NOW + TTL,
+    worktreeId: "wt-a",
+  });
+  store.addActivity({
+    sessionId: "s1",
+    ts: NOW,
+    kind: "edit",
+    target: "src/auth/login.ts",
+    summary: null,
+    meta: null,
+    worktreeId: "wt-a",
+  });
+  assert.equal(store.getSession("s1")?.worktreeId, "wt-a");
+  assert.equal(store.listOpenClaims()[0]?.worktreeId, "wt-a");
+  assert.equal(store.listRecentActivity(1)[0]?.worktreeId, "wt-a");
+
+  store.upsertSession(
+    { id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null, worktreeId: "wt-b" },
+    NOW + 1,
+  );
+  assert.equal(store.getSession("s1")?.worktreeId, null);
+  assert.equal(store.listOpenClaims().length, 1);
+  assert.equal(store.listOpenClaims()[0]?.worktreeId, "wt-a");
+
+  store.endSession("s1", NOW + 2);
+  store.upsertSession(
+    { id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null, worktreeId: "wt-b" },
+    NOW + 3,
+  );
+  assert.equal(store.getSession("s1")?.worktreeId, "wt-b");
+  store.close();
+});
+
 test("claims: prune old expired claims but keep recent stale claims", async () => {
   const store = await openStore(tmpDb());
   store.upsertSession({ id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null }, NOW);

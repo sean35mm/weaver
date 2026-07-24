@@ -72,20 +72,20 @@ export const PAGE = `<!doctype html>
       '<div class="card"><div class="row"><span class="who">' + esc(s.name || s.harness) + '</span>' +
       '<span class="ago">' + ago(s.lastSeenMsAgo) + '</span></div>' +
       '<div class="intent">' + esc(s.intent || "(no stated intent)") + '</div>' +
-      '<div class="meta">' + esc(s.source) + '</div></div>').join("") : "no active sessions";
+       '<div class="meta">' + esc(s.source) + ' · ' + esc(s.worktree) + '</div></div>').join("") : "no active sessions";
 
     const claims = d.claims || [];
     $("claims").className = claims.length ? "" : "empty";
     $("claims").innerHTML = claims.length ? claims.map((c) =>
       '<div class="card"><div class="row"><span class="pat">' + esc(c.pattern) + '</span>' +
       '<span class="ago">' + ago(c.createdMsAgo) + '</span></div>' +
-      '<div class="meta">' + esc(c.by || "?") + (c.reason ? " — " + esc(c.reason) : "") + '</div></div>').join("") : "no active claims";
+       '<div class="meta">' + esc(c.by || "?") + ' · ' + esc(c.worktree) + (c.reason ? " — " + esc(c.reason) : "") + '</div></div>').join("") : "no active claims";
 
     const act = d.recentActivity || [];
     $("activity").className = act.length ? "feed" : "feed empty";
     $("activity").innerHTML = act.length ? act.map((a) =>
       '<div><span class="ago" style="float:right">' + ago(a.tsMsAgo) + '</span>' +
-      '<span class="kind">' + esc(a.kind) + '</span> ' + esc(a.by || "?") + " " +
+       '<span class="kind">' + esc(a.kind) + '</span> ' + esc(a.by || "?") + ' · ' + esc(a.worktree) + " " +
       '<code>' + esc(a.target || "") + '</code>' + (a.summary ? ' <span class="t">— ' + esc(a.summary) + "</span>" : "") + "</div>").join("") : "no activity yet";
 
     const notes = d.notes || [];

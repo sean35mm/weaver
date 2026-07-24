@@ -53,4 +53,13 @@ terminal. The ladder above handles this automatically.
 ## Worktrees
 
 Because the store is keyed by repo identity (not directory), multiple **git worktrees** of the
-same repo share one commons — so agents in different worktrees still coordinate.
+same repo share one commons — so agents in different worktrees still coordinate. Weaver records
+an opaque checkout identity for new activity and claims. Known different-worktree overlaps are
+informational because their files are isolated; continue without asking solely for that overlap
+and coordinate later when integration might collide. Same-worktree or unknown-location overlaps
+remain blocking advisories.
+
+If the same live session identity appears in two known worktrees, Weaver marks the session's
+location as ambiguous instead of assuming it moved. Its existing claims stay conservative until
+they are released from their own worktree or age out, and `done` in one checkout cannot end the
+ambiguous session or release claims held in the other.

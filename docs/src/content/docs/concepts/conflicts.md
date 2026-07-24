@@ -21,6 +21,13 @@ intersection/containment, so `src/auth/login.ts` matches a `src/auth/**` claim.
 | **Stale** | a claim exists but its holder is past TTL / expired                | ℹ️ treat as free |
 | **Clear** | nothing matches (or it's your own session)                         | ✅ proceed |
 
+## Worktrees
+
+All worktrees for a repository share the same Weaver store, but their checked-out files are
+isolated. An overlap from a **known different worktree** is therefore reported as informational:
+continue without asking solely for that overlap, then coordinate later if integration could
+collide. Same-worktree and unknown-location overlaps retain the hard/soft behavior above.
+
 Crucially, claims held by sessions that have gone stale (e.g. a crashed agent) are **not**
 shown as active — they downgrade to `stale` and the area is free.
 

@@ -1,7 +1,7 @@
 import { flagStr } from "../args.ts";
 import { detectConflict } from "../conflict.ts";
 import type { Ctx } from "../context.ts";
-import { formatConflict } from "../render.ts";
+import { formatConflict, formatInformationalConflict } from "../render.ts";
 import { normalizeTarget } from "../repo/paths.ts";
 import { themeFromCtx } from "../terminal/color.ts";
 import { clamp, isBroadGlob, parseTtl, requireArg, requireIdentity } from "../validate.ts";
@@ -23,12 +23,20 @@ export function runClaim(ctx: Ctx): number {
     now: ctx.now,
     sessionTtlMs: ctx.config.sessionTtlMs,
     recentMs: ctx.config.recentMs,
+    worktreeId: ctx.repo.worktreeId,
   });
 
   ctx.store.transaction(() => {
     // Refresh: supersede our own prior claim on the same pattern, then (re)record.
-    ctx.store.releaseClaim(id.key, pattern, ctx.now);
-    ctx.store.addClaim({ sessionId: id.key, pattern, reason, createdAt: ctx.now, expiresAt: ctx.now + ttlMs });
+    ctx.store.releaseClaim(id.key, pattern, ctx.repo.worktreeId, ctx.now);
+    ctx.store.addClaim({
+      sessionId: id.key,
+      pattern,
+      reason,
+      createdAt: ctx.now,
+      expiresAt: ctx.now + ttlMs,
+      worktreeId: ctx.repo.worktreeId,
+    });
     ctx.store.addActivity({
       sessionId: id.key,
       ts: ctx.now,
@@ -36,6 +44,7 @@ export function runClaim(ctx: Ctx): number {
       target: pattern,
       summary: reason,
       meta: null,
+      worktreeId: ctx.repo.worktreeId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
   });
@@ -46,8 +55,12 @@ export function runClaim(ctx: Ctx): number {
 
   if (conflict.tier === "hard" || conflict.tier === "soft") {
     ctx.out("\n" + formatConflict(conflict, ctx.now, theme));
+    if (conflict.informationalHits.length)
+      ctx.out("\n" + formatInformationalConflict(conflict.informationalHits, ctx.now, theme));
     return 1; // non-zero so the agent stops and coordinates instead of silently proceeding
   }
+  if (conflict.informationalHits.length)
+    ctx.out("\n" + formatInformationalConflict(conflict.informationalHits, ctx.now, theme));
   return 0;
 }
 
@@ -56,7 +69,7 @@ export function runRelease(ctx: Ctx): number {
   const theme = themeFromCtx(ctx);
   const pattern = normalizeTarget(requireArg(ctx.args._[1], "glob"), ctx.repo.root, ctx.cwd);
   ctx.store.transaction(() => {
-    ctx.store.releaseClaim(id.key, pattern, ctx.now);
+    ctx.store.releaseClaim(id.key, pattern, ctx.repo.worktreeId, ctx.now);
     ctx.store.addActivity({
       sessionId: id.key,
       ts: ctx.now,
@@ -64,6 +77,7 @@ export function runRelease(ctx: Ctx): number {
       target: pattern,
       summary: null,
       meta: null,
+      worktreeId: ctx.repo.worktreeId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
   });

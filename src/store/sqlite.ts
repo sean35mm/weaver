@@ -26,6 +26,7 @@ interface RawSession {
   id_source: string;
   pid: number | null;
   cwd: string | null;
+  worktree_id: string | null;
   intent: string | null;
   started_at: number;
   last_seen: number;
@@ -39,6 +40,7 @@ interface RawClaim {
   created_at: number;
   expires_at: number;
   released_at: number | null;
+  worktree_id: string | null;
 }
 interface RawNote {
   id: number;
@@ -63,6 +65,7 @@ interface RawActivity {
   target: string | null;
   summary: string | null;
   meta: string | null;
+  worktree_id: string | null;
 }
 interface RawCommandEvent {
   id: number;
@@ -79,6 +82,7 @@ const toSession = (r: RawSession): SessionRow => ({
   idSource: r.id_source as SessionRow["idSource"],
   pid: r.pid,
   cwd: r.cwd,
+  worktreeId: r.worktree_id,
   intent: r.intent,
   startedAt: r.started_at,
   lastSeen: r.last_seen,
@@ -92,6 +96,7 @@ const toClaim = (r: RawClaim): ClaimRow => ({
   createdAt: r.created_at,
   expiresAt: r.expires_at,
   releasedAt: r.released_at,
+  worktreeId: r.worktree_id,
 });
 const toNote = (r: RawNote): NoteRow => ({
   id: r.id,
@@ -116,6 +121,7 @@ const toActivity = (r: RawActivity): ActivityRow => ({
   target: r.target,
   summary: r.summary,
   meta: r.meta,
+  worktreeId: r.worktree_id,
 });
 const toCommandEvent = (r: RawCommandEvent): CommandEventRow => ({
   id: r.id,
@@ -142,13 +148,17 @@ export class SqliteStore implements Store {
     // started_at/intent. If an ended identity reappears, start a fresh episode so tty/ancestry
     // fallback IDs do not accumulate multi-day durations after `weaver done`.
     this.db.run(
-      `INSERT INTO sessions (id, harness, id_source, pid, cwd, intent, started_at, last_seen, ended_at)
-       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL)
+      `INSERT INTO sessions (id, harness, id_source, pid, cwd, worktree_id, intent, started_at, last_seen, ended_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)
        ON CONFLICT(id) DO UPDATE SET
           harness = excluded.harness,
           id_source = excluded.id_source,
           pid = excluded.pid,
           cwd = excluded.cwd,
+          worktree_id = CASE
+            WHEN sessions.ended_at IS NULL AND sessions.worktree_id IS NOT excluded.worktree_id THEN NULL
+            ELSE excluded.worktree_id
+          END,
           intent = CASE WHEN sessions.ended_at IS NULL THEN sessions.intent ELSE NULL END,
           started_at = CASE WHEN sessions.ended_at IS NULL THEN sessions.started_at ELSE excluded.started_at END,
           last_seen = excluded.last_seen,
@@ -158,6 +168,7 @@ export class SqliteStore implements Store {
       input.idSource,
       input.pid,
       input.cwd,
+      input.worktreeId ?? null,
       now,
       now,
     );
@@ -221,27 +232,51 @@ export class SqliteStore implements Store {
 
   addClaim(input: ClaimInput): number {
     return this.db.run(
-      `INSERT INTO claims (session_id, pattern, reason, created_at, expires_at, released_at)
-       VALUES (?, ?, ?, ?, ?, NULL)`,
+      `INSERT INTO claims (session_id, pattern, reason, created_at, expires_at, released_at, worktree_id)
+       VALUES (?, ?, ?, ?, ?, NULL, ?)`,
       input.sessionId,
       input.pattern,
       input.reason,
       input.createdAt,
       input.expiresAt,
+      input.worktreeId ?? null,
     ).lastInsertRowid;
   }
 
-  releaseClaim(sessionId: string, pattern: string, now: number): void {
+  releaseClaim(sessionId: string, pattern: string, now: number): void;
+  releaseClaim(sessionId: string, pattern: string, worktreeId: string | null | undefined, now: number): void;
+  releaseClaim(
+    sessionId: string,
+    pattern: string,
+    worktreeIdOrNow: string | number | null | undefined,
+    maybeNow?: number,
+  ): void {
+    const worktreeId = maybeNow === undefined ? null : worktreeIdOrNow;
+    const now = maybeNow ?? (worktreeIdOrNow as number);
     this.db.run(
-      "UPDATE claims SET released_at = ? WHERE session_id = ? AND pattern = ? AND released_at IS NULL",
+      "UPDATE claims SET released_at = ? WHERE session_id = ? AND pattern = ? AND worktree_id IS ? AND released_at IS NULL",
       now,
       sessionId,
       pattern,
+      typeof worktreeId === "string" ? worktreeId : null,
     );
   }
 
-  releaseAllClaims(sessionId: string, now: number): void {
-    this.db.run("UPDATE claims SET released_at = ? WHERE session_id = ? AND released_at IS NULL", now, sessionId);
+  releaseAllClaims(sessionId: string, now: number): void;
+  releaseAllClaims(sessionId: string, worktreeId: string | null | undefined, now: number): void;
+  releaseAllClaims(sessionId: string, worktreeIdOrNow: string | number | null | undefined, maybeNow?: number): void {
+    const worktreeId = maybeNow === undefined ? undefined : worktreeIdOrNow;
+    const now = maybeNow ?? (worktreeIdOrNow as number);
+    if (worktreeId === undefined) {
+      this.db.run("UPDATE claims SET released_at = ? WHERE session_id = ? AND released_at IS NULL", now, sessionId);
+      return;
+    }
+    this.db.run(
+      "UPDATE claims SET released_at = ? WHERE session_id = ? AND worktree_id IS ? AND released_at IS NULL",
+      now,
+      sessionId,
+      typeof worktreeId === "string" ? worktreeId : null,
+    );
   }
 
   listActiveClaims(now: number): ClaimRow[] {
@@ -323,14 +358,15 @@ export class SqliteStore implements Store {
 
   addActivity(input: ActivityInput): number {
     return this.db.run(
-      `INSERT INTO activity (session_id, ts, kind, target, summary, meta)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO activity (session_id, ts, kind, target, summary, meta, worktree_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       input.sessionId,
       input.ts,
       input.kind,
       input.target,
       input.summary,
       input.meta,
+      input.worktreeId ?? null,
     ).lastInsertRowid;
   }
 

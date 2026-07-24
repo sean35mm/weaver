@@ -38,6 +38,7 @@ export function run(ctx: Ctx): number {
         target: note.path,
         summary: `restored note #${target}: ${note.body}`,
         meta: null,
+        worktreeId: ctx.repo.worktreeId,
       });
       pruneAfterWrite(ctx.store, ctx.now);
     });
@@ -63,6 +64,7 @@ export function run(ctx: Ctx): number {
       target: note.path,
       summary: `#${target}: ${reason}`,
       meta: null,
+      worktreeId: ctx.repo.worktreeId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
   });

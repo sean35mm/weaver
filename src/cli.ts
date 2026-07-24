@@ -258,7 +258,14 @@ async function main(): Promise<number> {
         return 1;
       }
       store.upsertSession(
-        { id: identity.key, harness: identity.label, idSource: identity.source, pid: process.pid, cwd: process.cwd() },
+        {
+          id: identity.key,
+          harness: identity.label,
+          idSource: identity.source,
+          pid: process.pid,
+          cwd: process.cwd(),
+          worktreeId: repo.worktreeId,
+        },
         now,
       );
     } else if (enabled && COMMAND_USAGE.has(first)) {

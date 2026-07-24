@@ -40,7 +40,15 @@ export function runNote(ctx: Ctx): number {
       createdAt: ctx.now,
       supersedes,
     });
-    ctx.store.addActivity({ sessionId: id.key, ts: ctx.now, kind: "note", target: path, summary: body, meta: null });
+    ctx.store.addActivity({
+      sessionId: id.key,
+      ts: ctx.now,
+      kind: "note",
+      target: path,
+      summary: body,
+      meta: null,
+      worktreeId: ctx.repo.worktreeId,
+    });
     pruneAfterWrite(ctx.store, ctx.now);
     return created;
   });
