@@ -25,7 +25,10 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "build:local": "node scripts/write-version.ts && bun build src/cli.ts --compile --outfile $HOME/.local/bin/weaver; s=$?; node scripts/write-version.ts --reset; exit $s",
+    "build": "npm run check:dashboard && npm run typecheck && node scripts/verify-build.ts",
+    "build:dashboard": "node scripts/build-dashboard.ts",
+    "build:local": "node scripts/build-dashboard.ts && node scripts/write-version.ts && bun build src/cli.ts --compile --outfile $HOME/.local/bin/weaver; s=$?; node scripts/write-version.ts --reset; exit $s",
+    "check:dashboard": "node scripts/build-dashboard.ts --check",
     "demo": "node scripts/demo.ts",
     "format": "biome format --write .",
     "lint": "biome check .",
@@ -34,15 +37,21 @@
     "test:bun": "bun test test/",
     "test:coverage": "node --test --experimental-test-coverage test/*.test.ts test/integration/*.test.ts",
     "test:e2e-binary": "node --test test/e2e/*.test.ts",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.dashboard.json"
   },
   "dependencies": {
+    "@toast-ui/editor": "3.2.2",
+    "dompurify": "3.4.13",
     "picomatch": "^4.0.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",
     "@types/node": "^22.0.0",
     "@types/picomatch": "^4.0.0",
+    "esbuild": "0.28.2",
     "typescript": "^5.7.0"
+  },
+  "overrides": {
+    "dompurify": "3.4.13"
   }
 }

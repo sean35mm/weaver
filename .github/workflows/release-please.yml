@@ -45,6 +45,7 @@ jobs:
           node-version: "24"
       - uses: oven-sh/setup-bun@v2
       - run: npm ci
+      - run: npm run build:dashboard
       # Stamp the real version (from package.json, just bumped by release-please) into the binary fallback.
       - run: node scripts/write-version.ts
       - run: bun build src/cli.ts --compile --target=${{ matrix.target.bun }} --outfile ${{ matrix.target.name }}

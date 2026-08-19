@@ -2,7 +2,7 @@
 
 import type { Db } from "./db.ts";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export interface SchemaInspection {
   tables: ReadonlySet<string>;
@@ -53,6 +53,11 @@ export function inspectSchemaCompatibility(db: Db): SchemaInspection {
     throw compatibilityError(`schema_version is missing for existing tables: ${existingTables.join(", ")}`);
   }
   return { tables, version: row ? parseSchemaVersion(row.value) : undefined };
+}
+
+export function hasEarlyV6DashboardLeaseSchema(db: Db): boolean {
+  const columns = db.all<{ name: string }>("PRAGMA table_info(dashboard_leases)");
+  return columns.length > 0 && !columns.some((column) => column.name === "scope_id");
 }
 
 const DDL = `
@@ -166,6 +171,14 @@ CREATE TABLE IF NOT EXISTS advisories (
   PRIMARY KEY (session_id, fingerprint)
 );
 
+CREATE TABLE IF NOT EXISTS dashboard_leases (
+  scope_id   TEXT PRIMARY KEY CHECK (scope_id <> ''),
+  owner_id   TEXT NOT NULL CHECK (owner_id <> ''),
+  owner_pid  INTEGER NOT NULL CHECK (owner_pid > 0),
+  renewed_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL CHECK (expires_at > renewed_at)
+);
+
 CREATE TABLE IF NOT EXISTS weaver_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -225,6 +238,22 @@ export function migrate(db: Db): void {
     if (!hasColumn("activity", "scratchpad_id"))
       db.exec("ALTER TABLE activity ADD COLUMN scratchpad_id INTEGER REFERENCES scratchpads(id)");
   }
+
+  // v5 → v6: dashboard_leases is additive and created by the idempotent DDL above. Early,
+  // unreleased v6 builds used a fixed id=1 row; discard that unscoped lease if encountered.
+  if (hasEarlyV6DashboardLeaseSchema(db)) {
+    db.exec(`
+      DROP TABLE dashboard_leases;
+      CREATE TABLE dashboard_leases (
+        scope_id   TEXT PRIMARY KEY CHECK (scope_id <> ''),
+        owner_id   TEXT NOT NULL CHECK (owner_id <> ''),
+        owner_pid  INTEGER NOT NULL CHECK (owner_pid > 0),
+        renewed_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL CHECK (expires_at > renewed_at)
+      );
+    `);
+  }
+
   if (existingVersion === undefined || version < SCHEMA_VERSION) {
     db.run(
       "INSERT INTO weaver_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

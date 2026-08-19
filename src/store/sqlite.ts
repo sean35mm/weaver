@@ -11,6 +11,8 @@ import type {
   ClaimRow,
   CommandEventInput,
   CommandEventRow,
+  DashboardLeaseInput,
+  DashboardLeaseRow,
   NoteInput,
   NoteRow,
   PruneOptions,
@@ -120,6 +122,14 @@ interface RawCommandEvent {
   harness: string | null;
   id_source: string | null;
 }
+interface RawDashboardLease {
+  scope_id: string;
+  owner_id: string;
+  owner_pid: number;
+  renewed_at: number;
+  expires_at: number;
+}
+
 const toSession = (r: RawSession): SessionRow => ({
   id: r.id,
   harness: r.harness,
@@ -212,6 +222,14 @@ const toCommandEvent = (r: RawCommandEvent): CommandEventRow => ({
   harness: r.harness,
   idSource: r.id_source as CommandEventRow["idSource"],
 });
+const toDashboardLease = (r: RawDashboardLease): DashboardLeaseRow => ({
+  scopeId: r.scope_id,
+  ownerId: r.owner_id,
+  ownerPid: r.owner_pid,
+  renewedAt: r.renewed_at,
+  expiresAt: r.expires_at,
+});
+
 export class SqliteStore implements Store {
   private readonly db: Db;
 
@@ -659,6 +677,56 @@ export class SqliteStore implements Store {
 
   pruneAdvisories(opts: AgePruneOptions): void {
     this.db.run("DELETE FROM advisories WHERE ts < ?", ageCutoff(opts.now, opts.maxAgeDays));
+  }
+
+  getDashboardLease(scopeId: string): DashboardLeaseRow | undefined {
+    const row = this.db.get<RawDashboardLease>(
+      "SELECT scope_id, owner_id, owner_pid, renewed_at, expires_at FROM dashboard_leases WHERE scope_id = ?",
+      scopeId,
+    );
+    return row ? toDashboardLease(row) : undefined;
+  }
+
+  tryAcquireDashboardLease(input: DashboardLeaseInput): boolean {
+    return (
+      this.db.run(
+        `INSERT INTO dashboard_leases (scope_id, owner_id, owner_pid, renewed_at, expires_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(scope_id) DO UPDATE SET
+           owner_id = excluded.owner_id,
+           owner_pid = excluded.owner_pid,
+           renewed_at = excluded.renewed_at,
+           expires_at = excluded.expires_at
+          WHERE dashboard_leases.expires_at <= excluded.renewed_at`,
+        input.scopeId,
+        input.ownerId,
+        input.ownerPid,
+        input.renewedAt,
+        input.expiresAt,
+      ).changes === 1
+    );
+  }
+
+  renewDashboardLease(input: DashboardLeaseInput): boolean {
+    return (
+      this.db.run(
+        `UPDATE dashboard_leases SET owner_pid = ?, renewed_at = ?, expires_at = ?
+         WHERE scope_id = ? AND owner_id = ? AND expires_at > ? AND renewed_at <= ?`,
+        input.ownerPid,
+        input.renewedAt,
+        input.expiresAt,
+        input.scopeId,
+        input.ownerId,
+        input.renewedAt,
+        input.renewedAt,
+      ).changes === 1
+    );
+  }
+
+  releaseDashboardLease(scopeId: string, ownerId: string): boolean {
+    return (
+      this.db.run("DELETE FROM dashboard_leases WHERE scope_id = ? AND owner_id = ?", scopeId, ownerId).changes === 1
+    );
   }
 
   getMeta(key: string): string | undefined {

@@ -8,7 +8,6 @@ import * as audit from "./commands/audit.ts";
 import * as check from "./commands/check.ts";
 import * as claim from "./commands/claim.ts";
 import * as config from "./commands/config.ts";
-import * as dashboard from "./commands/dashboard.ts";
 import * as deinit from "./commands/deinit.ts";
 import * as doctor from "./commands/doctor.ts";
 import * as done from "./commands/done.ts";
@@ -113,12 +112,33 @@ const REGISTRY: Record<string, Handler> = {
     writeGated: (args) => scratchpad.commandTraits(args).writeGated,
     usage: (args) => (scratchpad.commandTraits(args).usage ? `scratchpad:${args._[1] ?? "list"}` : false),
   },
+  scratchpads: {
+    run: async (ctx) => (await import("./commands/dashboard.ts")).runDashboard(ctx),
+    presence: "observer",
+    store: "create",
+  },
   // Viewers intentionally `create`: they poll the store file, so it must exist even before
   // the first agent writes.
-  dashboard: { run: dashboard.runDashboard, presence: "observer", store: "create" },
-  view: { run: dashboard.runDashboard, presence: "observer", store: "create" },
-  ui: { run: dashboard.runDashboard, presence: "observer", store: "create" },
-  watch: { run: dashboard.runWatch, presence: "observer", store: "create" },
+  dashboard: {
+    run: async (ctx) => (await import("./commands/dashboard.ts")).runDashboard(ctx),
+    presence: "observer",
+    store: "create",
+  },
+  view: {
+    run: async (ctx) => (await import("./commands/dashboard.ts")).runDashboard(ctx),
+    presence: "observer",
+    store: "create",
+  },
+  ui: {
+    run: async (ctx) => (await import("./commands/dashboard.ts")).runDashboard(ctx),
+    presence: "observer",
+    store: "create",
+  },
+  watch: {
+    run: async (ctx) => (await import("./commands/dashboard.ts")).runWatch(ctx),
+    presence: "observer",
+    store: "create",
+  },
   init: { run: init.run, presence: "observer", store: "create" },
   enable: { run: toggle.runEnable, presence: "observer", store: "create" },
   disable: { run: toggle.runDisable, presence: "observer", store: "create" },
@@ -197,6 +217,7 @@ function printHelp(write: (s: string) => void): void {
   write(`weaver ${VERSION} — shared context for coding agents\n\n`);
   write("commands:\n");
   write("  status [--json] [--full]                 who's active, claims, activity, notes\n");
+  write("  scratchpads [--port N] [--no-open] [--open=auto|browser|cmux]  rich Markdown scratchpad UI\n");
   write("  scratchpad <subcommand>                  scriptable scratchpad core (`scratchpad help`)\n");
   write("  task <intent…>                           announce what you're working on\n");
   write("  claim <glob> [--reason …] [--ttl 30m]    stake out an area (exit 1 = recorded, but conflicts exist)\n");
@@ -213,7 +234,7 @@ function printHelp(write: (s: string) => void): void {
   write("  audit [--json]                           summarize retained usage, setup, and improvements\n");
   write("  done                                     end this session, release its claims\n");
   write("  doctor                                   diagnostics (identity, repo, store)\n");
-  write("  dashboard [--port N] [--no-open]         live web view (Ctrl-C to stop)\n");
+  write("  dashboard [--port N] [--no-open] [--open=auto|browser|cmux]  alias for scratchpads (also: view, ui)\n");
   write("  watch                                    live terminal view (Ctrl-C to stop)\n");
   write("\n");
   write(
@@ -355,7 +376,7 @@ async function main(): Promise<number> {
     try {
       await storeHolder?.release();
     } catch {
-      /* ordinary exit is best effort */
+      /* an exact release failure is reported by destructive handlers; ordinary exit is best effort */
     }
   }
 }

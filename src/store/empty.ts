@@ -7,6 +7,8 @@ import type {
   ClaimRow,
   CommandEventInput,
   CommandEventRow,
+  DashboardLeaseInput,
+  DashboardLeaseRow,
   NoteInput,
   NoteRow,
   PruneOptions,
@@ -209,6 +211,22 @@ export class EmptyStore implements Store {
 
   pruneAdvisories(_opts: AgePruneOptions): void {
     readonlyStoreWrite();
+  }
+
+  getDashboardLease(_scopeId: string): DashboardLeaseRow | undefined {
+    return undefined;
+  }
+
+  tryAcquireDashboardLease(_input: DashboardLeaseInput): boolean {
+    return readonlyStoreWrite();
+  }
+
+  renewDashboardLease(_input: DashboardLeaseInput): boolean {
+    return readonlyStoreWrite();
+  }
+
+  releaseDashboardLease(_scopeId: string, _ownerId: string): boolean {
+    return readonlyStoreWrite();
   }
 
   getMeta(_key: string): string | undefined {

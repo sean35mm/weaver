@@ -120,6 +120,16 @@ export interface AgePruneOptions {
 
 export type ClaimPruneOptions = AgePruneOptions;
 
+export interface DashboardLeaseInput {
+  scopeId: string;
+  ownerId: string;
+  ownerPid: number;
+  renewedAt: number;
+  expiresAt: number;
+}
+
+export interface DashboardLeaseRow extends DashboardLeaseInput {}
+
 export const SCRATCHPAD_STATES = ["active", "archived", "trash"] as const;
 export type ScratchpadState = (typeof SCRATCHPAD_STATES)[number];
 export type ScratchpadActorKind = "agent" | "human" | "system";
@@ -255,6 +265,12 @@ export interface Store {
   getAdvisory(sessionId: string, fingerprint: string): number | undefined;
   recordAdvisory(sessionId: string, fingerprint: string, ts: number): void;
   pruneAdvisories(opts: AgePruneOptions): void;
+
+  // singleton dashboard process lease
+  getDashboardLease(scopeId: string): DashboardLeaseRow | undefined;
+  tryAcquireDashboardLease(input: DashboardLeaseInput): boolean;
+  renewDashboardLease(input: DashboardLeaseInput): boolean;
+  releaseDashboardLease(scopeId: string, ownerId: string): boolean;
 
   // config / state
   getMeta(key: string): string | undefined;

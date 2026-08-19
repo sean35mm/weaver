@@ -32,6 +32,7 @@ jobs:
           node-version: "24"
       - uses: oven-sh/setup-bun@v2
       - run: npm ci
+      - run: npm run build:dashboard
       - run: node scripts/write-version.ts
       - run: bun build src/cli.ts --compile --target=${{ matrix.target.bun }} --outfile ${{ matrix.target.name }}
       - run: sha256sum "${{ matrix.target.name }}" > "${{ matrix.target.name }}.sha256"
