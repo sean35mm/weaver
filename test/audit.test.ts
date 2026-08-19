@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { parseArgs } from "../src/args.ts";
 import * as audit from "../src/commands/audit.ts";
 import type { Ctx } from "../src/context.ts";
-import { injectBlock } from "../src/instructions/block.ts";
+import { INSTRUCTION_BLOCK, injectBlock } from "../src/instructions/block.ts";
 import { openStore } from "../src/store/open.ts";
 
 function tmpDir(prefix: string): string {
@@ -121,7 +121,14 @@ test("audit summarizes retained usage and recommendations as JSON", async () => 
   assert.equal(parsed.commands.byCommand.status, 1);
   assert.equal(parsed.commands.byCommand.audit, 1);
   assert.equal(parsed.commands.lastSeenMsAgo.audit, 25);
-  assert.deepEqual(parsed.setup.projectInstructions, { present: 1, total: 2, missing: ["CLAUDE.md"] });
+  assert.deepEqual(parsed.setup.projectInstructions, {
+    present: 1,
+    current: 1,
+    total: 2,
+    missing: ["CLAUDE.md"],
+    outdated: [],
+    foreign: [],
+  });
   assert.deepEqual(parsed.setup.hooks, { project: "missing", global: "missing" });
   assert.deepEqual(parsed.setup.opencodePlugin, { project: "missing", global: "missing" });
   assert.ok(parsed.recommendations.some((rec) => rec.includes("weak")));
@@ -142,5 +149,58 @@ test("audit renders a human report without crashing", async () => {
   assert.equal(audit.run(ctx), 0);
   assert.match(out, /^weaver audit/);
 
+  ctx.store.close();
+});
+
+test("audit reports outdated managed integrations and scope-correct refresh guidance", async () => {
+  const root = tmpDir("weaver-repo-");
+  fs.writeFileSync(path.join(root, "AGENTS.md"), INSTRUCTION_BLOCK.replace("protocol=3", "protocol=2"));
+  fs.mkdirSync(path.join(root, ".opencode", "plugins"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".opencode", "plugins", "weaver.js"), "// weaver:opencode-plugin protocol=1\n");
+  const ctx = await ctxFor(root, ["audit", "--json"]);
+  let out = "";
+  ctx.out = (text) => {
+    out += text;
+  };
+
+  assert.equal(audit.run(ctx), 0);
+  const parsed = JSON.parse(out) as {
+    setup: {
+      projectInstructions: { current: number; outdated: string[] };
+      opencodePlugin: { project: string };
+    };
+    recommendations: string[];
+  };
+  assert.equal(parsed.setup.projectInstructions.current, 0);
+  assert.deepEqual(parsed.setup.projectInstructions.outdated, ["AGENTS.md"]);
+  assert.equal(parsed.setup.opencodePlugin.project, "outdated");
+  assert.ok(parsed.recommendations.some((entry) => entry.includes("weaver init --project`")));
+  assert.ok(parsed.recommendations.some((entry) => entry.includes("weaver init --project --hooks")));
+  ctx.store.close();
+});
+
+test("audit distinguishes foreign artifacts and gives ownership-safe guidance", async () => {
+  const root = tmpDir("weaver-repo-");
+  fs.writeFileSync(path.join(root, "AGENTS.md"), "<!-- weaver:start custom -->\nuser block\n<!-- weaver:end -->\n");
+  fs.mkdirSync(path.join(root, ".opencode", "plugins"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, ".opencode", "plugins", "weaver.js"),
+    "export const UserPlugin = async () => ({});\n",
+  );
+  const ctx = await ctxFor(root, ["audit", "--json"]);
+  let out = "";
+  ctx.out = (text) => {
+    out += text;
+  };
+
+  assert.equal(audit.run(ctx), 0);
+  const parsed = JSON.parse(out) as {
+    setup: { projectInstructions: { foreign: string[] }; opencodePlugin: { project: string } };
+    recommendations: string[];
+  };
+  assert.deepEqual(parsed.setup.projectInstructions.foreign, ["AGENTS.md"]);
+  assert.equal(parsed.setup.opencodePlugin.project, "foreign");
+  assert.ok(parsed.recommendations.some((entry) => entry.includes("will not overwrite")));
+  assert.ok(parsed.recommendations.some((entry) => entry.includes("repair or remove")));
   ctx.store.close();
 });

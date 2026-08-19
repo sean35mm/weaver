@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
-import { hasBlock } from "../instructions/block.ts";
+import { type InstructionBlockStatus, instructionBlockStatus } from "../instructions/block.ts";
 import { type HookStatus, hookStatusForRepo, hookStatusGlobal } from "../instructions/hooks.ts";
 import {
   type OpencodePluginStatus,
@@ -22,8 +22,11 @@ interface ScopedStatus<T extends string> {
 
 interface InstructionCoverage {
   present: number;
+  current: number;
   total: number;
   missing: string[];
+  outdated: string[];
+  foreign: string[];
   error?: string;
 }
 
@@ -32,19 +35,31 @@ function instructionCoverage(ctx: Ctx, scope: InstructionScope): InstructionCove
   try {
     targets = instructionTargets(ctx, scope);
   } catch (e) {
-    return { present: 0, total: 0, missing: [], error: (e as Error)?.message ?? String(e) };
+    return {
+      present: 0,
+      current: 0,
+      total: 0,
+      missing: [],
+      outdated: [],
+      foreign: [],
+      error: (e as Error)?.message ?? String(e),
+    };
   }
-  const present = targets.filter((target) => {
+  const statuses = targets.map((target) => {
     try {
-      return fs.existsSync(target.file) && hasBlock(fs.readFileSync(target.file, "utf8"));
+      const contents = fs.existsSync(target.file) ? fs.readFileSync(target.file, "utf8") : "";
+      return { label: target.label, status: instructionBlockStatus(contents) };
     } catch {
-      return false;
+      return { label: target.label, status: "foreign" as InstructionBlockStatus };
     }
   });
   return {
-    present: present.length,
+    present: statuses.filter((entry) => entry.status === "current" || entry.status === "outdated").length,
+    current: statuses.filter((entry) => entry.status === "current").length,
     total: targets.length,
-    missing: targets.filter((target) => !present.includes(target)).map((target) => target.label),
+    missing: statuses.filter((entry) => entry.status === "missing").map((entry) => entry.label),
+    outdated: statuses.filter((entry) => entry.status === "outdated").map((entry) => entry.label),
+    foreign: statuses.filter((entry) => entry.status === "foreign").map((entry) => entry.label),
   };
 }
 
@@ -110,14 +125,58 @@ function recommendations(opts: {
     recs.push("No `weaver check` usage is recorded yet; agents may be relying only on broad claims.");
   if ((opts.commandByName.preflight ?? 0) === 0)
     recs.push("No `weaver preflight` usage is recorded yet; commit/push overlap checks may be missing.");
-  if (opts.hooks.project !== "installed" && opts.hooks.global !== "installed")
-    recs.push("Claude Code hooks are not installed at project or global scope; run `weaver init --hooks`.");
-  if (opts.opencodePlugin.project !== "installed" && opts.opencodePlugin.global !== "installed")
+  if (opts.hooks.project !== "installed" && opts.hooks.global !== "installed") {
+    if (opts.hooks.project === "partial")
+      recs.push("Project Claude Code hooks are partial; run `weaver init --project --hooks`.");
+    if (opts.hooks.global === "partial")
+      recs.push("Global Claude Code hooks are partial; run `weaver init --global --hooks`.");
+    if (opts.hooks.project === "invalid-json")
+      recs.push("Project Claude Code settings are invalid JSON; repair them, then run project init with `--hooks`.");
+    if (opts.hooks.global === "invalid-json")
+      recs.push("Global Claude Code settings are invalid JSON; repair them, then run global init with `--hooks`.");
+    const installScopes = (["project", "global"] as const).filter((scope) => opts.hooks[scope] === "missing");
+    if (installScopes.length)
+      recs.push(
+        `Claude Code hooks are not installed; run ${installScopes.map((scope) => `\`weaver init --${scope} --hooks\``).join(" or ")}.`,
+      );
+  }
+  if (opts.opencodePlugin.project === "outdated")
+    recs.push("The project OpenCode plugin is outdated; run `weaver init --project --hooks`, then restart OpenCode.");
+  if (opts.opencodePlugin.global === "outdated")
+    recs.push("The global OpenCode plugin is outdated; run `weaver init --global --hooks`, then restart OpenCode.");
+  if (opts.opencodePlugin.project === "foreign")
+    recs.push("The project OpenCode plugin is foreign; inspect or move it because Weaver will not overwrite it.");
+  if (opts.opencodePlugin.global === "foreign")
+    recs.push("The global OpenCode plugin is foreign; inspect or move it because Weaver will not overwrite it.");
+  if (opts.opencodePlugin.project === "current" && opts.opencodePlugin.global === "current")
     recs.push(
-      "The OpenCode identity plugin is not installed at project or global scope; run `weaver init --hooks` so OpenCode sessions get first-class identity.",
+      "Current OpenCode plugins are installed at both project and global scope; edit and session hook invocations are deduplicated, but one scope is sufficient.",
     );
-  if (opts.project.present === 0 && opts.global.present === 0)
-    recs.push("No Weaver instruction blocks were found; run `weaver init --project` or `weaver init --global`.");
+  if (opts.opencodePlugin.project !== "current" && opts.opencodePlugin.global !== "current") {
+    const installScopes = (["project", "global"] as const).filter((scope) => opts.opencodePlugin[scope] === "missing");
+    if (installScopes.length)
+      recs.push(
+        `A current OpenCode plugin is not installed; run ${installScopes.map((scope) => `\`weaver init --${scope} --hooks\``).join(" or ")} for identity and dedicated tools.`,
+      );
+  }
+  if (opts.project.outdated.length)
+    recs.push("Project instruction blocks are outdated; run `weaver init --project` to refresh them in place.");
+  if (opts.global.outdated.length)
+    recs.push("Global instruction blocks are outdated; run `weaver init --global` to refresh them in place.");
+  if (opts.project.foreign.length)
+    recs.push("Project instruction markers are foreign/incomplete; repair or remove them before project init.");
+  if (opts.global.foreign.length)
+    recs.push("Global instruction markers are foreign/incomplete; repair or remove them before global init.");
+  if (opts.project.present === 0 && opts.global.present === 0) {
+    const installScopes = (["project", "global"] as const).filter((scope) => {
+      const coverage = opts[scope];
+      return coverage.foreign.length === 0 && coverage.missing.length > 0;
+    });
+    if (installScopes.length)
+      recs.push(
+        `No Weaver instruction blocks were found; run ${installScopes.map((scope) => `\`weaver init --${scope}\``).join(" or ")}.`,
+      );
+  }
   if (opts.currentNotes.length > 0 && scopedNotes === 0)
     recs.push("All current Repository Facts are global; use `weaver fact --path` for area-specific learnings.");
   else if (globalNotes > scopedNotes)
@@ -130,7 +189,12 @@ function recommendations(opts: {
 
 function coverageText(coverage: InstructionCoverage): string {
   if (coverage.error) return `error: ${coverage.error}`;
-  return `${coverage.present}/${coverage.total}${coverage.missing.length ? ` missing ${coverage.missing.join(", ")}` : ""}`;
+  const details = [
+    coverage.outdated.length ? `outdated ${coverage.outdated.join(", ")}` : "",
+    coverage.missing.length ? `missing ${coverage.missing.join(", ")}` : "",
+    coverage.foreign.length ? `foreign ${coverage.foreign.join(", ")}` : "",
+  ].filter(Boolean);
+  return `${coverage.current}/${coverage.total} current${details.length ? `; ${details.join("; ")}` : ""}`;
 }
 
 export function run(ctx: Ctx): number {

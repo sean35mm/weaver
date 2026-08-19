@@ -1,23 +1,51 @@
 import fs from "node:fs";
 import type { Ctx } from "../context.ts";
-import { hasBlock } from "../instructions/block.ts";
+import { type InstructionBlockStatus, instructionBlockStatus } from "../instructions/block.ts";
 import { hookStatusForRepo, hookStatusGlobal } from "../instructions/hooks.ts";
 import { opencodePluginStatusForRepo, opencodePluginStatusGlobal } from "../instructions/opencode.ts";
 import { type InstructionScope, instructionTargets } from "../instructions/targets.ts";
 
 const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
 
-function blockCoverage(ctx: Ctx, scope: InstructionScope): string {
+interface BlockCoverage {
+  current: number;
+  total: number;
+  outdated: string[];
+  missing: string[];
+  foreign: string[];
+}
+
+function blockCoverage(ctx: Ctx, scope: InstructionScope): BlockCoverage {
   const targets = instructionTargets(ctx, scope);
-  const present = targets.filter((target) => {
+  const statuses = targets.map((target) => {
     try {
-      return fs.existsSync(target.file) && hasBlock(fs.readFileSync(target.file, "utf8"));
+      const contents = fs.existsSync(target.file) ? fs.readFileSync(target.file, "utf8") : "";
+      return { label: target.label, status: instructionBlockStatus(contents) };
     } catch {
-      return false;
+      return { label: target.label, status: "foreign" as InstructionBlockStatus };
     }
   });
-  const missing = targets.filter((target) => !present.includes(target)).map((target) => target.label);
-  return `${present.length}/${targets.length}${missing.length ? ` missing ${missing.join(", ")}` : ""}`;
+  return {
+    current: statuses.filter((entry) => entry.status === "current").length,
+    total: targets.length,
+    outdated: statuses.filter((entry) => entry.status === "outdated").map((entry) => entry.label),
+    missing: statuses.filter((entry) => entry.status === "missing").map((entry) => entry.label),
+    foreign: statuses.filter((entry) => entry.status === "foreign").map((entry) => entry.label),
+  };
+}
+
+function coverageLine(coverage: BlockCoverage, scope: InstructionScope): string {
+  const details = [
+    coverage.outdated.length ? `outdated ${coverage.outdated.join(", ")}` : "",
+    coverage.missing.length ? `missing ${coverage.missing.join(", ")}` : "",
+    coverage.foreign.length ? `foreign ${coverage.foreign.join(", ")}` : "",
+  ].filter(Boolean);
+  const guidance: string[] = [];
+  if (coverage.outdated.length) guidance.push(`run \`weaver init --${scope}\``);
+  if (coverage.foreign.length)
+    guidance.push("repair or remove the foreign/incomplete marker first; init will not overwrite it");
+  const refresh = guidance.length ? ` — ${guidance.join("; ")}` : "";
+  return `${coverage.current}/${coverage.total} current${details.length ? `; ${details.join("; ")}` : ""}${refresh}`;
 }
 
 function identityQuality(ctx: Ctx): string {
@@ -27,10 +55,25 @@ function identityQuality(ctx: Ctx): string {
   return `weak (${id.source}) — session may be reused across terminal lifetimes; set WEAVER_SESSION for critical work`;
 }
 
-/** Either scope makes the integration effective; hint only when neither is installed. */
-function integrationLine(project: string, globalStatus: string, hint: string): string {
+function integrationLine(
+  project: string,
+  globalStatus: string,
+  integration: string,
+  currentStatus = "installed",
+): string {
   const line = `project ${project} · global ${globalStatus}`;
-  return project !== "installed" && globalStatus !== "installed" ? `${line} — ${hint}` : line;
+  const guidance: string[] = [];
+  if (project === "outdated" || project === "partial") guidance.push("run `weaver init --project --hooks`");
+  if (globalStatus === "outdated" || globalStatus === "partial") guidance.push("run `weaver init --global --hooks`");
+  if (project === "invalid-json") guidance.push("fix project settings JSON, then rerun project init");
+  if (globalStatus === "invalid-json") guidance.push("fix global settings JSON, then rerun global init");
+  if (project === "foreign") guidance.push("inspect or move the foreign project file; init will not overwrite it");
+  if (globalStatus === "foreign") guidance.push("inspect or move the foreign global file; init will not overwrite it");
+  if (project !== currentStatus && globalStatus !== currentStatus) {
+    if (project === "missing") guidance.push("run `weaver init --project --hooks`");
+    if (globalStatus === "missing") guidance.push("run `weaver init --global --hooks`");
+  }
+  return guidance.length ? `${line} — ${[...new Set(guidance)].join("; ")} for ${integration}` : line;
 }
 
 export function run(ctx: Ctx): number {
@@ -59,21 +102,27 @@ export function run(ctx: Ctx): number {
   ctx.out(
     `pads     : ${scratchpads.filter((pad) => pad.state === "active").length} active, ${scratchpads.filter((pad) => pad.state === "archived").length} archived, ${scratchpads.filter((pad) => pad.state === "trash").length} trash, ${scratchpadAttachments} attached\n`,
   );
-  ctx.out(`project  : instructions ${blockCoverage(ctx, "project")}\n`);
-  ctx.out(`global   : instructions ${blockCoverage(ctx, "global")}\n`);
+  ctx.out(`project  : instructions ${coverageLine(blockCoverage(ctx, "project"), "project")}\n`);
+  ctx.out(`global   : instructions ${coverageLine(blockCoverage(ctx, "global"), "global")}\n`);
   ctx.out(
     `hooks    : ${integrationLine(
       hookStatusForRepo(ctx.repo.root),
       hookStatusGlobal(ctx.env),
-      "run `weaver init --hooks` for Claude Code edit advisories",
+      "Claude Code edit advisories",
     )}\n`,
   );
   ctx.out(
     `plugin   : ${integrationLine(
       opencodePluginStatusForRepo(ctx.repo.root),
       opencodePluginStatusGlobal(ctx.env),
-      "run `weaver init --hooks` for first-class OpenCode identity",
+      "OpenCode identity and dedicated tools",
+      "current",
     )}\n`,
   );
+  if (opencodePluginStatusForRepo(ctx.repo.root) === "current" && opencodePluginStatusGlobal(ctx.env) === "current") {
+    ctx.out(
+      "warning  : current OpenCode plugins are installed at both project and global scope; edit and session hooks are invocation-deduplicated, but one scope is sufficient\n",
+    );
+  }
   return 0;
 }

@@ -18,6 +18,13 @@ test("parseSha256 accepts checksum-file format", () => {
   assert.equal(upgrade.parseSha256("not-a-hash"), null);
 });
 
+test("upgrade guidance preserves prior init scope and OpenCode restart requirements", () => {
+  assert.match(upgrade.INTEGRATION_REFRESH_MESSAGE, /weaver init --project/);
+  assert.match(upgrade.INTEGRATION_REFRESH_MESSAGE, /weaver init --global/);
+  assert.match(upgrade.INTEGRATION_REFRESH_MESSAGE, /include `--hooks`/);
+  assert.match(upgrade.INTEGRATION_REFRESH_MESSAGE, /restart OpenCode/);
+});
+
 test("upgrade refuses when not running the standalone binary", async () => {
   let err = "";
   const ctx: Ctx = {

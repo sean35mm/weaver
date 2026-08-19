@@ -2,13 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
-import { injectBlock } from "../instructions/block.ts";
+import { injectBlock, instructionBlockStatus } from "../instructions/block.ts";
 import { globalSettingsPath, installHooks, installHooksGlobal, settingsPathForRepo } from "../instructions/hooks.ts";
 import {
   installOpencodePlugin,
   installOpencodePluginGlobal,
   opencodePluginPathForRepo,
   opencodePluginPathGlobal,
+  opencodePluginStatusForRepo,
+  opencodePluginStatusGlobal,
 } from "../instructions/opencode.ts";
 import { type InstructionScope, instructionTargets, scopeFromFlags } from "../instructions/targets.ts";
 import { storePathForRepo } from "../store/location.ts";
@@ -64,8 +66,8 @@ async function chooseHooks(ctx: Ctx): Promise<boolean> {
   if (flagBool(ctx.args, "no-hooks")) return false;
   if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
   ctx.out("\nInstall harness integrations for this repo? Claude Code hooks warn agents before they\n");
-  ctx.out("edit an area another agent is working in; the OpenCode plugin gives OpenCode sessions\n");
-  ctx.out("first-class identity. [Y/n]: ");
+  ctx.out("edit an area another agent is working in; the OpenCode plugin adds session identity,\n");
+  ctx.out("structural hooks, and dedicated Weaver scratchpad/Repository Facts tools. [Y/n]: ");
   const answer = await readAnswer();
   return answer === "" || answer === "y" || answer === "yes";
 }
@@ -84,11 +86,17 @@ export async function run(ctx: Ctx): Promise<number> {
 
   const wrote: string[] = [];
   const unchanged: string[] = [];
+  const foreign: string[] = [];
   for (const target of instructionTargets(ctx, scope)) {
-    fs.mkdirSync(path.dirname(target.file), { recursive: true });
     const existing = fs.existsSync(target.file) ? fs.readFileSync(target.file, "utf8") : "";
+    if (instructionBlockStatus(existing) === "foreign") {
+      foreign.push(target.label);
+      ctx.err(`weaver: ${target.file} has an incomplete/foreign Weaver marker — left it untouched.\n`);
+      continue;
+    }
     const next = injectBlock(existing);
     if (next !== existing) {
+      fs.mkdirSync(path.dirname(target.file), { recursive: true });
       fs.writeFileSync(target.file, next);
       wrote.push(target.label);
     } else {
@@ -113,11 +121,15 @@ export async function run(ctx: Ctx): Promise<number> {
 
     const pluginFile = globalScope ? opencodePluginPathGlobal(ctx.env) : opencodePluginPathForRepo(ctx.repo.root);
     const pluginLabel = globalScope ? "~/.config/opencode/plugins/weaver.js" : ".opencode/plugins/weaver.js";
+    const priorPlugin = globalScope ? opencodePluginStatusGlobal(ctx.env) : opencodePluginStatusForRepo(ctx.repo.root);
     const plugin = globalScope ? installOpencodePluginGlobal(ctx.env) : installOpencodePlugin(ctx.repo.root);
     if (plugin === "foreign") {
       ctx.err(`weaver: ${pluginFile} exists but isn't Weaver's — skipped installing the OpenCode plugin.\n`);
     } else {
-      pluginLine = plugin === "wrote" ? `${pluginLabel} (OpenCode plugin)` : `${pluginLabel} (already current)`;
+      pluginLine =
+        plugin === "wrote"
+          ? `${pluginLabel} (OpenCode plugin ${priorPlugin === "outdated" ? "refreshed" : "installed"})`
+          : `${pluginLabel} (already current)`;
     }
   }
 
@@ -127,6 +139,7 @@ export async function run(ctx: Ctx): Promise<number> {
   ctx.out(`  scope : ${scope}\n`);
   if (wrote.length) ctx.out(`  wrote : ${wrote.join(", ")}\n`);
   if (unchanged.length) ctx.out(`  ok    : ${unchanged.join(", ")} (already current)\n`);
+  if (foreign.length) ctx.out(`  skip  : ${foreign.join(", ")} (foreign/incomplete marker)\n`);
   if (hooksLine) ctx.out(`  hooks : ${hooksLine}\n`);
   if (pluginLine) ctx.out(`  plugin: ${pluginLine}\n`);
   if (scope === "global") {
@@ -136,5 +149,6 @@ export async function run(ctx: Ctx): Promise<number> {
     ctx.out("\nProject instructions cover this checkout only. Run `weaver init` in other repos,\n");
     ctx.out("or `weaver init --global` once to cover every repo on this machine.\n");
   }
+  if (pluginLine) ctx.out("Restart OpenCode so it loads the refreshed plugin and tool definitions.\n");
   return 0;
 }

@@ -22,6 +22,7 @@ import {
 import {
   installOpencodePlugin,
   installOpencodePluginGlobal,
+  OPENCODE_PLUGIN_PROTOCOL_VERSION,
   opencodePluginPathForRepo,
   opencodePluginPathGlobal,
   opencodePluginStatusForRepo,
@@ -395,16 +396,19 @@ test("opencode plugin: install writes the marked file, is idempotent, refreshes 
   assert.equal(opencodePluginStatusForRepo(root), "missing");
 
   assert.equal(installOpencodePlugin(root), "wrote");
-  assert.equal(opencodePluginStatusForRepo(root), "installed");
+  assert.equal(opencodePluginStatusForRepo(root), "current");
   assert.equal(installOpencodePlugin(root), "unchanged");
 
   const file = opencodePluginPathForRepo(root);
   assert.equal(fs.readFileSync(file, "utf8"), PLUGIN_SOURCE);
   assert.match(PLUGIN_SOURCE, /shell\.env/);
   assert.match(PLUGIN_SOURCE, /OPENCODE_SESSION_ID/);
+  assert.match(PLUGIN_SOURCE, /import \{ tool \} from "@opencode-ai\/plugin"/);
+  assert.equal(OPENCODE_PLUGIN_PROTOCOL_VERSION, 4);
 
   // a stale (older-template) weaver file is refreshed as long as it carries the marker
   fs.writeFileSync(file, "// weaver:opencode-plugin — old template\n");
+  assert.equal(opencodePluginStatusForRepo(root), "outdated");
   assert.equal(installOpencodePlugin(root), "wrote");
   assert.equal(fs.readFileSync(file, "utf8"), PLUGIN_SOURCE);
 });
@@ -419,6 +423,14 @@ test("opencode plugin: a user-owned weaver.js is never written over or removed",
   assert.equal(installOpencodePlugin(root), "foreign");
   assert.equal(uninstallOpencodePlugin(root), "foreign");
   assert.equal(fs.readFileSync(file, "utf8"), "export const MyPlugin = async () => ({});\n");
+
+  fs.writeFileSync(
+    file,
+    "// user-owned plugin mentioning weaver:opencode-plugin\nexport const MyPlugin = async () => ({});\n",
+  );
+  assert.equal(opencodePluginStatusForRepo(root), "foreign");
+  assert.equal(installOpencodePlugin(root), "foreign");
+  assert.equal(uninstallOpencodePlugin(root), "foreign");
 });
 
 test("opencode plugin: uninstall removes our file and no-ops when missing", () => {
@@ -443,7 +455,7 @@ test("global scope: hooks and plugin install under HOME, uninstall cleanly", () 
 
   assert.equal(opencodePluginStatusGlobal(env), "missing");
   assert.equal(installOpencodePluginGlobal(env), "wrote");
-  assert.equal(opencodePluginStatusGlobal(env), "installed");
+  assert.equal(opencodePluginStatusGlobal(env), "current");
   assert.equal(fs.readFileSync(opencodePluginPathGlobal(env), "utf8"), PLUGIN_SOURCE);
   assert.match(opencodePluginPathGlobal(env), /\.config\/opencode\/plugins\/weaver\.js$/);
   assert.equal(uninstallOpencodePluginGlobal(env), "wrote");
@@ -469,27 +481,243 @@ test("hookIdentity honors the payload's harness and rejects unknown ones", async
 test("plugin template parses as ESM and its hooks guard correctly", async () => {
   const dir = tmpDir("weaver-oc-tpl-");
   const file = path.join(dir, "weaver-plugin.mjs");
+  const stub = path.join(dir, "node_modules", "@opencode-ai", "plugin");
+  fs.mkdirSync(stub, { recursive: true });
+  fs.writeFileSync(path.join(stub, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
+  fs.writeFileSync(
+    path.join(stub, "index.js"),
+    `const schema = () => { const value = {}; for (const name of ["int", "positive", "min", "max", "optional"]) value[name] = () => value; return value; };
+export function tool(spec) { return spec; }
+tool.schema = { string: schema, number: schema, boolean: schema, enum: schema };
+`,
+  );
   fs.writeFileSync(file, PLUGIN_SOURCE);
   const mod = (await import(pathToFileURL(file).href)) as {
-    WeaverPlugin: (input: { directory: string }) => Promise<Record<string, (...args: unknown[]) => Promise<void>>>;
+    WeaverPlugin: (input: { directory: string; worktree?: string }) => Promise<Record<string, unknown>>;
   };
   assert.equal(typeof mod.WeaverPlugin, "function");
-  const hooks = await mod.WeaverPlugin({ directory: dir });
+  const hooks = (await mod.WeaverPlugin({ directory: dir })) as {
+    tool: Record<
+      string,
+      { execute: (args: Record<string, unknown>, context: Record<string, unknown>) => Promise<string> }
+    >;
+    "shell.env": (input: Record<string, unknown>, output: { env: Record<string, string> }) => Promise<void>;
+    "tool.execute.after": (input: Record<string, unknown>, output: Record<string, unknown>) => Promise<void>;
+    event: (input: Record<string, unknown>) => Promise<void>;
+  };
+  assert.equal(
+    await mod.WeaverPlugin({ directory: dir }),
+    hooks,
+    "simultaneous global/project loads share one repo runtime",
+  );
+  assert.notEqual(
+    await mod.WeaverPlugin({ directory: `${dir}-other` }),
+    hooks,
+    "global plugin still serves other repos",
+  );
+  assert.match(PLUGIN_SOURCE, /max\(4000\)/);
+  assert.doesNotMatch(PLUGIN_SOURCE, /cwd: directory \|\| worktree,\n\s*tool_input/);
+
+  assert.deepEqual(Object.keys(hooks.tool).sort(), [
+    "weaver_fact_forget",
+    "weaver_fact_record",
+    "weaver_facts_list",
+    "weaver_scratchpad_archive",
+    "weaver_scratchpad_create",
+    "weaver_scratchpad_edit_section",
+    "weaver_scratchpad_list",
+    "weaver_scratchpad_read",
+    "weaver_scratchpad_recover",
+    "weaver_scratchpad_rename",
+    "weaver_scratchpad_restore",
+    "weaver_scratchpad_trash",
+    "weaver_scratchpad_use",
+  ]);
 
   // shell.env exports the session id
   const env: Record<string, string> = {};
-  await hooks["shell.env"]?.({ sessionID: "ses_1" }, { env });
+  await hooks["shell.env"]({ sessionID: "ses_1" }, { env });
   assert.equal(env.OPENCODE_SESSION_ID, "ses_1");
-  await hooks["shell.env"]?.({}, { env: {} }); // no session id → no write, no throw
+  await hooks["shell.env"]({}, { env: {} }); // no session id → no write, no throw
 
   // non-edit tools, missing paths, and missing session ids never touch tool output
   const out = { title: "t", output: "original", metadata: {} };
-  await hooks["tool.execute.after"]?.({ tool: "read", sessionID: "ses_1", callID: "c", args: { filePath: "x" } }, out);
-  await hooks["tool.execute.after"]?.({ tool: "edit", sessionID: "ses_1", callID: "c", args: {} }, out);
-  await hooks["tool.execute.after"]?.({ tool: "write", callID: "c", args: { filePath: "x" } }, out);
+  await hooks["tool.execute.after"]({ tool: "read", sessionID: "ses_1", callID: "c", args: { filePath: "x" } }, out);
+  await hooks["tool.execute.after"]({ tool: "edit", sessionID: "ses_1", callID: "c", args: {} }, out);
+  await hooks["tool.execute.after"]({ tool: "write", callID: "c", args: { filePath: "x" } }, out);
   assert.equal(out.output, "original");
 
   // unrelated events are ignored
-  await hooks.event?.({ event: { type: "session.updated", properties: {} } });
-  await hooks.event?.({ event: { type: "session.deleted", properties: {} } }); // no id → no-op
+  await hooks.event({ event: { type: "session.updated", properties: {} } });
+  await hooks.event({ event: { type: "session.deleted", properties: {} } }); // no id → no-op
+});
+
+test("project and global OpenCode hook objects deduplicate edit and deletion invocations", async () => {
+  const dir = tmpDir("weaver-oc-dedup-");
+  const projectFile = path.join(dir, "project-plugin.mjs");
+  const globalFile = path.join(dir, "global-plugin.mjs");
+  const stub = path.join(dir, "node_modules", "@opencode-ai", "plugin");
+  fs.mkdirSync(stub, { recursive: true });
+  fs.writeFileSync(path.join(stub, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
+  fs.writeFileSync(
+    path.join(stub, "index.js"),
+    `const schema = () => { const value = {}; for (const name of ["int", "positive", "min", "max", "optional"]) value[name] = () => value; return value; };
+export function tool(spec) { return spec; }
+tool.schema = { string: schema, number: schema, boolean: schema, enum: schema };
+`,
+  );
+  fs.writeFileSync(projectFile, PLUGIN_SOURCE);
+  fs.writeFileSync(globalFile, PLUGIN_SOURCE);
+
+  const calls: string[][] = [];
+  let now = 10_000;
+  const spawn = (argv: string[]) => {
+    calls.push(argv);
+    const stdout =
+      argv[1] === "hook" && argv[2] === "pre-edit"
+        ? JSON.stringify({ hookSpecificOutput: { additionalContext: "claim warning" } })
+        : "";
+    return { stdout: new Response(stdout).body, stderr: new Response("").body, exited: Promise.resolve(0) };
+  };
+  const globals = globalThis as typeof globalThis & { Bun?: { spawn: typeof spawn } };
+  const originalBun = globals.Bun;
+  const originalSpawn = originalBun?.spawn;
+  if (originalBun) originalBun.spawn = spawn;
+  else globals.Bun = { spawn };
+  const originalNow = Date.now;
+  Date.now = () => now;
+
+  try {
+    const [projectModule, globalModule] = (await Promise.all([
+      import(`${pathToFileURL(projectFile).href}?scope=project`),
+      import(`${pathToFileURL(globalFile).href}?scope=global`),
+    ])) as Array<{
+      WeaverPlugin: (input: { directory: string }) => Promise<{
+        "tool.execute.after": (input: Record<string, unknown>, output: { output: string }) => Promise<void>;
+        event: (input: Record<string, unknown>) => Promise<void>;
+      }>;
+    }>;
+    assert.ok(projectModule);
+    assert.ok(globalModule);
+    const project = await projectModule.WeaverPlugin({ directory: dir });
+    delete (globalThis as Record<symbol, unknown>)[Symbol.for("weaver.opencode.plugin.runtime.v4")];
+    const global = await globalModule.WeaverPlugin({ directory: dir });
+    assert.notEqual(project, global, "the test exercises distinct hook objects as OpenCode does");
+
+    const input = { tool: "edit", sessionID: "ses_dedup", callID: "call_1", args: { filePath: "src/app.ts" } };
+    const projectOutput = { output: "project" };
+    const globalOutput = { output: "global" };
+    await Promise.all([
+      project["tool.execute.after"](input, projectOutput),
+      global["tool.execute.after"](input, globalOutput),
+    ]);
+    assert.deepEqual(calls, [
+      ["weaver", "hook", "post-edit"],
+      ["weaver", "hook", "pre-edit"],
+    ]);
+    assert.match(projectOutput.output, /claim warning/);
+    assert.match(globalOutput.output, /claim warning/);
+
+    await project["tool.execute.after"]({ ...input, callID: "call_2" }, { output: "later" });
+    assert.equal(calls.length, 4, "a later edit with a distinct call id is not suppressed");
+    now += 501;
+    await project["tool.execute.after"](input, { output: "same call later" });
+    assert.equal(calls.length, 6, "the short TTL does not suppress a legitimate later replay");
+
+    const deleted = { event: { type: "session.deleted", properties: { info: { id: "ses_dedup" } } } };
+    await Promise.all([project.event(deleted), global.event(deleted)]);
+    assert.equal(calls.filter((argv) => argv[1] === "done").length, 1);
+  } finally {
+    Date.now = originalNow;
+    if (originalBun && originalSpawn) originalBun.spawn = originalSpawn;
+    else delete globals.Bun;
+  }
+});
+
+test("OpenCode tools use fixed JSON argv, stdin bodies, execute context, and strict errors", async () => {
+  const dir = tmpDir("weaver-oc-tools-");
+  const file = path.join(dir, "plugin.mjs");
+  const stub = path.join(dir, "node_modules", "@opencode-ai", "plugin");
+  fs.mkdirSync(stub, { recursive: true });
+  fs.writeFileSync(path.join(stub, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
+  fs.writeFileSync(
+    path.join(stub, "index.js"),
+    `const schema = () => { const value = {}; for (const name of ["int", "positive", "min", "max", "optional"]) value[name] = () => value; return value; };
+export function tool(spec) { return spec; }
+tool.schema = { string: schema, number: schema, boolean: schema, enum: schema };
+`,
+  );
+  fs.writeFileSync(file, PLUGIN_SOURCE);
+
+  const calls: Array<{ argv: string[]; opts: Record<string, unknown> }> = [];
+  let result = { stdout: '[{"id":1}]\n', stderr: "", code: 0 };
+  const spawn = (argv: string[], opts: Record<string, unknown>) => {
+    calls.push({ argv, opts });
+    return {
+      stdout: new Response(result.stdout).body,
+      stderr: new Response(result.stderr).body,
+      exited: Promise.resolve(result.code),
+    };
+  };
+  const globals = globalThis as typeof globalThis & { Bun?: { spawn: typeof spawn } };
+  const originalBun = globals.Bun;
+  const originalSpawn = originalBun?.spawn;
+  if (originalBun) originalBun.spawn = spawn;
+  else globals.Bun = { spawn };
+
+  try {
+    const mod = (await import(`${pathToFileURL(file).href}?strict=1`)) as {
+      WeaverPlugin: (input: { directory: string; worktree?: string }) => Promise<{
+        tool: Record<
+          string,
+          { execute: (args: Record<string, unknown>, context: Record<string, unknown>) => Promise<string> }
+        >;
+      }>;
+    };
+    const plugin = await mod.WeaverPlugin({ directory: "/plugin-directory", worktree: "/plugin-worktree" });
+    const listed = await plugin.tool.weaver_scratchpad_list?.execute(
+      { state: "archived", limit: 7 },
+      { sessionID: "ses_tools", directory: "/execute-directory" },
+    );
+    assert.equal(listed, '[{"id":1}]');
+    assert.deepEqual(calls[0]?.argv, ["weaver", "scratchpad", "list", "--state=archived", "--limit=7", "--json"]);
+    assert.equal(calls[0]?.opts.cwd, "/execute-directory");
+    assert.equal((calls[0]?.opts.env as Record<string, string>).OPENCODE_SESSION_ID, "ses_tools");
+
+    const abort = new AbortController().signal;
+    result = { stdout: '{"id":2}\n', stderr: "", code: 0 };
+    await plugin.tool.weaver_scratchpad_create?.execute(
+      { title: "Auth workstream", body: "# Decisions\n\nKeep this curated.\n" },
+      { sessionID: "ses_tools", abort },
+    );
+    assert.deepEqual(calls[1]?.argv, ["weaver", "scratchpad", "create", "Auth workstream", "--from=-", "--json"]);
+    assert.equal(new TextDecoder().decode(calls[1]?.opts.stdin as Uint8Array), "# Decisions\n\nKeep this curated.\n");
+    assert.equal(calls[1]?.opts.cwd, "/plugin-directory");
+    assert.equal(calls[1]?.opts.signal, abort);
+
+    result = {
+      stdout: "",
+      stderr: "weaver: stale scratchpad revision: expected 2, current is 3\n",
+      code: 1,
+    };
+    const archive = plugin.tool.weaver_scratchpad_archive;
+    assert.ok(archive);
+    await assert.rejects(
+      archive.execute({ id: 4, expectedRevision: 2 }, { sessionID: "ses_tools", worktree: "/execute-worktree" }),
+      /Weaver revision conflict:.*expected 2, current is 3/,
+    );
+    assert.deepEqual(calls[2]?.argv, ["weaver", "scratchpad", "archive", "4", "--revision=2", "--json"]);
+
+    result = { stdout: "", stderr: "x".repeat(20_000), code: 2 };
+    await assert.rejects(archive.execute({ id: 4, expectedRevision: 3 }, { sessionID: "ses_tools" }), (error) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /exit 2/);
+      assert.match(error.message, /output truncated by Weaver OpenCode integration/);
+      assert.ok(error.message.length < 17_000);
+      return true;
+    });
+  } finally {
+    if (originalBun && originalSpawn) originalBun.spawn = originalSpawn;
+    else delete globals.Bun;
+  }
 });

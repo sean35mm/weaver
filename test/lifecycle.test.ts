@@ -10,7 +10,7 @@ import * as init from "../src/commands/init.ts";
 import * as toggle from "../src/commands/toggle.ts";
 import * as uninstall from "../src/commands/uninstall.ts";
 import type { Ctx } from "../src/context.ts";
-import { hasBlock, injectBlock } from "../src/instructions/block.ts";
+import { hasBlock, INSTRUCTION_BLOCK, injectBlock, instructionBlockStatus } from "../src/instructions/block.ts";
 import { hookStatusGlobal, installHooks } from "../src/instructions/hooks.ts";
 import {
   installOpencodePlugin,
@@ -154,13 +154,13 @@ test("doctor reports setup coverage, weak identity, and stale state", async () =
   assert.match(out, /weak \(ancestry\)/);
   assert.match(out, /1 unended session/);
   assert.match(out, /0 active, 1 expired open/);
-  assert.match(out, /instructions 1\/2 missing CLAUDE\.md/);
+  assert.match(out, /instructions 1\/2 current; missing CLAUDE\.md/);
   assert.match(out, /hooks[^\n]*missing/);
   assert.match(out, /plugin[^\n]*missing/);
   ctx.store.close();
 });
 
-test("doctor reports installed project instructions and hooks", async () => {
+test("doctor reports current project instructions and integrations", async () => {
   const root = tmpDir("weaver-repo-");
   fs.writeFileSync(path.join(root, "CLAUDE.md"), injectBlock("# Claude\n"));
   fs.writeFileSync(path.join(root, "AGENTS.md"), injectBlock("# Agents\n"));
@@ -173,9 +173,9 @@ test("doctor reports installed project instructions and hooks", async () => {
   };
 
   assert.equal(doctor.run(ctx), 0);
-  assert.match(out, /instructions 2\/2/);
+  assert.match(out, /instructions 2\/2 current/);
   assert.match(out, /hooks[^\n]*installed/);
-  assert.match(out, /plugin[^\n]*installed/);
+  assert.match(out, /plugin[^\n]*current/);
   ctx.store.close();
 });
 
@@ -231,7 +231,7 @@ test("init --hooks installs the OpenCode plugin; deinit removes it", async () =>
   const root = tmpDir("weaver-repo-");
   const ctxA = await ctxFor(root, ["init", "--project", "--hooks"]);
   await init.run(ctxA);
-  assert.equal(opencodePluginStatusForRepo(root), "installed");
+  assert.equal(opencodePluginStatusForRepo(root), "current");
   ctxA.store.close();
 
   const ctxB = await ctxFor(root, ["deinit"]);
@@ -251,7 +251,7 @@ test("init --global --hooks installs global integrations; deinit --global remove
 
   // global files exist; nothing was written into the repo
   assert.equal(hookStatusGlobal(env), "installed");
-  assert.equal(opencodePluginStatusGlobal(env), "installed");
+  assert.equal(opencodePluginStatusGlobal(env), "current");
   assert.ok(fs.existsSync(path.join(home, ".claude", "settings.json")));
   assert.ok(fs.existsSync(path.join(home, ".config", "opencode", "plugins", "weaver.js")));
   assert.equal(fs.existsSync(path.join(root, ".claude")), false);
@@ -262,11 +262,67 @@ test("init --global --hooks installs global integrations; deinit --global remove
   deinit.run(ctxB);
   ctxB.store.close();
   assert.equal(hookStatusGlobal(env), "installed");
-  assert.equal(opencodePluginStatusGlobal(env), "installed");
+  assert.equal(opencodePluginStatusGlobal(env), "current");
 
   const ctxC = await ctxFor(root, ["deinit", "--global"], env);
   deinit.run(ctxC);
   ctxC.store.close();
   assert.equal(hookStatusGlobal(env), "missing");
   assert.equal(opencodePluginStatusGlobal(env), "missing");
+});
+
+test("init refreshes stale managed blocks and plugin without changing user content", async () => {
+  const root = tmpDir("weaver-repo-");
+  const stale = INSTRUCTION_BLOCK.replace("protocol=3", "protocol=2").replace("scratchpads-first", "legacy");
+  fs.writeFileSync(path.join(root, "AGENTS.md"), `# User heading\n\nkeep before\n\n${stale}\n\nkeep after\n`);
+  fs.mkdirSync(path.join(root, ".opencode", "plugins"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".opencode", "plugins", "weaver.js"), "// weaver:opencode-plugin protocol=1\n");
+
+  const ctx = await ctxFor(root, ["init", "--project", "--hooks"]);
+  await init.run(ctx);
+
+  const agents = fs.readFileSync(path.join(root, "AGENTS.md"), "utf8");
+  assert.equal(instructionBlockStatus(agents), "current");
+  assert.match(agents, /^# User heading\n\nkeep before/);
+  assert.match(agents, /keep after\n$/);
+  assert.equal(opencodePluginStatusForRepo(root), "current");
+  ctx.store.close();
+});
+
+test("doctor reports outdated protocol files with scope-correct refresh commands", async () => {
+  const root = tmpDir("weaver-repo-");
+  const stale = INSTRUCTION_BLOCK.replace("protocol=3", "protocol=2");
+  fs.writeFileSync(path.join(root, "AGENTS.md"), stale);
+  fs.mkdirSync(path.join(root, ".opencode", "plugins"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".opencode", "plugins", "weaver.js"), "// weaver:opencode-plugin protocol=1\n");
+  const ctx = await ctxFor(root, ["doctor"], { HOME: tmpDir("weaver-home-") });
+  let out = "";
+  ctx.out = (text) => {
+    out += text;
+  };
+
+  assert.equal(doctor.run(ctx), 0);
+  assert.match(out, /outdated AGENTS\.md.*weaver init --project/);
+  assert.match(out, /plugin[^\n]*project outdated[^\n]*weaver init --project --hooks/);
+  ctx.store.close();
+});
+
+test("doctor reports foreign managed artifacts without claiming init will overwrite them", async () => {
+  const root = tmpDir("weaver-repo-");
+  fs.writeFileSync(path.join(root, "AGENTS.md"), "<!-- weaver:start custom -->\nuser block\n<!-- weaver:end -->\n");
+  fs.mkdirSync(path.join(root, ".opencode", "plugins"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, ".opencode", "plugins", "weaver.js"),
+    "export const UserPlugin = async () => ({});\n",
+  );
+  const ctx = await ctxFor(root, ["doctor"], { HOME: tmpDir("weaver-home-") });
+  let out = "";
+  ctx.out = (text) => {
+    out += text;
+  };
+
+  assert.equal(doctor.run(ctx), 0);
+  assert.match(out, /foreign AGENTS\.md.*init will not overwrite it/);
+  assert.match(out, /plugin[^\n]*project foreign[^\n]*init will not overwrite it/);
+  ctx.store.close();
 });

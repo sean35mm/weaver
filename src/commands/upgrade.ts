@@ -8,6 +8,11 @@ import { VERSION } from "../version.ts";
 
 const REPO = "sean35mm/weaver";
 
+export const INTEGRATION_REFRESH_MESSAGE =
+  "Refresh versioned protocol integrations at the scope you previously installed: " +
+  "`weaver init --project` or `weaver init --global`; include `--hooks` if you installed harness integrations, " +
+  "then restart OpenCode.\n";
+
 /** The release asset name for the current platform, or null if unsupported. */
 function platformAsset(): string | null {
   const os = process.platform === "darwin" ? "darwin" : process.platform === "linux" ? "linux" : null;
@@ -59,10 +64,12 @@ export async function run(ctx: Ctx): Promise<number> {
   ctx.out(`current ${VERSION}  ·  latest ${latest}\n`);
   if (latest === VERSION) {
     ctx.out("✓ already up to date\n");
+    ctx.out(INTEGRATION_REFRESH_MESSAGE);
     return 0;
   }
   if (flagBool(ctx.args, "check")) {
     ctx.out(`a newer version (${latest}) is available — run 'weaver upgrade'\n`);
+    ctx.out(INTEGRATION_REFRESH_MESSAGE);
     return 0;
   }
 
@@ -115,5 +122,9 @@ export async function run(ctx: Ctx): Promise<number> {
   }
 
   ctx.out(`✓ upgraded to ${latest}\n`);
+  ctx.out(
+    "Stores migrate to schema v6 when next opened; v4 Repository Facts are preserved through the v4→v5→v6 migration.\n",
+  );
+  ctx.out(INTEGRATION_REFRESH_MESSAGE);
   return 0;
 }
