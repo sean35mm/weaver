@@ -18,6 +18,7 @@ import * as init from "./commands/init.ts";
 import * as log from "./commands/log.ts";
 import * as note from "./commands/note.ts";
 import * as preflight from "./commands/preflight.ts";
+import * as scratchpad from "./commands/scratchpad.ts";
 import * as status from "./commands/status.ts";
 import * as task from "./commands/task.ts";
 import * as toggle from "./commands/toggle.ts";
@@ -60,58 +61,74 @@ const BOOLEAN_FLAGS = new Set([
   "no-hooks",
   "all",
   "undo",
+  "headings",
 ]);
 // Mutating writes that are paused when the project is disabled (done/lifecycle still work).
-const WRITE_GATED = new Set(["task", "claim", "release", "note", "forget", "log"]);
-const COMMAND_USAGE = new Set(["status", "notes", "activity", "audit", "check", "preflight", "doctor"]);
+const WRITE_GATED = new Set(["task", "claim", "release", "note", "fact", "forget", "log"]);
+const COMMAND_USAGE = new Set(["status", "notes", "facts", "activity", "audit", "check", "preflight", "doctor"]);
+
+type PresenceMode = "observer" | "optional" | "required";
 
 interface Handler {
   run: (ctx: Ctx) => number | Promise<number>;
-  /** Agent/mutating commands require identity and register presence; observers don't. */
-  agent: boolean;
+  /** Whether identity/presence is ignored, optional (human-or-agent), or required. */
+  presence: PresenceMode | ((args: ParsedArgs) => PresenceMode);
   /** `read` never creates a store, `touch` writes only when one exists (read-only fallback if unwritable), `create` creates/migrates. */
   store: StoreMode | ((args: ParsedArgs) => StoreMode);
   /** Skip ladder resolution (incl. the `ps` TTY walk) — for hot paths that derive identity themselves. */
   skipIdentity?: boolean;
+  /** Nested command-aware disable gating. Defaults to the top-level WRITE_GATED set. */
+  writeGated?: boolean | ((args: ParsedArgs) => boolean);
+  /** Observer usage metric; a string function permits stable nested command names. */
+  usage?: boolean | string | ((args: ParsedArgs) => boolean | string);
 }
 
-type StoreMode = "read" | "touch" | "create";
+type StoreMode = "none" | "read" | "touch" | "create";
 
 function isMissingSchemaError(e: unknown): boolean {
   return /no such table:/i.test((e as Error)?.message ?? "");
 }
 
 const REGISTRY: Record<string, Handler> = {
-  task: { run: task.run, agent: true, store: "create" },
-  claim: { run: claim.runClaim, agent: true, store: "create" },
-  release: { run: claim.runRelease, agent: true, store: "create" },
-  note: { run: note.runNote, agent: true, store: "create" },
-  forget: { run: forget.run, agent: true, store: "create" },
-  log: { run: log.run, agent: true, store: "create" },
-  done: { run: done.run, agent: true, store: "create" },
-  status: { run: status.run, agent: false, store: "touch" },
-  notes: { run: note.runNotes, agent: false, store: "touch" },
-  activity: { run: activity.run, agent: false, store: "touch" },
-  audit: { run: audit.run, agent: false, store: "touch" },
-  check: { run: check.run, agent: false, store: "touch" },
-  preflight: { run: preflight.run, agent: false, store: "touch" },
-  doctor: { run: doctor.run, agent: false, store: "touch" },
+  task: { run: task.run, presence: "required", store: "create" },
+  claim: { run: claim.runClaim, presence: "required", store: "create" },
+  release: { run: claim.runRelease, presence: "required", store: "create" },
+  note: { run: note.runNote, presence: "required", store: "create" },
+  fact: { run: note.runNote, presence: "required", store: "create" },
+  forget: { run: forget.run, presence: "required", store: "create" },
+  log: { run: log.run, presence: "required", store: "create" },
+  done: { run: done.run, presence: "required", store: "create" },
+  status: { run: status.run, presence: "observer", store: "touch" },
+  notes: { run: note.runNotes, presence: "observer", store: "touch" },
+  facts: { run: note.runNotes, presence: "observer", store: "touch" },
+  activity: { run: activity.run, presence: "observer", store: "touch" },
+  audit: { run: audit.run, presence: "observer", store: "touch" },
+  check: { run: check.run, presence: "observer", store: "touch" },
+  preflight: { run: preflight.run, presence: "observer", store: "touch" },
+  doctor: { run: doctor.run, presence: "observer", store: "touch" },
+  scratchpad: {
+    run: scratchpad.run,
+    presence: (args) => scratchpad.commandTraits(args).presence,
+    store: (args) => scratchpad.commandTraits(args).store,
+    writeGated: (args) => scratchpad.commandTraits(args).writeGated,
+    usage: (args) => (scratchpad.commandTraits(args).usage ? `scratchpad:${args._[1] ?? "list"}` : false),
+  },
   // Viewers intentionally `create`: they poll the store file, so it must exist even before
   // the first agent writes.
-  dashboard: { run: dashboard.runDashboard, agent: false, store: "create" },
-  view: { run: dashboard.runDashboard, agent: false, store: "create" },
-  ui: { run: dashboard.runDashboard, agent: false, store: "create" },
-  watch: { run: dashboard.runWatch, agent: false, store: "create" },
-  init: { run: init.run, agent: false, store: "create" },
-  enable: { run: toggle.runEnable, agent: false, store: "create" },
-  disable: { run: toggle.runDisable, agent: false, store: "create" },
-  deinit: { run: deinit.run, agent: false, store: "touch" },
-  config: { run: config.run, agent: false, store: "create" },
-  upgrade: { run: upgrade.run, agent: false, store: "read" },
-  uninstall: { run: uninstall.run, agent: false, store: "read" },
+  dashboard: { run: dashboard.runDashboard, presence: "observer", store: "create" },
+  view: { run: dashboard.runDashboard, presence: "observer", store: "create" },
+  ui: { run: dashboard.runDashboard, presence: "observer", store: "create" },
+  watch: { run: dashboard.runWatch, presence: "observer", store: "create" },
+  init: { run: init.run, presence: "observer", store: "create" },
+  enable: { run: toggle.runEnable, presence: "observer", store: "create" },
+  disable: { run: toggle.runDisable, presence: "observer", store: "create" },
+  deinit: { run: deinit.run, presence: "observer", store: "touch" },
+  config: { run: config.run, presence: "observer", store: "create" },
+  upgrade: { run: upgrade.run, presence: "observer", store: "read" },
+  uninstall: { run: uninstall.run, presence: "observer", store: "read" },
   // Claude Code hook endpoint — fires on every edit, so it derives identity from the hook
   // payload itself and never creates a store in repos that haven't opted in.
-  hook: { run: hook.run, agent: false, store: "touch", skipIdentity: true },
+  hook: { run: hook.run, presence: "observer", store: "touch", skipIdentity: true },
 };
 
 async function openStoreForMode(
@@ -120,6 +137,7 @@ async function openStoreForMode(
   explicitHome: string | undefined,
   mode: StoreMode,
 ): Promise<Ctx["store"]> {
+  if (mode === "none") return new EmptyStore();
   const location = { explicitHome, defaultHome: storeHome };
   // The default home is Weaver-private and must be secured before any SQLite handle opens.
   // Explicit homes remain caller-managed and are created only for commands that create a store.
@@ -179,6 +197,7 @@ function printHelp(write: (s: string) => void): void {
   write(`weaver ${VERSION} — shared context for coding agents\n\n`);
   write("commands:\n");
   write("  status [--json] [--full]                 who's active, claims, activity, notes\n");
+  write("  scratchpad <subcommand>                  scriptable scratchpad core (`scratchpad help`)\n");
   write("  task <intent…>                           announce what you're working on\n");
   write("  claim <glob> [--reason …] [--ttl 30m]    stake out an area (exit 1 = recorded, but conflicts exist)\n");
   write("  release <glob>                           free an area\n");
@@ -186,10 +205,8 @@ function printHelp(write: (s: string) => void): void {
     "  check <path> [--no-touch]                is anyone else here? (exit 1 on conflict; --no-touch skips heartbeat refresh)\n",
   );
   write("  preflight [paths…|--staged|--upstream|--base REF]  bounded commit/push/PR risk check\n");
-  write("  note <text…> [--pin] [--path …] [--tag …] [--update <id>]  record a durable learning\n");
-  write(
-    "  notes [query…] [--full] [--all] [--path PATH] [--tag TAG] [--json]  list/search notes (--all includes retired/superseded)\n",
-  );
+  write("  fact <text…> [--pin] [--path …] [--tag …] [--update <id>]  record a durable learning (alias: note)\n");
+  write("  facts [query…] [--full] [--all] [--path PATH] [--tag TAG] [--json]  list/search facts (alias: notes)\n");
   write("  forget <id> <why…>                       retire a wrong/obsolete note (--undo <id> restores)\n");
   write("  log <kind> <path> <summary…>             record an activity event\n");
   write("  activity [query…] [--kind K] [--path P] [--since 2h] [--full]  recent activity feed (searchable)\n");
@@ -241,19 +258,33 @@ async function main(): Promise<number> {
     const repo = resolveRepoId();
     const mode = typeof handler.store === "function" ? handler.store(args) : handler.store;
     const explicitHome = process.env.WEAVER_HOME;
-    try {
-      storeHolder = await registerStoreHolder({
-        repoId: repo.repoId,
-        weaverHome: explicitHome,
-        command: first,
-      });
-    } catch (error) {
-      throw new CliError((error as Error).message);
+    let storeHome: string | undefined;
+    let dbPath: string | undefined;
+    if (mode !== "none") {
+      try {
+        storeHolder = await registerStoreHolder({
+          repoId: repo.repoId,
+          weaverHome: explicitHome,
+          command: first,
+        });
+      } catch (error) {
+        throw new CliError((error as Error).message);
+      }
+      storeHome = storeHolder.runtime.canonicalHome;
+      dbPath = storeHolder.runtime.storePath;
     }
-    const storeHome = storeHolder.runtime.canonicalHome;
-    const dbPath = storeHolder.runtime.storePath;
-    store = await openStoreForMode(dbPath, storeHome, explicitHome, mode);
-    const identity = handler.skipIdentity ? null : resolveIdentity();
+    store = await openStoreForMode(dbPath ?? "", storeHome ?? "", explicitHome, mode);
+    const presence = typeof handler.presence === "function" ? handler.presence(args) : handler.presence;
+    const resolvedIdentity = handler.skipIdentity ? null : resolveIdentity();
+    // An ordinary human terminal can satisfy the TTY rung but is not an attributed agent.
+    // Optional commands treat that weak/unknown identity as local-human; explicit and harness
+    // identities remain attributable even when their display label is unknown.
+    const identity =
+      presence === "optional" &&
+      resolvedIdentity?.label === "unknown" &&
+      (resolvedIdentity.source === "tty" || resolvedIdentity.source === "ancestry")
+        ? null
+        : resolvedIdentity;
     const now = Date.now();
     const ctx: Ctx = {
       store,
@@ -261,6 +292,7 @@ async function main(): Promise<number> {
       storePath: dbPath,
       storeHolder,
       identity,
+      callerIdentity: resolvedIdentity,
       repo,
       config: loadConfig(store),
       cwd: process.cwd(),
@@ -272,29 +304,39 @@ async function main(): Promise<number> {
     };
 
     const enabled = (store.getMeta("enabled") ?? "1") !== "0";
-    if (!enabled && WRITE_GATED.has(first)) {
+    const gated =
+      typeof handler.writeGated === "function"
+        ? handler.writeGated(args)
+        : (handler.writeGated ?? WRITE_GATED.has(first));
+    if (!enabled && gated) {
       err("weaver: disabled for this project (`weaver enable` to resume)\n");
       return 0;
     }
-    if (handler.agent) {
-      if (!identity) {
+    if (presence !== "observer") {
+      if (!identity && presence === "required") {
         err("weaver: couldn't resolve a session identity for this command.\n");
         err("  set WEAVER_SESSION=<stable-id>, or run inside a supported agent harness.\n");
         return 1;
       }
-      store.upsertSession(
-        {
-          id: identity.key,
-          harness: identity.label,
-          idSource: identity.source,
-          pid: process.pid,
-          cwd: process.cwd(),
-          worktreeId: repo.worktreeId,
-        },
-        now,
-      );
-    } else if (enabled && COMMAND_USAGE.has(first)) {
-      recordCommandUsage(ctx, first);
+      if (identity) {
+        store.upsertSession(
+          {
+            id: identity.key,
+            harness: identity.label,
+            idSource: identity.source,
+            pid: process.pid,
+            cwd: process.cwd(),
+            worktreeId: repo.worktreeId,
+          },
+          now,
+        );
+      }
+    } else if (enabled) {
+      const usage =
+        typeof handler.usage === "function"
+          ? handler.usage(args)
+          : (handler.usage ?? (COMMAND_USAGE.has(first) ? first : false));
+      if (usage) recordCommandUsage(ctx, typeof usage === "string" ? usage : first);
     }
     return await handler.run(ctx);
   } catch (e) {

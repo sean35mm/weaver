@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CliError, clamp, isBroadGlob, normalizeKind, parseDuration, parseTtl, requireArg } from "../src/validate.ts";
+import {
+  CliError,
+  clamp,
+  isBroadGlob,
+  normalizeKind,
+  parseDuration,
+  parseTtl,
+  requireArg,
+  requireBoundedInteger,
+  requirePositiveInteger,
+} from "../src/validate.ts";
 
 test("parseTtl: units, fallback, bounds", () => {
   assert.equal(parseTtl("30m", 0), 30 * 60 * 1000);
@@ -44,4 +54,12 @@ test("isBroadGlob", () => {
 test("requireArg throws CliError when empty", () => {
   assert.throws(() => requireArg("", "x"), CliError);
   assert.equal(requireArg(" y ", "x"), "y");
+});
+
+test("integer validation rejects invalid values instead of coercing or clamping", () => {
+  assert.equal(requirePositiveInteger("12", "id"), 12);
+  assert.throws(() => requirePositiveInteger("1.5", "id"), /positive integer/);
+  assert.throws(() => requirePositiveInteger("0", "id"), /positive integer/);
+  assert.equal(requireBoundedInteger("50", "--limit", 1, 500), 50);
+  assert.throws(() => requireBoundedInteger("501", "--limit", 1, 500), /from 1 to 500/);
 });

@@ -22,6 +22,24 @@ export function requireArg(value: string | undefined, name: string): string {
   return v;
 }
 
+/** Parse a required positive integer without coercing decimals or silently applying a fallback. */
+export function requirePositiveInteger(value: string | undefined, name: string): number {
+  const raw = requireArg(value, name);
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new CliError(`${name} must be a positive integer`);
+  return parsed;
+}
+
+/** Parse a required integer constrained to an explicit inclusive range. */
+export function requireBoundedInteger(value: string | undefined, name: string, min: number, max: number): number {
+  const raw = requireArg(value, name);
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
+    throw new CliError(`${name} expects an integer from ${min} to ${max}`);
+  }
+  return parsed;
+}
+
 /** Agent/mutating commands need a resolved session; fail with a friendly hint otherwise. */
 export function requireIdentity(identity: Identity | null): Identity {
   if (!identity) {

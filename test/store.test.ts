@@ -447,6 +447,10 @@ test("migration: a v1 store gains new tables/columns, keeps data, and stamps cur
   assert.equal(notes[0]?.pinned, true);
   assert.equal(notes[0]?.retiredAt, null);
 
+  const scratchpad = store.createScratchpad({ title: "Migrated pad", body: "# Safe\n", createdAt: 150 });
+  assert.equal(scratchpad.revision, 1);
+  assert.equal(store.listScratchpads(["active"], 10)[0]?.title, "Migrated pad");
+
   store.retireNote(notes[0]!.id, "s1", "stale", 200);
   assert.equal(store.listNotes(10).length, 0);
 
@@ -454,6 +458,46 @@ test("migration: a v1 store gains new tables/columns, keeps data, and stamps cur
   store.close();
   const reopened = await openStore(dbPath);
   assert.equal(reopened.getMeta("schema_version"), String(SCHEMA_VERSION));
+  reopened.close();
+});
+
+test("migration: a populated schema-v4 store preserves claims/activity and reopens idempotently", async () => {
+  const dbPath = tmpDb();
+  const raw = await openDb(dbPath);
+  raw.exec(`
+    CREATE TABLE sessions (
+      id TEXT PRIMARY KEY, harness TEXT NOT NULL, id_source TEXT NOT NULL, pid INTEGER, cwd TEXT,
+      worktree_id TEXT, intent TEXT, started_at INTEGER NOT NULL, last_seen INTEGER NOT NULL, ended_at INTEGER
+    );
+    CREATE TABLE claims (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL REFERENCES sessions(id), pattern TEXT NOT NULL,
+      reason TEXT, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, released_at INTEGER, worktree_id TEXT
+    );
+    CREATE TABLE activity (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL REFERENCES sessions(id), ts INTEGER NOT NULL,
+      kind TEXT NOT NULL, target TEXT, summary TEXT, meta TEXT, worktree_id TEXT
+    );
+    CREATE TABLE weaver_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    INSERT INTO weaver_meta VALUES ('schema_version', '4');
+    INSERT INTO sessions VALUES ('s1', 'codex', 'harness', NULL, '/repo', 'wt-a', 'work', 10, 20, NULL);
+    INSERT INTO claims (session_id, pattern, reason, created_at, expires_at, worktree_id)
+      VALUES ('s1', 'src/**', 'legacy claim', 10, 999999, 'wt-a');
+    INSERT INTO activity (session_id, ts, kind, target, summary, meta, worktree_id)
+      VALUES ('s1', 20, 'edit', 'src/a.ts', 'legacy activity', NULL, 'wt-a');
+  `);
+  raw.close();
+
+  const migrated = await openStore(dbPath);
+  assert.equal(migrated.getMeta("schema_version"), String(SCHEMA_VERSION));
+  assert.equal(migrated.listClaims(10)[0]?.reason, "legacy claim");
+  assert.equal(migrated.listClaims(10)[0]?.scratchpadId, null);
+  assert.equal(migrated.listRecentActivity(10)[0]?.summary, "legacy activity");
+  assert.equal(migrated.listRecentActivity(10)[0]?.scratchpadId, null);
+  migrated.close();
+
+  const reopened = await openStore(dbPath);
+  assert.equal(reopened.listClaims(10).length, 1);
+  assert.equal(reopened.listRecentActivity(10).length, 1);
   reopened.close();
 });
 
@@ -699,6 +743,69 @@ test("default store creation is private under a permissive umask while explicit 
   } finally {
     process.umask(previousUmask);
   }
+});
+
+test("scratchpads: conditional updates, revision provenance, search, and live attachments round-trip", async () => {
+  const store = await openStore(tmpDb());
+  store.upsertSession(
+    { id: "s1", harness: "codex", idSource: "harness", pid: null, cwd: null, worktreeId: "wt-a" },
+    NOW,
+  );
+  const pad = store.createScratchpad({ title: "100% plan", body: "# Work\nneedle", createdAt: NOW });
+  store.addScratchpadRevision({
+    scratchpadId: pad.id,
+    revision: 1,
+    title: pad.title,
+    body: pad.body,
+    state: pad.state,
+    previousState: null,
+    createdAt: NOW,
+    actorKind: "agent",
+    actorId: "s1",
+    actorHarness: "codex",
+    worktreeId: "wt-a",
+    provenance: "test",
+    action: "create",
+    reason: null,
+  });
+  assert.equal(
+    store.updateScratchpad({
+      id: pad.id,
+      expectedRevision: 99,
+      title: pad.title,
+      body: "lost",
+      state: "active",
+      previousState: null,
+      updatedAt: NOW + 1,
+    }),
+    false,
+  );
+  assert.equal(
+    store.updateScratchpad({
+      id: pad.id,
+      expectedRevision: 1,
+      title: pad.title,
+      body: "# Work\nupdated",
+      state: "active",
+      previousState: null,
+      updatedAt: NOW + 1,
+    }),
+    true,
+  );
+  assert.equal(store.getScratchpad(pad.id)?.revision, 2);
+  assert.equal(store.findScratchpads("needle", null, 10).length, 0);
+  assert.equal(store.findScratchpads("100%", null, 10)[0]?.id, pad.id);
+  assert.equal(store.listScratchpadRevisions(pad.id, 10)[0]?.worktreeId, "wt-a");
+
+  store.attachScratchpad({ scratchpadId: pad.id, sessionId: "s1", worktreeId: "wt-a", attachedAt: NOW });
+  assert.equal(store.getScratchpadAttachment("s1", "wt-a")?.scratchpadId, pad.id);
+  assert.throws(
+    () => store.attachScratchpad({ scratchpadId: pad.id, sessionId: "s1", worktreeId: "wt-a", attachedAt: NOW + 1 }),
+    /UNIQUE constraint failed/,
+  );
+  store.detachScratchpad("s1", "wt-a", NOW + 2);
+  assert.equal(store.getScratchpadAttachment("s1", "wt-a"), undefined);
+  store.close();
 });
 
 test("advisories: record, refresh, prune by age", async () => {

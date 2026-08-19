@@ -37,6 +37,8 @@ export function run(ctx: Ctx): number {
       .listRecentActivity(full ? 100 : 8)
       .filter((a) => !isKnownSelf(self, worktreeId, a.sessionId, a.worktreeId) && (full || a.ts >= recentCutoff)),
     notes: ctx.store.listNotes(full ? 100 : 5),
+    scratchpads: ctx.store.listScratchpads(["active"], full ? 100 : 10),
+    scratchpadAttachments: ctx.store.listScratchpadAttachments(),
   };
 
   if (flagBool(ctx.args, "json")) {
@@ -51,7 +53,8 @@ export function run(ctx: Ctx): number {
     !data.claims.length &&
     !data.notes.length &&
     !data.activity.length &&
-    !data.completed.length
+    !data.completed.length &&
+    !data.scratchpads?.length
   ) {
     ctx.out(`${theme.success("weaver:")} no other active agents\n`);
     return 0;

@@ -78,6 +78,17 @@ test("audit summarizes retained usage and recommendations as JSON", async () => 
     createdAt: ctx.now,
     supersedes: null,
   });
+  const scratchpad = ctx.store.createScratchpad({
+    title: "Audit pad",
+    body: "secret scratchpad body",
+    createdAt: ctx.now,
+  });
+  ctx.store.attachScratchpad({
+    scratchpadId: scratchpad.id,
+    sessionId: "tty:ttys002@host",
+    worktreeId: "wt-a",
+    attachedAt: ctx.now,
+  });
 
   let out = "";
   ctx.out = (s) => {
@@ -89,6 +100,7 @@ test("audit summarizes retained usage and recommendations as JSON", async () => 
     sessions: { total: number; staleUnended: number; weakIdentity: number };
     claims: { expiredOpen: number };
     notes: { current: number; pathScoped: number; tagged: number };
+    scratchpads: { total: number; active: number; archived: number; trash: number; liveAttachments: number };
     commands: { total: number; byCommand: Record<string, number>; lastSeenMsAgo: Record<string, number> };
     setup: {
       projectInstructions: { present: number; total: number };
@@ -104,6 +116,7 @@ test("audit summarizes retained usage and recommendations as JSON", async () => 
   assert.equal(parsed.notes.current, 1);
   assert.equal(parsed.notes.pathScoped, 0);
   assert.equal(parsed.notes.tagged, 0);
+  assert.deepEqual(parsed.scratchpads, { total: 1, active: 1, archived: 0, trash: 0, liveAttachments: 1 });
   assert.equal(parsed.commands.total, 2);
   assert.equal(parsed.commands.byCommand.status, 1);
   assert.equal(parsed.commands.byCommand.audit, 1);
@@ -113,6 +126,7 @@ test("audit summarizes retained usage and recommendations as JSON", async () => 
   assert.deepEqual(parsed.setup.opencodePlugin, { project: "missing", global: "missing" });
   assert.ok(parsed.recommendations.some((rec) => rec.includes("weak")));
   assert.ok(parsed.recommendations.some((rec) => rec.includes("--path")));
+  assert.doesNotMatch(out, /secret scratchpad body/);
 
   ctx.store.close();
 });

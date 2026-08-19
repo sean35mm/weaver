@@ -18,6 +18,7 @@ function env(home: string, session: string | null): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = { ...process.env, WEAVER_HOME: home };
   delete out.CLAUDE_CODE_SESSION_ID;
   delete out.CODEX_THREAD_ID;
+  delete out.OPENCODE_SESSION_ID;
   delete out.OPENCODE_RUN_ID;
   if (session) out.WEAVER_SESSION = session;
   else delete out.WEAVER_SESSION;
@@ -29,12 +30,13 @@ function run(
   home: string,
   session: string | null,
   args: string[],
+  input = "",
 ): { status: number; stdout: string; stderr: string } {
   const result = spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
     env: env(home, session),
     encoding: "utf8",
-    input: "",
+    input,
   });
   return { status: result.status ?? 1, stdout: result.stdout, stderr: result.stderr };
 }
@@ -254,6 +256,160 @@ test("note --update supersedes, inherits pin, and rejects unknown ids", () => {
   const garbage = run(root, home, "agent-a", ["note", "x", "--update", "abc"]);
   assert.equal(garbage.status, 1);
   assert.match(garbage.stderr, /--update expects a note id/);
+});
+
+test("scratchpad CLI supports shared lifecycle, bounded JSON reads, attribution, and fact aliases", {
+  timeout: 15_000,
+}, () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+
+  const created = run(
+    root,
+    home,
+    null,
+    ["scratchpad", "create", "Shared", "plan", "--from", "-", "--json"],
+    "# Plan\r\nfirst\r\n",
+  );
+  assert.equal(created.status, 0);
+  const createdJson = JSON.parse(created.stdout) as { id: number; title: string; revision: number };
+  assert.equal(createdJson.title, "Shared plan");
+  assert.equal(createdJson.revision, 1);
+
+  const source = path.join(root, "pad.md");
+  fs.writeFileSync(source, "# File\nfrom file\n```md\n# Not a heading\n```\n## Real child\nchild\n# Next\nafter\n");
+  const fromFile = run(root, home, null, ["scratchpad", "create", "File pad", "--from", source, "--json"]);
+  assert.equal(fromFile.status, 0);
+  const fromFileId = (JSON.parse(fromFile.stdout) as { id: number }).id;
+  const fileRead = JSON.parse(
+    run(root, home, null, ["scratchpad", "read", String(fromFileId), "--full", "--json"]).stdout,
+  ) as { content: string };
+  assert.match(fileRead.content, /# Not a heading/);
+  const fileHeadings = JSON.parse(
+    run(root, home, null, ["scratchpad", "read", String(fromFileId), "--headings", "--json"]).stdout,
+  ) as { content: string };
+  assert.equal(fileHeadings.content, "# File\n## Real child\n# Next");
+  const fileSection = JSON.parse(
+    run(root, home, null, ["scratchpad", "read", String(fromFileId), "--section", "File", "--json"]).stdout,
+  ) as { content: string };
+  assert.match(fileSection.content, /# Not a heading/);
+  assert.doesNotMatch(fileSection.content, /# Next/);
+
+  const id = String(createdJson.id);
+  assert.equal(run(root, home, "agent-a", ["scratchpad", "use", id]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["claim", "src/shared/**"]).status, 0);
+  const status = JSON.parse(run(root, home, "viewer", ["status", "--json", "--full"]).stdout) as {
+    claims: Array<{ scratchpadId: number | null }>;
+    scratchpads: Array<Record<string, unknown>>;
+  };
+  assert.ok(status.claims.some((claim) => claim.scratchpadId === createdJson.id));
+  assert.equal(status.scratchpads[0]?.body, undefined);
+
+  const appended = run(
+    root,
+    home,
+    "agent-a",
+    ["scratchpad", "append", id, "--revision", "1", "--from", "-", "--json"],
+    "second",
+  );
+  assert.equal(appended.status, 0);
+  assert.equal((JSON.parse(appended.stdout) as { revision: number }).revision, 2);
+  const missingRevision = run(root, home, "agent-a", ["scratchpad", "append", id, "--from", "-"], "lost");
+  assert.equal(missingRevision.status, 1);
+  assert.match(missingRevision.stderr, /mutation requires --revision/);
+  const stale = run(root, home, "agent-a", ["scratchpad", "append", id, "--revision", "1", "--from", "-"], "lost");
+  assert.equal(stale.status, 1);
+  assert.match(stale.stderr, /expected 1, current is 2/);
+
+  const headings = JSON.parse(run(root, home, null, ["scratchpad", "read", id, "--headings", "--json"]).stdout) as {
+    content: string;
+    mode: string;
+  };
+  assert.equal(headings.content, "# Plan");
+  assert.equal(headings.mode, "headings");
+
+  assert.equal(run(root, home, "agent-b", ["config", "session_ttl_seconds", "1"]).status, 0);
+
+  assert.equal(run(root, home, "agent-b", ["scratchpad", "use", id]).status, 0);
+  const guarded = run(root, home, "agent-a", ["scratchpad", "archive", id, "--revision", "2"]);
+  assert.equal(guarded.status, 1);
+  assert.match(guarded.stderr, /other live attachment/);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_100);
+  assert.equal(run(root, home, "agent-a", ["scratchpad", "archive", id, "--revision", "2"]).status, 0);
+  assert.equal(run(root, home, null, ["scratchpad", "restore", id, "--revision", "3"]).status, 0);
+  assert.equal(run(root, home, "agent-a", ["scratchpad", "use", id]).status, 0);
+
+  const unsafeTrash = run(root, home, "agent-a", ["scratchpad", "trash", id, "--reason", "obsolete"]);
+  assert.equal(unsafeTrash.status, 1);
+  assert.match(unsafeTrash.stderr, /requires --revision/);
+  assert.equal(
+    run(root, home, "agent-a", ["scratchpad", "trash", id, "--revision", "4", "--reason", "obsolete"]).status,
+    0,
+  );
+  assert.equal(run(root, home, null, ["scratchpad", "recover", id, "--revision", "5"]).status, 0);
+
+  assert.equal(run(root, home, "agent-a", ["fact", "scratchpads are repo scoped"]).status, 0);
+  assert.match(run(root, home, null, ["facts"]).stdout, /scratchpads are repo scoped/);
+  assert.match(run(root, home, null, ["notes"]).stdout, /scratchpads are repo scoped/);
+});
+
+test("scratchpad edit uses a 0600 draft and rejects a concurrent revision without overwriting it", {
+  timeout: 15_000,
+}, () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  const created = run(root, home, null, ["scratchpad", "create", "Editor pad", "--from", "-", "--json"], "# Draft\n");
+  const id = String((JSON.parse(created.stdout) as { id: number }).id);
+  const marker = path.join(root, "draft-mode.txt");
+  const editor = path.join(root, "editor.mjs");
+  fs.writeFileSync(
+    editor,
+    `import fs from "node:fs";\nfs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ mode: fs.statSync(process.argv[2]).mode & 0o777, completedAt: Date.now() }));\nfs.appendFileSync(process.argv[2], "edited\\n");\n`,
+  );
+  const oldVisual = process.env.VISUAL;
+  process.env.VISUAL = `"${process.execPath}" "${editor}"`;
+  try {
+    const edited = run(root, home, "agent-a", ["scratchpad", "edit", id, "--revision", "1", "--json"]);
+    assert.equal(edited.status, 0);
+    assert.equal((JSON.parse(edited.stdout) as { revision: number }).revision, 2);
+    const editorResult = JSON.parse(fs.readFileSync(marker, "utf8")) as { mode: number; completedAt: number };
+    assert.equal(editorResult.mode, 0o600);
+    const history = JSON.parse(run(root, home, null, ["scratchpad", "history", id, "--json"]).stdout) as Array<{
+      createdAt: number;
+      provenance: string;
+    }>;
+    assert.equal(history[0]?.provenance, "cli-editor");
+    assert.ok(history[0]!.createdAt >= editorResult.completedAt);
+    const statusAfterEdit = JSON.parse(run(root, home, null, ["status", "--json", "--full"]).stdout) as {
+      sessions: Array<{ lastSeenMsAgo: number }>;
+    };
+    assert.ok(statusAfterEdit.sessions.some((session) => session.lastSeenMsAgo < 1_000));
+
+    const racingEditor = path.join(root, "racing-editor.mjs");
+    fs.writeFileSync(
+      racingEditor,
+      `import { spawnSync } from "node:child_process";\nimport fs from "node:fs";\nspawnSync(process.execPath, [${JSON.stringify(cliPath)}, "scratchpad", "append", ${JSON.stringify(id)}, "--revision", "2", "--from", "-"], { cwd: ${JSON.stringify(root)}, env: process.env, input: "concurrent", encoding: "utf8" });\nfs.appendFileSync(process.argv[2], "local edit\\n");\n`,
+    );
+    process.env.VISUAL = `"${process.execPath}" "${racingEditor}"`;
+    const raced = run(root, home, "agent-a", ["scratchpad", "edit", id, "--revision", "2"]);
+    assert.equal(raced.status, 1);
+    assert.match(raced.stderr, /expected 2, current is 3/);
+    const draft = /draft preserved at (.+)\n/.exec(raced.stderr)?.[1];
+    assert.ok(draft);
+    assert.match(fs.readFileSync(draft!, "utf8"), /local edit/);
+    fs.rmSync(path.dirname(draft!), { recursive: true, force: true });
+
+    const current = JSON.parse(run(root, home, null, ["scratchpad", "read", id, "--full", "--json"]).stdout) as {
+      content: string;
+      revision: number;
+    };
+    assert.equal(current.revision, 3);
+    assert.match(current.content, /concurrent/);
+    assert.doesNotMatch(current.content, /local edit/);
+  } finally {
+    if (oldVisual === undefined) delete process.env.VISUAL;
+    else process.env.VISUAL = oldVisual;
+  }
 });
 
 test("notes --path uses overlap matching and keeps unscoped notes quiet unless pinned", () => {

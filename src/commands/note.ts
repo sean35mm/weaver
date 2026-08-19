@@ -30,6 +30,9 @@ export function runNote(ctx: Ctx): number {
   const pinned = flagBool(ctx.args, "pin") || (superseded?.pinned ?? false);
 
   const noteId = ctx.store.transaction(() => {
+    const scratchpadId = ctx.repo.worktreeId
+      ? (ctx.store.getScratchpadAttachment(id.key, ctx.repo.worktreeId)?.scratchpadId ?? null)
+      : null;
     const created = ctx.store.addNote({
       sessionId: id.key,
       harness: id.label,
@@ -48,17 +51,20 @@ export function runNote(ctx: Ctx): number {
       summary: body,
       meta: null,
       worktreeId: ctx.repo.worktreeId,
+      scratchpadId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
     return created;
   });
+  const isFact = ctx.args._[0] === "fact";
   ctx.out(
-    `✓ noted #${noteId}${pinned ? " (pinned)" : ""}${supersedes ? ` (supersedes #${supersedes})` : ""}: ${body}\n`,
+    `✓ ${isFact ? "fact" : "noted"} #${noteId}${pinned ? " (pinned)" : ""}${supersedes ? ` (supersedes #${supersedes})` : ""}: ${body}\n`,
   );
   return 0;
 }
 
 export function runNotes(ctx: Ctx): number {
+  const noun = ctx.args._[0] === "facts" ? "facts" : "notes";
   const all = flagBool(ctx.args, "all");
   const pathRaw = flagStr(ctx.args, "path");
   const tag = flagStr(ctx.args, "tag")?.trim() || null;
@@ -92,7 +98,7 @@ export function runNotes(ctx: Ctx): number {
   }
 
   if (!notes.length) {
-    ctx.out(filtered ? "no matching notes\n" : "no notes yet\n");
+    ctx.out(filtered ? `no matching ${noun}\n` : `no ${noun} yet\n`);
     return 0;
   }
   for (const n of notes) {

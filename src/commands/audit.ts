@@ -119,11 +119,11 @@ function recommendations(opts: {
   if (opts.project.present === 0 && opts.global.present === 0)
     recs.push("No Weaver instruction blocks were found; run `weaver init --project` or `weaver init --global`.");
   if (opts.currentNotes.length > 0 && scopedNotes === 0)
-    recs.push("All current notes are global; use `weaver note --path` for file or area-specific learnings.");
+    recs.push("All current Repository Facts are global; use `weaver fact --path` for area-specific learnings.");
   else if (globalNotes > scopedNotes)
-    recs.push("Most current notes are global; scope new notes with `--path` to reduce agent noise.");
+    recs.push("Most current Repository Facts are global; scope new facts with `--path` to reduce agent noise.");
   if (opts.currentNotes.length > 0 && taggedNotes === 0)
-    recs.push("No current notes are tagged; use `--tag` for topics agents should filter later.");
+    recs.push("No current Repository Facts have a topic; use `--tag` when agents should filter them later.");
 
   return recs.length ? recs : ["No immediate Weaver usage issues found in retained local data."];
 }
@@ -148,6 +148,8 @@ export function run(ctx: Ctx): number {
   const commandByName = countBy(commandEvents.map((row) => row.command));
   const notes = ctx.store.listAllNotes(AUDIT_LIMIT);
   const current = currentNotes(notes);
+  const scratchpads = ctx.store.listScratchpads(null, AUDIT_LIMIT);
+  const scratchpadAttachments = ctx.store.listScratchpadAttachments();
   const project = instructionCoverage(ctx, "project");
   const global = instructionCoverage(ctx, "global");
   const hooks: ScopedStatus<HookStatus> = {
@@ -212,6 +214,13 @@ export function run(ctx: Ctx): number {
       retired: notes.filter((note) => note.retiredAt !== null).length,
       superseded: notes.filter((note) => note.superseded).length,
     },
+    scratchpads: {
+      total: scratchpads.length,
+      active: scratchpads.filter((pad) => pad.state === "active").length,
+      archived: scratchpads.filter((pad) => pad.state === "archived").length,
+      trash: scratchpads.filter((pad) => pad.state === "trash").length,
+      liveAttachments: scratchpadAttachments.length,
+    },
     setup: { projectInstructions: project, globalInstructions: global, hooks, opencodePlugin },
     recommendations: recs,
   };
@@ -233,7 +242,10 @@ export function run(ctx: Ctx): number {
   );
   ctx.out(`commands : ${data.commands.total} retained, ${JSON.stringify(data.commands.byCommand)}\n`);
   ctx.out(
-    `notes    : ${data.notes.current} current, ${data.notes.pathScoped} scoped, ${data.notes.tagged} tagged, ${data.notes.pinned} pinned\n`,
+    `facts    : ${data.notes.current} current, ${data.notes.pathScoped} scoped, ${data.notes.tagged} tagged, ${data.notes.pinned} pinned\n`,
+  );
+  ctx.out(
+    `pads     : ${data.scratchpads.active} active, ${data.scratchpads.archived} archived, ${data.scratchpads.trash} trash, ${data.scratchpads.liveAttachments} attached\n`,
   );
   ctx.out(`project  : instructions ${coverageText(project)}\n`);
   ctx.out(`global   : instructions ${coverageText(global)}\n`);

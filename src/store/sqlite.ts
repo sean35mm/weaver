@@ -14,6 +14,14 @@ import type {
   NoteInput,
   NoteRow,
   PruneOptions,
+  ScratchpadAttachmentInput,
+  ScratchpadAttachmentRow,
+  ScratchpadCreateInput,
+  ScratchpadRevisionInput,
+  ScratchpadRevisionRow,
+  ScratchpadRow,
+  ScratchpadState,
+  ScratchpadUpdateInput,
   SessionInput,
   SessionRow,
   Store,
@@ -41,6 +49,7 @@ interface RawClaim {
   expires_at: number;
   released_at: number | null;
   worktree_id: string | null;
+  scratchpad_id: number | null;
 }
 interface RawNote {
   id: number;
@@ -66,6 +75,42 @@ interface RawActivity {
   summary: string | null;
   meta: string | null;
   worktree_id: string | null;
+  scratchpad_id: number | null;
+}
+interface RawScratchpad {
+  id: number;
+  title: string;
+  body: string;
+  state: string;
+  previous_state: string | null;
+  revision: number;
+  created_at: number;
+  updated_at: number;
+}
+interface RawScratchpadRevision {
+  id: number;
+  scratchpad_id: number;
+  revision: number;
+  title: string;
+  body: string;
+  state: string;
+  previous_state: string | null;
+  created_at: number;
+  actor_kind: string;
+  actor_id: string | null;
+  actor_harness: string | null;
+  worktree_id: string | null;
+  provenance: string;
+  action: string;
+  reason: string | null;
+}
+interface RawScratchpadAttachment {
+  id: number;
+  scratchpad_id: number;
+  session_id: string;
+  worktree_id: string;
+  attached_at: number;
+  detached_at: number | null;
 }
 interface RawCommandEvent {
   id: number;
@@ -75,7 +120,6 @@ interface RawCommandEvent {
   harness: string | null;
   id_source: string | null;
 }
-
 const toSession = (r: RawSession): SessionRow => ({
   id: r.id,
   harness: r.harness,
@@ -97,6 +141,42 @@ const toClaim = (r: RawClaim): ClaimRow => ({
   expiresAt: r.expires_at,
   releasedAt: r.released_at,
   worktreeId: r.worktree_id,
+  scratchpadId: r.scratchpad_id,
+});
+const toScratchpad = (r: RawScratchpad): ScratchpadRow => ({
+  id: r.id,
+  title: r.title,
+  body: r.body,
+  state: r.state as ScratchpadState,
+  previousState: r.previous_state as ScratchpadState | null,
+  revision: r.revision,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+const toScratchpadRevision = (r: RawScratchpadRevision): ScratchpadRevisionRow => ({
+  id: r.id,
+  scratchpadId: r.scratchpad_id,
+  revision: r.revision,
+  title: r.title,
+  body: r.body,
+  state: r.state as ScratchpadState,
+  previousState: r.previous_state as ScratchpadState | null,
+  createdAt: r.created_at,
+  actorKind: r.actor_kind as ScratchpadRevisionRow["actorKind"],
+  actorId: r.actor_id,
+  actorHarness: r.actor_harness,
+  worktreeId: r.worktree_id,
+  provenance: r.provenance,
+  action: r.action,
+  reason: r.reason,
+});
+const toScratchpadAttachment = (r: RawScratchpadAttachment): ScratchpadAttachmentRow => ({
+  id: r.id,
+  scratchpadId: r.scratchpad_id,
+  sessionId: r.session_id,
+  worktreeId: r.worktree_id,
+  attachedAt: r.attached_at,
+  detachedAt: r.detached_at,
 });
 const toNote = (r: RawNote): NoteRow => ({
   id: r.id,
@@ -122,6 +202,7 @@ const toActivity = (r: RawActivity): ActivityRow => ({
   summary: r.summary,
   meta: r.meta,
   worktreeId: r.worktree_id,
+  scratchpadId: r.scratchpad_id,
 });
 const toCommandEvent = (r: RawCommandEvent): CommandEventRow => ({
   id: r.id,
@@ -131,7 +212,6 @@ const toCommandEvent = (r: RawCommandEvent): CommandEventRow => ({
   harness: r.harness,
   idSource: r.id_source as CommandEventRow["idSource"],
 });
-
 export class SqliteStore implements Store {
   private readonly db: Db;
 
@@ -232,14 +312,15 @@ export class SqliteStore implements Store {
 
   addClaim(input: ClaimInput): number {
     return this.db.run(
-      `INSERT INTO claims (session_id, pattern, reason, created_at, expires_at, released_at, worktree_id)
-       VALUES (?, ?, ?, ?, ?, NULL, ?)`,
+      `INSERT INTO claims (session_id, pattern, reason, created_at, expires_at, released_at, worktree_id, scratchpad_id)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
       input.sessionId,
       input.pattern,
       input.reason,
       input.createdAt,
       input.expiresAt,
       input.worktreeId ?? null,
+      input.scratchpadId ?? null,
     ).lastInsertRowid;
   }
 
@@ -297,6 +378,150 @@ export class SqliteStore implements Store {
     const cutoff = ageCutoff(opts.now, opts.maxAgeDays);
     this.db.run("DELETE FROM claims WHERE released_at IS NOT NULL AND released_at < ?", cutoff);
     this.db.run("DELETE FROM claims WHERE released_at IS NULL AND expires_at < ?", cutoff);
+  }
+
+  createScratchpad(input: ScratchpadCreateInput): ScratchpadRow {
+    const id = this.db.run(
+      `INSERT INTO scratchpads (title, body, state, previous_state, revision, created_at, updated_at)
+       VALUES (?, ?, 'active', NULL, 1, ?, ?)`,
+      input.title,
+      input.body,
+      input.createdAt,
+      input.createdAt,
+    ).lastInsertRowid;
+    return this.getScratchpad(id)!;
+  }
+
+  getScratchpad(id: number): ScratchpadRow | undefined {
+    const row = this.db.get<RawScratchpad>("SELECT * FROM scratchpads WHERE id = ?", id);
+    return row ? toScratchpad(row) : undefined;
+  }
+
+  listScratchpads(states: ScratchpadState[] | null, limit: number): ScratchpadRow[] {
+    if (!states?.length) {
+      return this.db
+        .all<RawScratchpad>("SELECT * FROM scratchpads ORDER BY updated_at DESC, id DESC LIMIT ?", limit)
+        .map(toScratchpad);
+    }
+    const placeholders = states.map(() => "?").join(", ");
+    return this.db
+      .all<RawScratchpad>(
+        `SELECT * FROM scratchpads WHERE state IN (${placeholders}) ORDER BY updated_at DESC, id DESC LIMIT ?`,
+        ...states,
+        limit,
+      )
+      .map(toScratchpad);
+  }
+
+  findScratchpads(query: string, states: ScratchpadState[] | null, limit: number): ScratchpadRow[] {
+    const pattern = `%${query.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+    const stateSql = states?.length ? ` AND state IN (${states.map(() => "?").join(", ")})` : "";
+    return this.db
+      .all<RawScratchpad>(
+        `SELECT * FROM scratchpads
+         WHERE (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\')${stateSql}
+         ORDER BY updated_at DESC, id DESC LIMIT ?`,
+        pattern,
+        pattern,
+        ...(states ?? []),
+        limit,
+      )
+      .map(toScratchpad);
+  }
+
+  updateScratchpad(input: ScratchpadUpdateInput): boolean {
+    return (
+      this.db.run(
+        `UPDATE scratchpads
+         SET title = ?, body = ?, state = ?, previous_state = ?, revision = revision + 1, updated_at = ?
+         WHERE id = ? AND revision = ?`,
+        input.title,
+        input.body,
+        input.state,
+        input.previousState,
+        input.updatedAt,
+        input.id,
+        input.expectedRevision,
+      ).changes === 1
+    );
+  }
+
+  addScratchpadRevision(input: ScratchpadRevisionInput): number {
+    return this.db.run(
+      `INSERT INTO scratchpad_revisions
+       (scratchpad_id, revision, title, body, state, previous_state, created_at,
+        actor_kind, actor_id, actor_harness, worktree_id, provenance, action, reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      input.scratchpadId,
+      input.revision,
+      input.title,
+      input.body,
+      input.state,
+      input.previousState,
+      input.createdAt,
+      input.actorKind,
+      input.actorId,
+      input.actorHarness,
+      input.worktreeId,
+      input.provenance,
+      input.action,
+      input.reason,
+    ).lastInsertRowid;
+  }
+
+  listScratchpadRevisions(scratchpadId: number, limit: number): ScratchpadRevisionRow[] {
+    return this.db
+      .all<RawScratchpadRevision>(
+        "SELECT * FROM scratchpad_revisions WHERE scratchpad_id = ? ORDER BY revision DESC LIMIT ?",
+        scratchpadId,
+        limit,
+      )
+      .map(toScratchpadRevision);
+  }
+
+  getScratchpadAttachment(sessionId: string, worktreeId: string): ScratchpadAttachmentRow | undefined {
+    const row = this.db.get<RawScratchpadAttachment>(
+      `SELECT * FROM scratchpad_attachments
+       WHERE session_id = ? AND worktree_id = ? AND detached_at IS NULL`,
+      sessionId,
+      worktreeId,
+    );
+    return row ? toScratchpadAttachment(row) : undefined;
+  }
+
+  listScratchpadAttachments(scratchpadId?: number): ScratchpadAttachmentRow[] {
+    const rows =
+      scratchpadId === undefined
+        ? this.db.all<RawScratchpadAttachment>(
+            "SELECT * FROM scratchpad_attachments WHERE detached_at IS NULL ORDER BY attached_at, id",
+          )
+        : this.db.all<RawScratchpadAttachment>(
+            `SELECT * FROM scratchpad_attachments
+             WHERE scratchpad_id = ? AND detached_at IS NULL ORDER BY attached_at, id`,
+            scratchpadId,
+          );
+    return rows.map(toScratchpadAttachment);
+  }
+
+  attachScratchpad(input: ScratchpadAttachmentInput): number {
+    return this.db.run(
+      `INSERT INTO scratchpad_attachments (scratchpad_id, session_id, worktree_id, attached_at, detached_at)
+       VALUES (?, ?, ?, ?, NULL)`,
+      input.scratchpadId,
+      input.sessionId,
+      input.worktreeId,
+      input.attachedAt,
+    ).lastInsertRowid;
+  }
+
+  detachScratchpad(sessionId: string, worktreeId: string, now: number): void {
+    this.db.run(
+      `UPDATE scratchpad_attachments SET detached_at = ?
+       WHERE session_id = ? AND worktree_id = ? AND detached_at IS NULL`,
+      now,
+      sessionId,
+      worktreeId,
+    );
   }
 
   addNote(input: NoteInput): number {
@@ -358,8 +583,8 @@ export class SqliteStore implements Store {
 
   addActivity(input: ActivityInput): number {
     return this.db.run(
-      `INSERT INTO activity (session_id, ts, kind, target, summary, meta, worktree_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO activity (session_id, ts, kind, target, summary, meta, worktree_id, scratchpad_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       input.sessionId,
       input.ts,
       input.kind,
@@ -367,6 +592,7 @@ export class SqliteStore implements Store {
       input.summary,
       input.meta,
       input.worktreeId ?? null,
+      input.scratchpadId ?? null,
     ).lastInsertRowid;
   }
 

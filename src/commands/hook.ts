@@ -162,7 +162,6 @@ export function applyPostEdit(ctx: Ctx, payload: HookPayload): boolean {
   const target = targetPath(ctx, payload);
   const self = hookIdentity(ctx, payload);
   if (!target || !self) return false;
-
   ctx.store.transaction(() => {
     ctx.store.upsertSession(
       {
@@ -175,6 +174,9 @@ export function applyPostEdit(ctx: Ctx, payload: HookPayload): boolean {
       },
       ctx.now,
     );
+    const scratchpadId = ctx.repo.worktreeId
+      ? (ctx.store.getScratchpadAttachment(self.key, ctx.repo.worktreeId)?.scratchpadId ?? null)
+      : null;
     ctx.store.addActivity({
       sessionId: self.key,
       ts: ctx.now,
@@ -183,6 +185,7 @@ export function applyPostEdit(ctx: Ctx, payload: HookPayload): boolean {
       summary: null,
       meta: null,
       worktreeId: ctx.repo.worktreeId,
+      scratchpadId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
   });

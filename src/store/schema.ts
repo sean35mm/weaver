@@ -2,7 +2,7 @@
 
 import type { Db } from "./db.ts";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export interface SchemaInspection {
   tables: ReadonlySet<string>;
@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS claims (
   expires_at  INTEGER NOT NULL,
   released_at INTEGER
   ,worktree_id TEXT
+  ,scratchpad_id INTEGER REFERENCES scratchpads(id)
 );
 
 CREATE TABLE IF NOT EXISTS notes (
@@ -104,6 +105,46 @@ CREATE TABLE IF NOT EXISTS activity (
   summary     TEXT,
   meta        TEXT
   ,worktree_id TEXT
+  ,scratchpad_id INTEGER REFERENCES scratchpads(id)
+);
+
+CREATE TABLE IF NOT EXISTS scratchpads (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  title          TEXT NOT NULL,
+  body           TEXT NOT NULL,
+  state          TEXT NOT NULL CHECK (state IN ('active', 'archived', 'trash')),
+  previous_state TEXT CHECK (previous_state IS NULL OR previous_state IN ('active', 'archived', 'trash')),
+  revision       INTEGER NOT NULL,
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS scratchpad_revisions (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  scratchpad_id  INTEGER NOT NULL REFERENCES scratchpads(id),
+  revision       INTEGER NOT NULL,
+  title          TEXT NOT NULL,
+  body           TEXT NOT NULL,
+  state          TEXT NOT NULL,
+  previous_state TEXT,
+  created_at     INTEGER NOT NULL,
+  actor_kind     TEXT NOT NULL,
+  actor_id       TEXT,
+  actor_harness  TEXT,
+  worktree_id    TEXT,
+  provenance     TEXT NOT NULL,
+  action         TEXT NOT NULL,
+  reason         TEXT,
+  UNIQUE (scratchpad_id, revision)
+);
+
+CREATE TABLE IF NOT EXISTS scratchpad_attachments (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  scratchpad_id INTEGER NOT NULL REFERENCES scratchpads(id),
+  session_id    TEXT NOT NULL REFERENCES sessions(id),
+  worktree_id   TEXT NOT NULL,
+  attached_at   INTEGER NOT NULL,
+  detached_at   INTEGER
 );
 
 -- Lightweight local protocol metrics. No raw args, paths, note bodies, or repo content.
@@ -138,6 +179,11 @@ CREATE INDEX IF NOT EXISTS idx_activity_target    ON activity(target);
 CREATE INDEX IF NOT EXISTS idx_command_events_recent ON command_events(ts);
 CREATE INDEX IF NOT EXISTS idx_command_events_command ON command_events(command, ts);
 CREATE INDEX IF NOT EXISTS idx_notes_surface      ON notes(pinned, created_at);
+CREATE INDEX IF NOT EXISTS idx_scratchpads_surface ON scratchpads(state, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_scratchpad_revisions ON scratchpad_revisions(scratchpad_id, revision DESC);
+CREATE INDEX IF NOT EXISTS idx_scratchpad_attachments_pad ON scratchpad_attachments(scratchpad_id, detached_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scratchpad_attachment_live
+  ON scratchpad_attachments(session_id, worktree_id) WHERE detached_at IS NULL;
 `;
 
 export function migrate(db: Db): void {
@@ -169,6 +215,16 @@ export function migrate(db: Db): void {
     if (!hasColumn("activity", "worktree_id")) db.exec("ALTER TABLE activity ADD COLUMN worktree_id TEXT");
   }
 
+  // v4 → v5: scratchpads are additive. Existing notes remain the durable facts table and
+  // receive no data rewrite; claims/activity only gain nullable attribution.
+  if (version < 5) {
+    const hasColumn = (table: string, column: string): boolean =>
+      db.all<{ name: string }>(`PRAGMA table_info(${table})`).some((entry) => entry.name === column);
+    if (!hasColumn("claims", "scratchpad_id"))
+      db.exec("ALTER TABLE claims ADD COLUMN scratchpad_id INTEGER REFERENCES scratchpads(id)");
+    if (!hasColumn("activity", "scratchpad_id"))
+      db.exec("ALTER TABLE activity ADD COLUMN scratchpad_id INTEGER REFERENCES scratchpads(id)");
+  }
   if (existingVersion === undefined || version < SCHEMA_VERSION) {
     db.run(
       "INSERT INTO weaver_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

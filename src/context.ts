@@ -17,6 +17,8 @@ export interface Ctx {
   storeHolder?: StoreHolderHandle | null;
   /** Resolved session, or null when unresolved (observer commands tolerate null). */
   identity: Identity | null;
+  /** Caller identity used for ownership matching even when too weak for revision attribution. */
+  callerIdentity?: Identity | null;
   repo: RepoIdentity;
   config: Config;
   cwd: string;

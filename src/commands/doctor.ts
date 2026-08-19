@@ -41,6 +41,8 @@ export function run(ctx: Ctx): number {
   const openClaims = ctx.store.listOpenClaims();
   const activeClaims = openClaims.filter((c) => c.expiresAt > ctx.now).length;
   const expiredOpenClaims = openClaims.length - activeClaims;
+  const scratchpads = ctx.store.listScratchpads(null, 10_000);
+  const scratchpadAttachments = ctx.store.listScratchpadAttachments().length;
 
   ctx.out("weaver doctor\n");
   ctx.out(
@@ -54,6 +56,9 @@ export function run(ctx: Ctx): number {
   ctx.out(`active   : ${active} session(s)\n`);
   ctx.out(`stale    : ${staleUnended} unended session(s)\n`);
   ctx.out(`claims   : ${activeClaims} active, ${expiredOpenClaims} expired open\n`);
+  ctx.out(
+    `pads     : ${scratchpads.filter((pad) => pad.state === "active").length} active, ${scratchpads.filter((pad) => pad.state === "archived").length} archived, ${scratchpads.filter((pad) => pad.state === "trash").length} trash, ${scratchpadAttachments} attached\n`,
+  );
   ctx.out(`project  : instructions ${blockCoverage(ctx, "project")}\n`);
   ctx.out(`global   : instructions ${blockCoverage(ctx, "global")}\n`);
   ctx.out(

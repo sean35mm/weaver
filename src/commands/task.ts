@@ -7,6 +7,9 @@ export function run(ctx: Ctx): number {
   const id = requireIdentity(ctx.identity);
   const intent = clamp(requireArg(rest(ctx.args, 1), "intent"));
   ctx.store.transaction(() => {
+    const scratchpadId = ctx.repo.worktreeId
+      ? (ctx.store.getScratchpadAttachment(id.key, ctx.repo.worktreeId)?.scratchpadId ?? null)
+      : null;
     ctx.store.setIntent(id.key, intent, ctx.now);
     ctx.store.addActivity({
       sessionId: id.key,
@@ -16,6 +19,7 @@ export function run(ctx: Ctx): number {
       summary: intent,
       meta: null,
       worktreeId: ctx.repo.worktreeId,
+      scratchpadId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
   });

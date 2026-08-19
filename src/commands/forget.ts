@@ -23,13 +23,15 @@ export function run(ctx: Ctx): number {
   const target = noteId(ctx);
   const note = ctx.store.getNote(target);
   if (!note) throw new CliError(`note #${target} not found`);
-
   if (flagBool(ctx.args, "undo")) {
     if (note.retiredAt === null) {
       ctx.out(`${theme.success("✓")} note #${target} isn't retired — nothing to undo\n`);
       return 0;
     }
     ctx.store.transaction(() => {
+      const scratchpadId = ctx.repo.worktreeId
+        ? (ctx.store.getScratchpadAttachment(id.key, ctx.repo.worktreeId)?.scratchpadId ?? null)
+        : null;
       ctx.store.restoreNote(target);
       ctx.store.addActivity({
         sessionId: id.key,
@@ -39,6 +41,7 @@ export function run(ctx: Ctx): number {
         summary: `restored note #${target}: ${note.body}`,
         meta: null,
         worktreeId: ctx.repo.worktreeId,
+        scratchpadId,
       });
       pruneAfterWrite(ctx.store, ctx.now);
     });
@@ -56,6 +59,9 @@ export function run(ctx: Ctx): number {
 
   const reason = clamp(requireArg(rest(ctx.args, 2), "reason"));
   ctx.store.transaction(() => {
+    const scratchpadId = ctx.repo.worktreeId
+      ? (ctx.store.getScratchpadAttachment(id.key, ctx.repo.worktreeId)?.scratchpadId ?? null)
+      : null;
     ctx.store.retireNote(target, id.key, reason, ctx.now);
     ctx.store.addActivity({
       sessionId: id.key,
@@ -65,6 +71,7 @@ export function run(ctx: Ctx): number {
       summary: `#${target}: ${reason}`,
       meta: null,
       worktreeId: ctx.repo.worktreeId,
+      scratchpadId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
   });

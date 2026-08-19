@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { claimsByLiveHolders, formatStatus, sessionName, statusJson, who } from "../src/render.ts";
-import type { ClaimRow, SessionRow, Store } from "../src/store/store.ts";
+import type { ClaimRow, ScratchpadRow, SessionRow, Store } from "../src/store/store.ts";
 
 const session = (id: string): SessionRow => ({
   id,
@@ -71,4 +71,50 @@ test("short ids do not expose short explicit session keys", () => {
   };
   const json = statusJson("repo", data, 1000, {} as Store) as { sessions: Array<Record<string, unknown>> };
   assert.notEqual(json.sessions[0]?.shortId, "abc123");
+});
+
+test("status rendering adds scratchpad summaries and attribution without exposing bodies", () => {
+  const attached = { ...session("explicit:alice@host.local"), worktreeId: "worktree-a" };
+  const pad: ScratchpadRow = {
+    id: 7,
+    title: "Release plan",
+    body: "SECRET BODY",
+    state: "active",
+    previousState: null,
+    revision: 3,
+    createdAt: 100,
+    updatedAt: 900,
+  };
+  const data = {
+    sessions: [],
+    completed: [],
+    claims: [{ ...claim(attached.id), scratchpadId: pad.id }],
+    activity: [],
+    notes: [],
+    scratchpads: [pad],
+    scratchpadAttachments: [
+      {
+        id: 1,
+        scratchpadId: pad.id,
+        sessionId: attached.id,
+        worktreeId: "worktree-a",
+        attachedAt: 500,
+        detachedAt: null,
+      },
+    ],
+  };
+  const store = { getSession: (id: string) => (id === attached.id ? attached : undefined) } as Store;
+
+  const body = formatStatus(data, 1_000, store);
+  assert.match(body, /#7.*Release plan.*r3/);
+  assert.match(body, /alice/);
+  assert.doesNotMatch(body, /SECRET BODY/);
+
+  const json = statusJson("repo", data, 1_000, store) as {
+    claims: Array<{ scratchpadId: number | null }>;
+    scratchpads: Array<Record<string, unknown>>;
+  };
+  assert.equal(json.claims[0]?.scratchpadId, 7);
+  assert.equal(json.scratchpads[0]?.title, "Release plan");
+  assert.equal("body" in (json.scratchpads[0] ?? {}), false);
 });

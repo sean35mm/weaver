@@ -10,6 +10,14 @@ import type {
   NoteInput,
   NoteRow,
   PruneOptions,
+  ScratchpadAttachmentInput,
+  ScratchpadAttachmentRow,
+  ScratchpadCreateInput,
+  ScratchpadRevisionInput,
+  ScratchpadRevisionRow,
+  ScratchpadRow,
+  ScratchpadState,
+  ScratchpadUpdateInput,
   SessionInput,
   SessionRow,
   Store,
@@ -96,6 +104,50 @@ export class EmptyStore implements Store {
   }
 
   pruneClaims(_opts: ClaimPruneOptions): void {
+    readonlyStoreWrite();
+  }
+
+  createScratchpad(_input: ScratchpadCreateInput): ScratchpadRow {
+    return readonlyStoreWrite();
+  }
+
+  getScratchpad(_id: number): ScratchpadRow | undefined {
+    return undefined;
+  }
+
+  listScratchpads(_states: ScratchpadState[] | null, _limit: number): ScratchpadRow[] {
+    return [];
+  }
+
+  findScratchpads(_query: string, _states: ScratchpadState[] | null, _limit: number): ScratchpadRow[] {
+    return [];
+  }
+
+  updateScratchpad(_input: ScratchpadUpdateInput): boolean {
+    return readonlyStoreWrite();
+  }
+
+  addScratchpadRevision(_input: ScratchpadRevisionInput): number {
+    return readonlyStoreWrite();
+  }
+
+  listScratchpadRevisions(_scratchpadId: number, _limit: number): ScratchpadRevisionRow[] {
+    return [];
+  }
+
+  getScratchpadAttachment(_sessionId: string, _worktreeId: string): ScratchpadAttachmentRow | undefined {
+    return undefined;
+  }
+
+  listScratchpadAttachments(_scratchpadId?: number): ScratchpadAttachmentRow[] {
+    return [];
+  }
+
+  attachScratchpad(_input: ScratchpadAttachmentInput): number {
+    return readonlyStoreWrite();
+  }
+
+  detachScratchpad(_sessionId: string, _worktreeId: string, _now: number): void {
     readonlyStoreWrite();
   }
 

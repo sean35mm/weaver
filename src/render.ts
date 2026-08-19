@@ -2,7 +2,15 @@
 
 import { createHash } from "node:crypto";
 import type { ConflictHit, ConflictResult } from "./conflict.ts";
-import type { ActivityRow, ClaimRow, NoteRow, SessionRow, Store } from "./store/store.ts";
+import type {
+  ActivityRow,
+  ClaimRow,
+  NoteRow,
+  ScratchpadAttachmentRow,
+  ScratchpadRow,
+  SessionRow,
+  Store,
+} from "./store/store.ts";
 import { plainTheme, type TerminalTheme } from "./terminal/color.ts";
 import { padEndVisible, terminalWidth, truncateVisible, visibleLength, wrapWithPrefix } from "./terminal/format.ts";
 
@@ -160,6 +168,9 @@ export interface StatusData {
   claims: ClaimRow[];
   activity: ActivityRow[];
   notes: NoteRow[];
+  /** Active summaries only; consumers must never surface `body` from status. */
+  scratchpads?: ScratchpadRow[];
+  scratchpadAttachments?: ScratchpadAttachmentRow[];
 }
 
 export function formatStatus(
@@ -208,6 +219,20 @@ export function formatStatus(
       const base = `  ${padEndVisible(theme.path(c.pattern), 24)} ${holder ? theme.accent(who(holder)) : theme.dim("?")} ${theme.dim(worktreeLabel(c.worktreeId))}`;
       if (c.reason) appendWrapped(out, `${base} ${theme.dim("—")} `, c.reason, width);
       else out.push(base);
+    }
+  }
+  const scratchpads = d.scratchpads ?? [];
+  const attachments = d.scratchpadAttachments ?? [];
+  if (scratchpads.length) {
+    pushSection(out, theme.heading(`scratchpads (${scratchpads.length} active):`));
+    for (const pad of scratchpads) {
+      const attached = attachments.filter((entry) => entry.scratchpadId === pad.id);
+      const names = attached
+        .map((entry) => store.getSession(entry.sessionId))
+        .filter((session): session is SessionRow => Boolean(session))
+        .map(who);
+      const suffix = `${theme.dim(`r${pad.revision}`)}${names.length ? ` ${theme.dim("—")} ${names.join(", ")}` : ""}`;
+      appendWrapped(out, `  ${theme.accent(`#${pad.id}`)} `, `${pad.title} ${suffix}`, width);
     }
   }
   if (d.completed.length) {
@@ -273,6 +298,7 @@ export function statusJson(repoId: string, d: StatusData, now: number, store: St
       by: byName(c.sessionId),
       createdMsAgo: now - c.createdAt,
       worktree: worktreeLabel(c.worktreeId),
+      scratchpadId: c.scratchpadId ?? null,
     })),
     recentActivity: d.activity.map((a) => ({
       kind: a.kind,
@@ -281,7 +307,25 @@ export function statusJson(repoId: string, d: StatusData, now: number, store: St
       by: byName(a.sessionId),
       tsMsAgo: now - a.ts,
       worktree: worktreeLabel(a.worktreeId),
+      scratchpadId: a.scratchpadId ?? null,
     })),
     notes: d.notes.map((n) => ({ body: n.body, path: n.path, pinned: n.pinned })),
+    scratchpads: (d.scratchpads ?? []).map((pad) => ({
+      id: pad.id,
+      title: pad.title,
+      state: pad.state,
+      revision: pad.revision,
+      updatedMsAgo: now - pad.updatedAt,
+      attachedSessions: (d.scratchpadAttachments ?? [])
+        .filter((entry) => entry.scratchpadId === pad.id)
+        .map((entry) => {
+          const session = store.getSession(entry.sessionId);
+          return {
+            shortId: shortId(entry.sessionId),
+            name: session ? sessionName(session) : null,
+            worktree: worktreeLabel(entry.worktreeId),
+          };
+        }),
+    })),
   };
 }

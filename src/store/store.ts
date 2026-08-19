@@ -19,6 +19,7 @@ export const ACTIVITY_KINDS = [
   "forget",
   "join",
   "done",
+  "scratchpad",
 ] as const;
 
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
@@ -48,6 +49,8 @@ export interface ClaimInput {
   expiresAt: number;
   /** Immutable checkout snapshot; null preserves conservative legacy behavior. */
   worktreeId?: string | null;
+  /** Scratchpad active for this session/worktree when the claim was recorded. */
+  scratchpadId?: number | null;
 }
 
 export interface ClaimRow extends ClaimInput {
@@ -84,6 +87,8 @@ export interface ActivityInput {
   meta: string | null;
   /** Immutable checkout snapshot; null preserves conservative legacy behavior. */
   worktreeId?: string | null;
+  /** Scratchpad active for this session/worktree when the event was recorded. */
+  scratchpadId?: number | null;
 }
 
 export interface ActivityRow extends ActivityInput {
@@ -115,6 +120,71 @@ export interface AgePruneOptions {
 
 export type ClaimPruneOptions = AgePruneOptions;
 
+export const SCRATCHPAD_STATES = ["active", "archived", "trash"] as const;
+export type ScratchpadState = (typeof SCRATCHPAD_STATES)[number];
+export type ScratchpadActorKind = "agent" | "human" | "system";
+
+export interface ScratchpadCreateInput {
+  title: string;
+  body: string;
+  createdAt: number;
+}
+
+export interface ScratchpadRow {
+  id: number;
+  title: string;
+  body: string;
+  state: ScratchpadState;
+  previousState: ScratchpadState | null;
+  revision: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ScratchpadUpdateInput {
+  id: number;
+  expectedRevision: number;
+  title: string;
+  body: string;
+  state: ScratchpadState;
+  previousState: ScratchpadState | null;
+  updatedAt: number;
+}
+
+export interface ScratchpadRevisionInput {
+  scratchpadId: number;
+  revision: number;
+  title: string;
+  body: string;
+  state: ScratchpadState;
+  previousState: ScratchpadState | null;
+  createdAt: number;
+  actorKind: ScratchpadActorKind;
+  actorId: string | null;
+  actorHarness: string | null;
+  /** Physical checkout where the revision originated, when one was resolved. */
+  worktreeId: string | null;
+  provenance: string;
+  action: string;
+  reason: string | null;
+}
+
+export interface ScratchpadRevisionRow extends ScratchpadRevisionInput {
+  id: number;
+}
+
+export interface ScratchpadAttachmentInput {
+  scratchpadId: number;
+  sessionId: string;
+  worktreeId: string;
+  attachedAt: number;
+}
+
+export interface ScratchpadAttachmentRow extends ScratchpadAttachmentInput {
+  id: number;
+  detachedAt: number | null;
+}
+
 export interface Store {
   /** Execute related writes atomically. Transactions are synchronous and non-nested. */
   transaction<T>(fn: () => SyncTransactionResult<T>): SyncTransactionResult<T>;
@@ -144,6 +214,22 @@ export interface Store {
   /** Not released, regardless of expiry — used by conflict detection to surface stale holds. */
   listOpenClaims(): ClaimRow[];
   pruneClaims(opts: ClaimPruneOptions): void;
+
+  // scratchpads (canonical Markdown + append-only snapshots)
+  createScratchpad(input: ScratchpadCreateInput): ScratchpadRow;
+  getScratchpad(id: number): ScratchpadRow | undefined;
+  listScratchpads(states: ScratchpadState[] | null, limit: number): ScratchpadRow[];
+  findScratchpads(query: string, states: ScratchpadState[] | null, limit: number): ScratchpadRow[];
+  /** Conditional current-row update; callers append the matching revision in the same transaction. */
+  updateScratchpad(input: ScratchpadUpdateInput): boolean;
+  addScratchpadRevision(input: ScratchpadRevisionInput): number;
+  listScratchpadRevisions(scratchpadId: number, limit: number): ScratchpadRevisionRow[];
+
+  // scratchpad attachments (at most one live pad per session + physical checkout)
+  getScratchpadAttachment(sessionId: string, worktreeId: string): ScratchpadAttachmentRow | undefined;
+  listScratchpadAttachments(scratchpadId?: number): ScratchpadAttachmentRow[];
+  attachScratchpad(input: ScratchpadAttachmentInput): number;
+  detachScratchpad(sessionId: string, worktreeId: string, now: number): void;
 
   // notes (durable, repo-scoped; removal is always soft — retire, never delete)
   addNote(input: NoteInput): number;

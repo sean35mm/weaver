@@ -14,8 +14,10 @@ export function run(ctx: Ctx): number {
 
   const summaryRaw = rest(ctx.args, 3) || flagStr(ctx.args, "summary") || "";
   const summary = summaryRaw ? clamp(summaryRaw) : null;
-
   ctx.store.transaction(() => {
+    const scratchpadId = ctx.repo.worktreeId
+      ? (ctx.store.getScratchpadAttachment(id.key, ctx.repo.worktreeId)?.scratchpadId ?? null)
+      : null;
     ctx.store.addActivity({
       sessionId: id.key,
       ts: ctx.now,
@@ -24,6 +26,7 @@ export function run(ctx: Ctx): number {
       summary,
       meta: null,
       worktreeId: ctx.repo.worktreeId,
+      scratchpadId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
   });

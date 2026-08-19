@@ -27,6 +27,9 @@ export function runClaim(ctx: Ctx): number {
   });
 
   ctx.store.transaction(() => {
+    const scratchpadId = ctx.repo.worktreeId
+      ? (ctx.store.getScratchpadAttachment(id.key, ctx.repo.worktreeId)?.scratchpadId ?? null)
+      : null;
     // Refresh: supersede our own prior claim on the same pattern, then (re)record.
     ctx.store.releaseClaim(id.key, pattern, ctx.repo.worktreeId, ctx.now);
     ctx.store.addClaim({
@@ -36,6 +39,7 @@ export function runClaim(ctx: Ctx): number {
       createdAt: ctx.now,
       expiresAt: ctx.now + ttlMs,
       worktreeId: ctx.repo.worktreeId,
+      scratchpadId,
     });
     ctx.store.addActivity({
       sessionId: id.key,
@@ -45,6 +49,7 @@ export function runClaim(ctx: Ctx): number {
       summary: reason,
       meta: null,
       worktreeId: ctx.repo.worktreeId,
+      scratchpadId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
   });
@@ -69,6 +74,9 @@ export function runRelease(ctx: Ctx): number {
   const theme = themeFromCtx(ctx);
   const pattern = normalizeTarget(requireArg(ctx.args._[1], "glob"), ctx.repo.root, ctx.cwd);
   ctx.store.transaction(() => {
+    const scratchpadId = ctx.repo.worktreeId
+      ? (ctx.store.getScratchpadAttachment(id.key, ctx.repo.worktreeId)?.scratchpadId ?? null)
+      : null;
     ctx.store.releaseClaim(id.key, pattern, ctx.repo.worktreeId, ctx.now);
     ctx.store.addActivity({
       sessionId: id.key,
@@ -78,6 +86,7 @@ export function runRelease(ctx: Ctx): number {
       summary: null,
       meta: null,
       worktreeId: ctx.repo.worktreeId,
+      scratchpadId,
     });
     pruneAfterWrite(ctx.store, ctx.now);
   });
