@@ -24,13 +24,24 @@ export default defineConfig({
         starlightLlmsTxt({
           projectName: "Weaver",
           description:
-            "Weaver is a CLI-first, serverless coordination layer that gives multiple coding agents shared situational awareness in the same repo: who is active, what they're working on, what's claimed, and what's been learned. Fully local: all data lives in SQLite files on the user's machine — no telemetry, no account, nothing sent over the network.",
+            "Weaver is a CLI-first local coordination layer for coding agents: one curated Markdown scratchpad per workstream, attached sessions and claims, revision-safe edits, and durable Repository Facts. The CLI and local SQLite store are authoritative; there is no account, telemetry, remote sync, coordination daemon, or MCP server.",
         }),
       ],
       sidebar: [
         { label: "Getting started", items: [{ autogenerate: { directory: "getting-started" } }] },
         { label: "Core concepts", items: [{ autogenerate: { directory: "concepts" } }] },
-        { label: "Guides", items: [{ autogenerate: { directory: "guides" } }] },
+        {
+          label: "Guides",
+          items: [
+            { label: "Scratchpads", slug: "guides/scratchpads" },
+            { label: "Using Weaver from an agent", slug: "guides/using-from-an-agent" },
+            { label: "Coordinating many agents", slug: "guides/multiple-agents" },
+            { label: "Claude Code hooks", slug: "guides/claude-code-hooks" },
+            { label: "OpenCode plugin", slug: "guides/opencode-plugin" },
+            { label: "Scratchpad UI & watch", slug: "guides/dashboard" },
+            { label: "Configuration", slug: "guides/configuration" },
+          ],
+        },
         { label: "Reference", items: [{ autogenerate: { directory: "reference" } }] },
         {
           label: "Project",

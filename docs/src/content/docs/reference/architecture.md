@@ -10,12 +10,15 @@ sidebar:
 ```
   agents (any harness, any session) ── weaver <verb> … ──▶  ~/.weaver/<repo-id>.db  (SQLite, WAL)
                                                                     ▲
-                                                                    │ read-only
-                                                       weaver dashboard / watch (human viewer)
+                                      OpenCode tools ── CLI ─────────┤
+                                                                    │ read/write
+                                              scratchpads UI / watch
 ```
 
-Weaver is a single CLI over a local SQLite file. Each invocation opens the file, does a tiny
-amount of work, and exits. **No daemon, no server, no MCP.**
+Weaver is a single CLI over a local SQLite file. Each ordinary invocation opens the file, does a
+small amount of work, and exits. There is no coordination daemon or MCP server. `scratchpads`
+temporarily serves the human editor on loopback, and `watch` stays open to redraw a terminal view;
+agents do not require either process.
 
 ## Storage
 
@@ -36,24 +39,83 @@ A session's stable key is resolved as: **explicit** (`--session` / `WEAVER_SESSI
 → **controlling TTY** (self or nearest ancestor). No anonymous fallback. See
 [Coordinating many agents](/weaver/guides/multiple-agents/).
 
-## Data model
+## Schema v6 data model
 
-Four tables plus a small meta table:
+- `sessions` — participants, harness/source, intent, worktree, heartbeat, and end state.
+- `claims` — advisory TTL-bound file globs, optionally attributed to a scratchpad.
+- `notes` — durable **Repository Facts**. The historical table name is retained for compatibility.
+- `activity` — bounded events, optionally attributed to a worktree and scratchpad.
+- `scratchpads` — current title, Markdown, lifecycle state, and optimistic revision.
+- `scratchpad_revisions` — immutable title/body/state snapshots with actor and provenance.
+- `scratchpad_attachments` — live session/worktree-to-pad associations.
+- `command_events` — bounded content-free observer-command usage for local `audit` guidance.
+- `advisories` — conflict-warning cooldown fingerprints; no prompt or file content.
+- `dashboard_leases` — scoped foreground dashboard ownership, heartbeat, and expiry.
+- `weaver_meta` — schema version, enablement, and per-repo settings.
 
-- `sessions` — one row per participant (id, harness, intent, heartbeat, …).
-- `claims` — advisory, TTL'd locks on file globs (with a free-text reason).
-- `notes` — durable, repo-scoped learnings.
-- `activity` — an append-only, pruned event stream (kind, target, summary).
+Authored fields—pad Markdown, Facts, intent, claim reasons, and activity summaries—are plaintext
+local data. Do not store secrets, credentials, personal data, or sensitive customer data in them.
 
-The descriptive fields (intent, claim reason, activity summary, notes) are natural-language and
-agent-written — that's what makes the picture genuinely useful for coordination rather than
-just collision-avoidance.
+## Project-wide UI ownership
+
+`scratchpads` elects one foreground owner per effective store/user scope: canonical
+`WEAVER_HOME` + repo id + OS user id. Worktrees sharing those values reuse one server containing all
+of that store's pads. Different homes or users have independent scopes. The first owner chooses the
+port and may create at most one Weaver-managed cmux surface; followers discover its URL and either
+print it, ask the OS browser to open it, or request focus of that exact surface.
+
+Ownership is a short SQLite lease with an owner id, PID, expiry, and heartbeat—never the browser
+capability. The capability remains only in server memory, the owner control response, and the launch
+URL. Control uses an immutable owner-specific Unix socket (`0600`) under a user-owned private runtime
+directory (`0700`). UI mutations use a neutral `human`/`dashboard` actor with no follower session or
+worktree attribution.
+
+Dashboard takeover requires an expired exact lease and failed owner-specific control, then uses an
+atomic lease compare-and-swap. The PID is diagnostic and PID reuse does not block availability;
+Weaver never signals the recorded PID. Expiry immediately fences the stale owner's HTTP API and
+event stream, expired leases cannot be renewed, and a resumed stale owner's heartbeat shuts it down.
+This differs from destructive maintenance and store-holder cleanup, which remain conservative when
+process identity or liveness cannot be proved. Weaver has no daemon and never searches for or kills
+generic cmux, browser, or WebKit processes.
+
+Ctrl-C, TERM, and HUP drive the same owner shutdown sequence: close HTTP, close only the exact
+tracked cmux surface if one exists, close/unlink the owner socket, and release the lease. Ordinary
+browser tabs are outside Weaver's lifecycle and cannot be enforceably deduplicated.
+
+## Scratchpad transactions
+
+Every mutation compares the expected revision and writes the current row plus an immutable
+revision snapshot in one transaction. A stale compare fails instead of overwriting a concurrent
+writer. Attachments key a session and worktree to at most one active pad; claims, activity, and
+scratchpad mutations by that session inherit the attachment when one exists. Repository Facts stay
+repo-wide and may use `--path`/`--tag` for relevance instead of belonging to one pad.
+
+## Migration
+
+Opening an older store migrates it to the current schema v6 in order. The v4 → v5 step creates
+scratchpad, revision, and attachment tables and adds nullable scratchpad attribution to
+claims/activity. Existing rows in `notes` are not renamed or rewritten; the CLI simply presents
+them as Repository Facts. The v5 → v6 step adds scoped dashboard leases. Freshness of installed
+instruction blocks and OpenCode plugins is separate from the SQLite schema, so after upgrading
+rerun `weaver init` at the scope previously used and include `--hooks` when applicable.
+
+`weaver deinit` preserves the store. `weaver deinit --purge` deletes the whole current-repo store.
+`weaver uninstall` without `--keep-data` cleans the effective `WEAVER_HOME` (`$WEAVER_HOME` when set,
+otherwise `~/.weaver`). The default `~/.weaver` may be removed recursively after validation, but an
+explicit home is never removed recursively: only validated Weaver database and `-wal`, `-shm`, or
+`-journal` sidecar files are selectively deleted, leaving unrelated files and the directory intact.
+Both destructive commands remove authored pads, revision history, and Facts. Destructive maintenance
+first publishes a private per-scope fence that blocks new owners, asks the exact owner to shut down
+over its authenticated socket, and proves its lease and endpoint are gone. Uninstall acquires fences
+for all discovered stores before quiescing any. Unsafe metadata, ownership changes, timeouts, or
+unprovable process liveness cause refusal rather than best-effort deletion.
 
 ## What Weaver is not
 
 - **Not a VCS / merge tool.** It prevents and warns *before* an edit; git owns file contents.
 - **Not an MCP server.** It's a CLI — the universal interface every harness already speaks.
-- **Not a daemon or cloud service.** v1 is fully local.
+- **Not a coordination daemon or cloud service.** v1 is fully local; the optional editor server is
+  loopback-only and exists only while `weaver scratchpads` runs.
 
 ## Distribution
 

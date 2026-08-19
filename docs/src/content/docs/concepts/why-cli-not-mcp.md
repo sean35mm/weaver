@@ -18,6 +18,7 @@ Weaver's job is to answer simple repo-local questions:
 
 - Who else is active?
 - What are they working on?
+- Which workstream scratchpad are they using?
 - Which areas are claimed?
 - What has been learned about this repo?
 
@@ -45,10 +46,14 @@ That keeps the failure model small:
 - If no agents are running, there is no server to keep alive.
 - If a harness cannot run MCP tools, it can still run `weaver`.
 
-The dashboard is the exception by design: `weaver dashboard` starts a tiny local server for humans
-to watch the commons live. Agents do not coordinate through it, so the core system remains
-serverless. See the [architecture reference](/weaver/reference/architecture/) for the data model
-and runtime details.
+The rich scratchpad UI is the exception by design: `weaver scratchpads` starts a temporary,
+authenticated loopback server for humans to read and edit pads. Agents do not require it, so the
+coordination path remains serverless. See the [architecture reference](/weaver/reference/architecture/).
+
+OpenCode's dedicated Weaver tools are another ergonomic wrapper. The generated plugin exposes a
+fixed set of scratchpad and Repository Facts operations, and each one invokes the same CLI with
+fixed argv, JSON output, and Markdown over stdin. An OpenCode agent and a shell-only agent therefore
+cannot split into separate coordination stores or semantics.
 
 ## MCP would add a second coordination surface
 
@@ -67,8 +72,8 @@ for how claims stay advisory.
 
 ## Could Weaver have MCP support later?
 
-Yes, but as a wrapper around the CLI and store, not as the authority. An MCP integration could make
-Weaver nicer inside a specific client, while `weaver status`, `weaver check`, and `weaver claim`
-remain the universal contract.
+Potentially, but it is future work and **not part of v1**. Any MCP integration would be a wrapper
+around the CLI/store, not a second authority. `weaver status`, `scratchpad`, `check`, and `claim`
+would remain the universal contract.
 
 The rule is simple: integrations can improve ergonomics, but the CLI is the coordination layer.

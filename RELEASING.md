@@ -59,9 +59,11 @@ Only if you must release without the PR flow (this is how `v0.1.0` was bootstrap
 
 ```bash
 gh release create vX.Y.Z --generate-notes
+gh workflow run release-binaries.yml -f tag=vX.Y.Z
 ```
 
-This still triggers the binary builds. **Do not mix manual releases with release-please PRs
+Creating a release with `gh` does not trigger binary builds made by `GITHUB_TOKEN`; dispatch the
+fallback workflow explicitly with the new tag as shown. **Do not mix manual releases with release-please PRs
 casually** — if a release-please PR for the same version is open, close it first to avoid
 conflicting tags.
 

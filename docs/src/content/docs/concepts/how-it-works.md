@@ -1,72 +1,80 @@
 ---
 title: How it works
-description: The mental model behind Weaver — a shared whiteboard for agents, built on four primitives.
+description: The local commons behind workstream scratchpads, sessions, claims, activity, and Repository Facts.
 sidebar:
   order: 1
 ---
 
-## The mental model: a shared whiteboard
+## A shared workstream notebook
 
-Think of Weaver as a **whiteboard in a team room**, not a chat protocol. Agents glance at the
-board when they start, post what they're working on, and check it before grabbing a file. This
-is **stigmergy** — coordination *through a shared environment* rather than direct messaging —
-which is why a passive local store (no server, no daemon) is enough.
+Weaver coordinates through a shared local environment rather than direct agent-to-agent chat. Each
+workstream gets curated Markdown; sessions attach to it; claims and activity show who is changing
+which files; durable Repository Facts sit above individual tasks.
 
-Everything reduces to **four primitives**:
+| Primitive | What it answers |
+| --- | --- |
+| **Scratchpads** | What does this workstream know, decide, and need next? |
+| **Revisions** | Am I editing the version I actually read? |
+| **Sessions** | Who is active, in which harness/checkout, and with what intent? |
+| **Claims** | Which file areas have a live advisory owner? |
+| **Activity** | What happened recently and under which pad? |
+| **Repository Facts** | Which verified repo truths should survive this task? |
 
-| Primitive    | What it is                               | Example |
-| ------------ | ---------------------------------------- | ------- |
-| **Presence** | who's active now, and their intent       | `claude-code · "refactor auth"`, 10s ago |
-| **Claims**   | soft, advisory locks on file areas       | `claude-code claims src/auth/** — "rewriting tokens"` |
-| **Notes**    | durable learnings, scoped to the repo    | `"integration tests need docker pg on :5433"` |
-| **Activity** | a time-ordered log of what happened      | `codex edited src/api/users.ts — "added pagination"` |
+A session attaches to at most one active pad per worktree. Different workstreams use different
+pads, while multiple collaborating sessions may attach to the same one.
 
-Every command an agent runs is one of: *announce presence*, *claim/release an area*, *leave a
-note*, *log activity*, or *read the current picture*.
+## CLI authority, optional views and integrations
 
-## A participant is a session, not a tool
+Every authoritative operation is a `weaver` command over the same store. This works for any
+harness with shell access and prevents a plugin-only split brain. Claude hooks and OpenCode's
+official custom tools improve ergonomics but still invoke the CLI. MCP is not part of v1.
 
-The unit of coordination is a **session**, not a harness. Two Claude Code windows + three
-Codex sessions on one repo are **five participants**, and each sees the other four. Harness
-brand (`claude-code`, `codex`, …) is just a label. See
-[Coordinating many agents](/weaver/guides/multiple-agents/) for how identity is resolved.
+Most invocations open SQLite, perform a small transaction, and exit. `scratchpads` temporarily
+starts a local web server for the human editor, and `watch` stays open to redraw a terminal view;
+agents do not need either process to coordinate.
 
-## Where the data lives
+## Identity, repositories, and worktrees
 
-A single local SQLite database, keyed by the repo's identity (its git remote, falling back to
-the root-commit hash), stored under `~/.weaver/`. Because it's keyed by the *repo* — not the
-directory — every window **and** every git worktree of the same repo share one commons.
+A participant is a session, not a harness brand. Weaver resolves identity from an explicit
+override, then a harness-native session id, then a controlling terminal. Observer reads still work
+without identity; participant writes require one.
 
-There's no background process. Liveness is computed lazily: each command updates the caller's
-heartbeat (and `weaver check` refreshes it too), and reads treat anything past a TTL (~15 min)
-as stale. The store is self-healing —
-a crashed agent simply ages out.
+Stores are keyed by normalized git remote, then root commit, then directory fallback. Worktrees of
+one repo share a commons, while each claim/activity/attachment can retain an opaque checkout id.
+Known different-worktree overlaps are informational because checked-out files are isolated;
+same-worktree and unknown-location overlaps remain coordination signals.
 
-## Everything stays on your machine
+## Optimistic concurrency and lifecycle
 
-Weaver is local by design, and that's a guarantee, not an optimization:
+Every scratchpad mutation increments its revision and stores an immutable revision snapshot.
+Compare-and-swap writes reject stale expected revisions. The writer must re-read and merge; Weaver
+does not silently select a winner.
 
-- **All data is local.** Sessions, claims, notes, activity — everything lives in plain SQLite
-  files under `~/.weaver/` on your machine. You can open them, back them up, or delete them.
-- **Self-diagnostics are local too.** Observer commands (`status`, `check`, `preflight`, …)
-  record a content-free usage event in that same local store — the command name, a timestamp,
-  and the session label; never arguments, paths, note bodies, or repo content. `weaver audit`
-  reads these to show whether your agents actually follow the protocol. Events are pruned
-  after 30 days (or past the most recent 5,000) and, like everything else, never transmitted.
-- **Nothing goes over the network.** Weaver sends no telemetry, requires no account, and never
-  transmits anything about you, your repo, or your agents' activity. The *only* network call
-  it ever makes is `weaver upgrade` (and the install script) **downloading** its own binary
-  from GitHub releases — an ordinary fetch that carries no user data.
-- **The dashboard is loopback-only.** `weaver dashboard` binds `127.0.0.1` and is read-only;
-  it's a window for you, not a service for the internet.
+Pads are active, archived, or in trash. Archive/trash operations detach the caller and refuse when
+other live sessions remain attached. Restore and recover are revisioned. There is no individual
+permanent pad purge.
 
-Your agents' coordination chatter — intents, claim reasons, repo learnings — can be sensitive.
-It never leaves the machine it was written on.
+## Local storage and privacy
 
-## Advisory, never blocking
+One SQLite database per repository identity lives under `~/.weaver/` in WAL mode. Schema v6 has
+tables for sessions, claims, Repository Facts (the historical table name remains `notes`),
+activity, scratchpads, scratchpad revisions, scratchpad attachments, bounded command-usage events,
+advisory cooldowns, scoped dashboard leases, and metadata.
 
-Weaver **never blocks an edit**. Claims are advisory: it surfaces "someone's here" and the
-agent decides. Enforcement would fight the agent and break the fast, CLI-first flow. Git
-remains the source of truth for actual file contents — Weaver is the coordination layer *on
-top*. See the [conflict model](/weaver/concepts/conflicts/) for how conflicts are surfaced and
-resolved.
+Scratchpad Markdown, Facts, intents, reasons, and activity summaries are authored plaintext data.
+Keep secrets, credentials, personal data, and sensitive customer data out of them.
+
+Weaver sends no telemetry and requires no account. Content-free local command events support
+`weaver audit` and contain no argv, paths, pad bodies, Fact bodies, or repo content. The only
+network operations are install/upgrade downloads from GitHub.
+
+The rich scratchpad server binds to loopback, validates Host/Origin, sends restrictive security
+headers, and requires an unguessable launch capability for API reads and writes. The app removes
+the capability from browser history after loading. Stop the server with Ctrl-C.
+
+## Liveness and retention
+
+There is no background reaper. Commands and structural hooks refresh heartbeats. Readers compute
+liveness from configured TTLs, so crashed sessions age out and their claims stop acting active.
+Retention is bounded on write. Git remains the source of truth for repository files; Weaver stores
+coordination context, not code authority.

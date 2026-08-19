@@ -1,209 +1,283 @@
 ---
 title: CLI reference
-description: Every Weaver command, its flags, and examples.
+description: Exact shipped commands for scratchpads, coordination, Repository Facts, views, and lifecycle.
 sidebar:
   order: 1
 ---
 
-Run `weaver --help` for a summary, or `weaver <command> --help` where available. Commands fall
-into three groups: **agent** commands (register your presence), **observer** commands (passive —
-they never make you appear as a participant), and **lifecycle/maintenance**.
+Run `weaver --help` and `weaver scratchpad help` for the authoritative summaries. Relative paths
+resolve against the current repository/worktree. `--session <id>` or `WEAVER_SESSION=<id>` provides
+an explicit identity when harness/TTY discovery is unavailable.
 
-## Agent commands
+## Scratchpad commands
 
-Run automatically *by your agents* — the `weaver init` block tells them how. You'll rarely type
-these yourself, except to simulate an agent.
+### `weaver scratchpad list`
 
-### `weaver task "<intent>"`
-Announce what you're working on. Sets your session's intent.
-```sh
-weaver task "refactor the auth module to use AuthService"
+```text
+weaver scratchpad list [--state active|archived|trash|all] [--limit N] [--json]
 ```
 
-### `weaver claim '<glob>' [--reason "<why>"] [--ttl <dur>]`
-Stake out an area you'll work in. Advisory and TTL'd. Exits `0` when the area is clear. Exit `1`
-means the claim **was still recorded** but it overlaps another live session — the conflict is
-printed so the agent stops and coordinates. Don't re-run the claim on exit `1`; it succeeded.
-```sh
-weaver claim 'src/auth/**' --reason "rewriting token refresh" --ttl 2h
+Lists active pads by default, with id, title, state, revision, and live attachment count.
+
+### `weaver scratchpad create`
+
+```text
+weaver scratchpad create <title> [--from FILE|-] [--json]
 ```
 
-### `weaver release '<glob>'`
-Free an area you previously claimed.
+Reads UTF-8 Markdown from a file or stdin. Bodies are limited to 1,000,000 bytes; titles to 200
+characters. With piped stdin, `--from -` may be omitted, but explicit stdin is clearest.
 
-### `weaver note "<text>" [--pin] [--path <p>] [--tag <t>] [--update <id>]`
-Record a durable, repo-scoped learning. `--pin` surfaces it prominently in `status`.
-`--update <id>` replaces an existing note: the old note disappears from all listings and the
-new one takes its place (ids are shown by `weaver notes`). A pinned note stays pinned across
-updates unless you say otherwise.
-```sh
-weaver note "integration tests need docker pg on :5433" --tag testing
-weaver note "integration tests need docker pg on :5434 since #42" --update 17
+### `weaver scratchpad read`
+
+```text
+weaver scratchpad read <id> [--headings|--section HEADING|--tail N|--full] [--json]
 ```
 
-### `weaver log <kind> <path> "<summary>"`
-Record an activity event. `kind` is one of `edit`, `create`, `delete`, `run`, etc. (an unknown
-kind is recorded as `run` with a warning).
-```sh
-weaver log edit src/auth/login.ts "extracted refreshToken into AuthService"
+Small pads render fully. Large default reads return a bounded heading outline with guidance.
+`--section` returns one ATX heading through the next peer/parent; `--tail` accepts 1–500 lines;
+`--full` deliberately removes the normal content bound.
+
+### `weaver scratchpad find`
+
+```text
+weaver scratchpad find <query…> [--state active|archived|trash|all] [--limit N] [--json]
 ```
 
-### `weaver done`
-End your session and release its claims.
+Searches pad titles and Markdown.
 
-## Observer commands
+### `weaver scratchpad use`
 
-The commands **you** run as a human. They never register you as a participant and never touch
-the shared coordination state (sessions, claims, notes, activity). The one thing they do write
-is a single content-free usage event in the repo's local store — the command name and when it
-ran, never arguments, paths, or content — which `weaver audit` uses to show whether the
-protocol is actually being followed. If the store isn't writable, the event is skipped and the
-command works anyway.
+```text
+weaver scratchpad use <id>
+```
+
+Attaches the current identified session/worktree to one active pad, replacing its prior attachment.
+Claims and activity then inherit pad attribution. Repository Facts remain repo-wide. `done` detaches.
+
+### Content mutations
+
+```text
+weaver scratchpad replace <id> [--from FILE|-] [--revision N]
+weaver scratchpad append <id> [--from FILE|-] [--revision N]
+weaver scratchpad edit-section <id> <heading> [--from FILE|-] [--revision N]
+weaver scratchpad rename <id> <title…> [--revision N]
+```
+
+All accept `--json`. `--revision` (also accepted internally as `--expected-revision` or
+`--expected`) is optimistic compare-and-swap. Prefer `edit-section`; use `replace` only for a
+deliberate whole-document rewrite. Content edits require an active pad.
+
+### `$EDITOR`
+
+```text
+weaver scratchpad edit <id> [--revision N]
+```
+
+Uses `$VISUAL`, then `$EDITOR`. The private temporary draft is preserved if the editor, validation,
+or revision check fails.
+
+### History
+
+```text
+weaver scratchpad history <id> [--limit N] [--full] [--json]
+```
+
+Shows immutable revision metadata newest-first. `--full` includes each revision body.
+
+### Lifecycle
+
+```text
+weaver scratchpad archive <id> [--revision N] [--json]
+weaver scratchpad restore <id> [--revision N] [--json]
+weaver scratchpad trash <id> --reason WHY --revision N [--json]
+weaver scratchpad recover <id> [--revision N] [--json]
+```
+
+Archive moves active → archived; restore moves archived → active. Trash remembers the previous
+state; recover returns there. Agent trash requires both reason and revision. Archive/trash refuses
+other live attachments. There is no individual permanent pad purge.
+
+## Coordination commands
 
 ### `weaver status [--json] [--full]`
-The current picture: other live sessions, active claims, recent activity, and notes. **Silent
-when nothing is relevant.** `--json` for machine consumption; `--full` removes the caps.
 
-### `weaver check <path>`
-Is anyone else working on this path/area? Exits `0` if clear, `1` on a conflict, and prints the
-conflicting session's context. Observer-safe — works even without a resolved session. By default
-it refreshes the caller's heartbeat if the caller already has a live session; use `--no-touch`
-to skip that heartbeat refresh.
+Observer snapshot of active/recent sessions, intents, claims, activity, and Repository Facts.
+Human output stays silent when nothing is relevant; JSON always emits structure. `--full` increases
+normal caps.
 
-### `weaver preflight [paths…|--staged|--upstream|--base <ref>]`
-A bounded commit/push/PR risk check. It checks only the supplied or inferred paths, never polls,
-never waits for another session to run `done`, and never refreshes heartbeats. Relevant soft/hard
-overlaps are a pause signal for the agent to ask the user what to do.
-```sh
-weaver preflight --staged --operation commit
-weaver preflight --upstream --operation push
-weaver preflight --base main --operation pr --json
+### `weaver task <intent…>`
+
+Registers/refreshes the current session and sets its intent.
+
+### `weaver claim <glob>`
+
+```text
+weaver claim <glob> [--reason TEXT] [--ttl 30m]
 ```
 
-Exit policy defaults to `--fail-on soft`: exit `1` for relevant soft or hard overlaps, `0` for
-clear/stale/unrelated sessions, and `2` for tooling/input errors. Use `--fail-on hard` to pause
-only on active claims, or `--fail-on never` for report-only automation.
+Records an advisory, TTL-bound claim. Exit `0` is clear. Exit `1` means the claim **was recorded**
+but overlaps another live session; do not rerun it. `--ttl` accepts durations such as `90s`, `30m`,
+`2h`, and `1d` within configured bounds.
 
-Human and JSON output are capped by default; `--json` includes `counts` and `truncated` metadata.
-Use `--full` to include every checked path and overlap.
+### `weaver release <glob>`
 
-### `weaver forget <id> "<why>" [--undo]`
-Retire a note that turned out to be wrong or has become noise. Removal is **soft, audited, and
-reversible**: the note disappears from `status`/`notes`/dashboard, a `forget` event (with your
-reason) lands in the activity feed, the reason is kept on the note itself, and
-`weaver forget --undo <id>` brings it back. A reason is required — curation always leaves a why.
-For learnings that are *outdated* rather than wrong, prefer `weaver note --update <id>` with the
-correction.
-```sh
-weaver forget 12 "npm distribution was removed; this no longer applies"
-weaver forget --undo 12
+Releases the current session's matching claim in this checkout.
+
+### `weaver check <path> [--no-touch]`
+
+Observer-safe path conflict check. Exit `0` clear, `1` conflict. It normally refreshes a recognized
+live caller; `--no-touch` prevents that heartbeat.
+
+### `weaver preflight`
+
+```text
+weaver preflight [paths…|--staged|--upstream|--base REF]
+  [--operation commit|push|pr] [--fail-on soft|hard|never] [--json] [--full]
 ```
 
-### `weaver notes [query…] [--full] [--all] [--json]`
-List durable notes with their ids (pinned first, newest first). Superseded and retired notes are
-hidden — only the current picture appears. `--all` shows the full curation history, marking
-retired notes (with their reason) and superseded ones.
+Checks only supplied/inferred delivery paths, once, without heartbeat refresh or polling.
+`--staged` uses the index; `--upstream` uses `@{upstream}...HEAD`; `--base` uses `<ref>...HEAD`.
+Default `--fail-on soft` returns `1` for relevant soft/hard overlap and `2` for input/tooling errors.
+`hard` fails only active claims; `never` reports without overlap failure.
 
-Free-text terms search body, tags, and path (case-insensitive, all terms must match) and
-compose with `--path`/`--tag`; `--json` emits machine-readable rows.
-```sh
-weaver notes docker postgres
-weaver notes --tag infra --json
+### `weaver done`
+
+Ends presence for the current checkout, releases its claims, and detaches its scratchpad. Ambiguous
+same-identity/multiple-worktree presence remains conservative.
+
+## Repository Facts and activity
+
+### `weaver fact`
+
+```text
+weaver fact <text…> [--pin] [--path PATH] [--tag TOPIC] [--update ID]
 ```
 
-### `weaver activity [query…] [--kind <kind>] [--path <glob>] [--since <dur>] [--json] [--full]`
-The recent activity feed across sessions, searchable: free-text terms match summary and
-target, `--kind` filters by event kind (`edit`, `note`, `task`, …), `--path` by area
-overlap, and `--since` by age (`90s`, `30m`, `2h`, `3d`). Filters scan everything retained
-(not just the newest page).
-```sh
-weaver activity --kind edit --path 'src/auth/**' --since 2h
-weaver activity "token refresh" --json
+Records verified lasting repo knowledge. `--path` scopes relevance; `--tag` adds a filterable topic;
+`--pin` is for rare repo-wide facts; `--update` creates a replacement and supersedes the prior row.
+`weaver note` is a compatibility alias.
+
+### `weaver facts`
+
+```text
+weaver facts [query…] [--full] [--all] [--path PATH] [--tag TOPIC] [--json]
 ```
 
-### `weaver audit [--json]`
-A self-audit of how Weaver is being used in this repo: session identity quality, stale
-sessions, expired claims, retained activity by kind, observer-command usage (from the local
-usage events), note curation state, and setup coverage (instruction files, Claude Code hooks) —
-followed by concrete recommendations, e.g. when agents never run `status`, `check`, or
-`preflight`. Command-usage counts include the `audit` invocation itself.
-```sh
-weaver audit
-weaver audit --json
+Lists current Facts (pinned then newest) or filters by all free-text terms, overlapping path, and
+exact topic token. `--all` includes retired/superseded history. `weaver notes` is a compatibility
+alias. The underlying schema retains the historical `notes` table name.
+
+### `weaver forget`
+
+```text
+weaver forget <id> <reason…>
+weaver forget --undo <id>
 ```
 
-### `weaver doctor`
-Diagnostics: resolved session key + source, repo id, store path, runtime/binding, enabled
-state, active session count.
+Soft-retires a wrong/obsolete Fact with an audit reason, or restores it. No row is deleted.
 
-## Lifecycle & maintenance
+### `weaver log <kind> <path> <summary…>`
+
+Records notable activity. Unknown kinds are normalized to `run` with a warning.
+
+### `weaver activity`
+
+```text
+weaver activity [query…] [--kind K] [--path P] [--since 2h] [--full] [--json]
+```
+
+Searches retained summaries/targets; filters compose and scan retained history before output caps.
+
+## Human views
+
+### `weaver scratchpads`
+
+```text
+weaver scratchpads [--port N] [--no-open] [--open=auto|browser|cmux]
+```
+
+Starts the authenticated loopback rich/source editor until Ctrl-C. `dashboard`, `view`, and `ui`
+are aliases. `auto` optionally uses a valid cmux browser pane and otherwise uses `open` (macOS) or
+`xdg-open` (Linux). `--no-open` supports headless use.
+
+The first command owns one foreground server and at most one Weaver-managed cmux surface for the
+effective repo store/`WEAVER_HOME`/OS user scope. Worktrees in that scope follow it, reuse its URL,
+and cannot replace its port. Different homes or users may run separate owners. A follower with
+`--no-open` only prints the URL; `browser` may open another ordinary browser tab; `auto`/`cmux`
+request focus of the owner's exact managed cmux surface and otherwise leave the URL for manual use.
+Ordinary browser tabs cannot be reliably deduplicated.
+
+Ctrl-C, TERM, or HUP stops an owner cleanly and closes only its exact managed cmux surface. UI edits
+are attributed to a neutral human/dashboard actor across all followers.
+
+### `weaver watch`
+
+Live terminal coordination view until Ctrl-C.
+
+## Setup, diagnostics, and lifecycle
 
 ### `weaver init [--project|--global] [--hooks|--no-hooks]`
-Install the agent instruction block into either project files (`./CLAUDE.md`, `./AGENTS.md`) or
-global files (`~/.claude/CLAUDE.md`, `~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`). On a
-TTY, `init` prompts with project files as the first/default choice. Non-interactive runs default
-to project files. `--project` and `--global` are mutually exclusive.
 
-`init` can also install the harness integrations — [Claude Code hooks](/weaver/guides/claude-code-hooks/)
-and the [OpenCode identity plugin](/weaver/guides/opencode-plugin/). They follow the chosen
-scope: project writes `.claude/settings.json` and `.opencode/plugins/weaver.js` in the repo;
-global writes `~/.claude/settings.json` and `~/.config/opencode/plugins/weaver.js`, covering
-every repo. On a TTY it asks (default yes); non-interactive runs install them only with an
-explicit `--hooks`.
+Installs/refreshes the versioned managed block. Project targets are `./CLAUDE.md` and `./AGENTS.md`;
+global targets are `~/.claude/CLAUDE.md`, `~/.config/opencode/AGENTS.md`, and
+`$CODEX_HOME/AGENTS.md` (default `~/.codex/AGENTS.md`).
 
-Project scope covers the current checkout only — run `init` in each repo you want covered. Global
-scope is a one-time setup that covers every repo where your agents read their global instruction
-files — no per-repo `init` is needed afterwards. In both cases there is no per-repo database
-setup: a repo's store is created automatically the first time an agent runs a weaver command
-there.
-
-### `weaver disable` / `weaver enable`
-Pause / resume agent writes for this repo. While disabled, mutating commands no-op quietly
-(reads and `done` still work).
-
-### `weaver deinit [--project|--global] [--purge]`
-Remove the instruction block from project files by default, or from global files with `--global`.
-Each scope also removes its own harness integrations: project deinit cleans `.claude/settings.json`
-and `.opencode/plugins/weaver.js` in the repo; `--global` cleans `~/.claude/settings.json` and
-`~/.config/opencode/plugins/weaver.js`.
-`--purge` also deletes the current repo's store.
+`--hooks` also merges Claude Code hooks and installs the OpenCode plugin at the same scope. User
+content and foreign files are preserved. Interactive runs prompt; noninteractive runs default to
+project and skip integrations unless `--hooks` is explicit.
 
 ### `weaver hook <pre-edit|post-edit>`
-The Claude Code hook endpoint — registered by `weaver init`, not meant to be run by hand. Reads
-the hook payload JSON on stdin. `pre-edit` emits an advisory warning (never a block) when the
-target file overlaps another live session; `post-edit` records the edit and refreshes the
-session's heartbeat. Always exits `0`; problems are silently ignored so a hook can never break
-an agent. See [Claude Code hooks](/weaver/guides/claude-code-hooks/).
+
+Best-effort Claude/OpenCode structural endpoint reading JSON on stdin. Not intended for humans.
+
+### `weaver disable` / `weaver enable`
+
+Pause/resume mutating agent writes for this repo. Reads and lifecycle cleanup still work.
+
+### `weaver deinit [--project|--global] [--purge]`
+
+Removes only Weaver-owned managed blocks and harness integrations at the selected scope (project by
+default). Data is preserved unless `--purge` is passed. Purge deletes this repo's entire authored
+store: pads/revisions, Facts, sessions, claims, activity, and metadata. Before deletion, a private
+maintenance fence blocks new UI owners and requests authenticated shutdown of the exact current
+owner. If Weaver cannot prove safe quiescence—including lease/control races—it refuses the purge.
 
 ### `weaver config [<key> [<seconds>]]`
-View or set tunable TTLs. See [Configuration](/weaver/guides/configuration/).
+
+Views/sets per-repo `session_ttl_seconds`, `claim_ttl_seconds`, and
+`recent_activity_seconds`.
+
+### `weaver audit [--json]`
+
+Summarizes bounded retained usage, pad/Fact state, identity quality, stale sessions/claims, and
+project/global setup freshness, then recommends scope-correct refreshes.
+
+### `weaver doctor`
+
+Shows identity quality, repo/root, SQLite binding, enabled state, sessions/claims/pads, instruction
+freshness, hooks, and OpenCode plugin status.
 
 ### `weaver upgrade [--check]`
-Update the installed binary to the latest release (`--check` only checks). See
-[Install](/weaver/getting-started/install/).
 
-## Common flags
+Standalone binary only. Checks/downloads the latest checksum-verified release. Store migration is
+automatic; rerun `init` at the previously installed scope (and `--hooks` if used), then restart
+OpenCode.
 
-| Flag | Applies to | Meaning |
-| --- | --- | --- |
-| `--json` | `status`, `notes`, `activity`, `preflight`, `audit` | machine-readable output |
-| `--full` | `status`, `notes`, `activity`, `preflight` | remove output caps |
-| `--color` | supported human output | force ANSI colors (`--color=always`, `auto`, or `never`) |
-| `--no-color` | supported human output | disable ANSI colors |
-| `--staged` | `preflight` | check staged paths |
-| `--upstream` | `preflight` | check `@{upstream}...HEAD` paths |
-| `--base` | `preflight` | check `<ref>...HEAD` paths |
-| `--fail-on` | `preflight` | exit threshold: `soft`, `hard`, or `never` |
-| `--project` | `init`, `deinit` | use project instruction files |
-| `--global` | `init`, `deinit` | use global instruction files |
-| `--hooks` / `--no-hooks` | `init` | install / skip harness integrations (Claude Code hooks + OpenCode plugin) |
-| `--update` | `note` | supersede an existing note by id |
-| `--all` | `notes` | include retired and superseded notes |
-| `--undo` | `forget` | restore a retired note |
-| `--kind` | `activity` | filter by event kind |
-| `--since` | `activity` | only events newer than a duration (`30m`, `2h`, `3d`) |
-| `--no-touch` | `check` | skip the caller's heartbeat refresh |
-| `--reason` | `claim` | why you're claiming the area |
-| `--ttl` | `claim` | claim lifetime (`90s`, `30m`, `2h`, `1d`) |
-| `--pin` | `note` | surface the note prominently |
-| `--session` | any | explicit session id (overrides auto-detection) |
+### `weaver uninstall [--yes] [--keep-data]`
+
+Standalone binary only. After confirmation, the default behavior removes the binary and cleans the
+effective `WEAVER_HOME` (`$WEAVER_HOME` when set, otherwise `~/.weaver`). The default `~/.weaver`
+may be removed recursively after fencing and validation. An explicit `WEAVER_HOME` is never removed
+recursively: only validated Weaver database and `-wal`, `-shm`, or `-journal` sidecar files are
+deleted, leaving unrelated files and the directory intact. `--keep-data` removes only the binary;
+`--yes` is required noninteractively.
+
+Uninstall refuses on unsafe, missing, or changed required targets; unrecognized discovered stores;
+or any failure to fence the home, quiesce its exact UI owners, and drain active store users. It
+does not delete around live or uncertain access.
+
+## Global output flags
+
+`--color=always|auto|never` and `--no-color` control supported human output. JSON output is never
+colorized.

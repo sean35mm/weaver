@@ -1,106 +1,124 @@
 ---
 title: Using Weaver from an agent
-description: The exact protocol a coding agent should follow to coordinate through Weaver.
+description: The exact scratchpads-first protocol a coding agent should follow.
 sidebar:
-  order: 1
+  order: 2
 ---
 
-This page is written for **coding agents** (and the people configuring them). If you're an
-agent reading this: follow it directly.
+This is the expanded form of the versioned block installed by `weaver init`.
 
-Weaver is a local CLI. You interact with it by running shell commands. `weaver init` injects a
-short version of this protocol into project or global agent instruction files; this page is the
-full version.
-
-## The per-task loop
-
-Run these as you work. They're cheap and fast.
+## Start every task
 
 ```sh
-# 1. At the start of a task — see who else is here.
 weaver status
+weaver scratchpad list
+weaver scratchpad read <id> --headings
+```
 
-# For read-only / plan-only work, stop there.
+Reuse the active pad matching this workstream. Create a separate pad only for a genuinely separate
+workstream:
 
-# 2. Once implementation or other writes are approved, state your intent.
-weaver task "refactor the auth module to use AuthService"
+```sh
+weaver scratchpad create "<workstream title>" --from -
+```
 
-# 3. Claim the area you'll work in (once). Advisory; surfaces overlaps.
-weaver claim 'src/auth/**' --reason "rewriting token refresh"
+Read relevant sections before investigating. **Read-only and plan-only work may read pads but must
+not attach, mutate a pad, register a task, or claim files.**
 
-# 4. Record durable learnings about this repo as you discover them.
-weaver note "AuthService is the new entry point — don't call jwt.* directly"
+Once repository writes are authorized:
 
-# 4b. Keep the record honest: if an existing note is outdated, replace it; if it's
-#     wrong or noise, retire it (soft, audited, reversible — a reason is required).
-weaver note "AuthService moved to src/core/auth" --update 12
-weaver forget 17 "we no longer use docker for tests"
+```sh
+weaver task "<specific goal>"
+weaver scratchpad use <id>
+weaver claim '<glob>' --reason "<why this area is needed>"
+```
 
-# 5. When finished, release your claims.
+Attach before the first repository write. Claim every path you expect to edit, each scope once.
+
+## Maintain curated shared Markdown
+
+Use stable headings for decisions, constraints, findings, and next steps. Do not dump transcripts,
+routine command output, or unverified speculation.
+
+Read the current revision before changing the pad. Prefer a targeted section write:
+
+```sh
+weaver scratchpad read 7 --section Findings --json
+printf '%s\n' '<replacement body below the heading>' |
+  weaver scratchpad edit-section 7 Findings --from - --revision 12
+```
+
+A stale revision means another writer changed the pad. Re-read and merge deliberately; never
+overwrite or mechanically retry at the newer revision. A small `append --revision <n>` is suitable
+when no existing section should be replaced. Avoid whole-body `replace` unless the rewrite is
+intentional.
+
+## Promote Repository Facts
+
+Task state belongs in the pad. Verified, lasting repo knowledge belongs in Repository Facts:
+
+```sh
+weaver fact "AuthService owns token refresh" --path 'src/auth/**'
+weaver facts auth --json
+weaver fact "AuthService moved to src/core/auth" --update 12
+weaver forget 17 "the old Docker setup was removed"
+```
+
+Use `--pin` only for rare repo-wide facts. `note` and `notes` remain compatibility aliases, but new
+work should use `fact` and `facts`. Never store secrets, credentials, personal data, or sensitive
+customer data in pads, Facts, intents, reasons, or summaries.
+
+## Conflict playbook
+
+Claim exit `1` means the claim **was recorded** and a conflict was surfaced. Do not rerun it.
+
+1. Read the other live session's intent, claims, activity, and attached pad.
+2. Prefer useful non-overlapping work.
+3. Proceed only when the overlap is demonstrably harmless.
+4. Otherwise record your intent in the pad and ask the user how to split the work.
+5. Never silently edit over another live session.
+
+Known different-worktree overlaps are informational because checked-out files are isolated. Still
+coordinate before merge/rebase/integration can collide. See [The conflict model](/weaver/concepts/conflicts/).
+
+## Finish and deliver
+
+Before commit, push, or PR, run one bounded check:
+
+```sh
+weaver preflight --staged
+weaver preflight --upstream
+weaver preflight --base main
+```
+
+If relevant soft/hard overlap appears, pause and ask the user. Do not silently poll or wait unless
+the user explicitly requests waiting.
+
+Update final decisions and next steps in the pad. Archive a completed pad with its current
+revision. Leave a paused/shared workstream active when other sessions still need it.
+
+```sh
+weaver scratchpad archive 7 --revision 14
 weaver done
 ```
 
-Optional, when useful:
+Agents may trash only pads that are empty, duplicates, or demonstrably obsolete, always with a
+reason and current revision, and never while another live session is attached. Recover mistakes;
+there is no permanent per-pad purge. The separate `weaver deinit --purge` command removes the
+repository's entire local Weaver store, including every scratchpad and its history.
 
-```sh
-weaver check src/auth/login.ts                       # is anyone else on this file?
-weaver log edit src/auth/login.ts "extracted refreshToken into AuthService"
-```
+## Machine-readable reads
 
-## Before commit, push, or PR
-
-Use a bounded preflight check when available:
-
-```sh
-weaver preflight --staged --operation commit
-weaver preflight --upstream --operation push
-weaver preflight --base main --operation pr
-```
-
-`preflight` checks only relevant paths, does not refresh heartbeats, and never waits. If it
-reports a relevant soft/hard overlap, pause and ask the user whether to continue, wait briefly,
-or coordinate first. Do not silently poll for another session to run `weaver done` unless the
-user explicitly asks you to wait.
-
-## On a conflict
-
-A non-zero exit from `claim` means your claim **was recorded** and a conflict was surfaced —
-don't re-run the command; coordinate instead.
-
-If `status`, `check`, or `claim` shows another **live** session in your area, read their intent
-+ reason + recent activity, then:
-
-1. **Prefer to work elsewhere** and re-check later (the default).
-2. If the overlap is harmless (different files), proceed — and `weaver log` it.
-3. If you're blocked, `weaver note` your intent and **ask the user how to split the work**.
-
-**Never silently edit over another agent's active area.** See the
-[conflict model](/weaver/concepts/conflicts/) for the tiers.
-
-## Reading the picture as a machine
-
-Use `--json` for structured output you can parse:
+Use JSON for structured CLI output:
 
 ```sh
 weaver status --json
+weaver scratchpad list --json
+weaver scratchpad read 7 --section Decisions --json
+weaver facts --json
 weaver activity --json
 weaver preflight --staged --json
 ```
 
-`status --json` returns active sessions (`shortId`, harness, intent), active claims (pattern,
-reason, holder), recent activity, and notes. JSON mode always emits structured arrays; the human
-`status` output is the one that stays terse when nothing is relevant. Both are safe to run at the
-top of every task without bloating your context.
-
-## Identity & sessions
-
-Each session gets a stable key, resolved as: an explicit `WEAVER_SESSION` / `--session`
-override → a harness-native session id (e.g. `CLAUDE_CODE_SESSION_ID`, `CODEX_THREAD_ID`)
-→ the controlling terminal. If none can be resolved, observer commands
-(`status`, `check`, …) still work, but mutating commands fail with a hint to set
-`WEAVER_SESSION`. Details: [Coordinating many agents](/weaver/guides/multiple-agents/).
-
-## Keep it tight
-
-Keep reasons and notes short, specific, and **free of secrets** — other agents read them to
-coordinate, and the store is plaintext.
+OpenCode users with the generated plugin can use its dedicated `weaver_*` tools; those tools are
+strict wrappers around these same commands. Shell commands remain the universal authority.

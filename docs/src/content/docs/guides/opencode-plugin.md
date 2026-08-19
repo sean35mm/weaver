@@ -1,65 +1,90 @@
 ---
 title: OpenCode plugin
-description: Structural coordination for OpenCode — session identity, edit logging, conflict advisories, and automatic cleanup via OpenCode's plugin hooks.
+description: Official custom tools plus best-effort structural hooks for OpenCode sessions.
 sidebar:
   order: 4
 ---
 
-OpenCode ≥1.17 exposes no session identifier to the shell commands it runs, and has no
-built-in way for an outside tool to observe its edits. Its plugin system provides both.
-Weaver ships a single small plugin (`weaver.js`) that makes coordination structural for
-OpenCode, the same way [hooks do for Claude Code](/weaver/guides/claude-code-hooks/):
+Weaver's generated OpenCode plugin combines two layers while keeping the CLI authoritative:
 
-- **Session identity** — the `shell.env` hook injects `OPENCODE_SESSION_ID` into every
-  shell and PTY command, so each OpenCode session is a first-class, distinct participant
-  (instead of a weak terminal-based identity).
-- **Edit logging & presence** — after every `edit`/`write` tool call, the plugin feeds
-  `weaver hook post-edit` the edited path: the edit lands in the activity feed and the
-  session's heartbeat refreshes, keeping a busy agent visibly live.
-- **Conflict advisories** — after the edit, `weaver hook pre-edit` checks the path against
-  other live sessions' claims and recent activity. On an overlap, the warning is appended
-  to the tool output the model reads (`[weaver advisory] …`), so the agent sees the other
-  session's intent and coordinates. Advisories are rate-limited: the same conflict picture
-  warns once per cooldown, and a *changed* picture re-warns immediately.
-- **Session cleanup** — when OpenCode deletes a session, the plugin runs `weaver done` for
-  it, releasing claims instead of waiting for TTL aging. (Idle sessions are deliberately
-  left alone — idle just means "between turns".)
+1. **Best-effort structural hooks** export session identity, log edit paths, append advisory
+   conflict context, refresh presence, and clean up deleted sessions.
+2. **Strict custom tools** expose a fixed set of scratchpad and Repository Facts operations through
+   OpenCode's official `tool` hook.
 
-Everything is best-effort by construction: every weaver call is wrapped so a missing or
-failing binary can never break OpenCode, and in repos that haven't opted into Weaver the
-hook command exits silently without creating a store.
+The generated ESM begins with:
 
-## Install
-
-```sh
-weaver init --project --hooks   # this repo: .opencode/plugins/weaver.js
-weaver init --global --hooks    # every repo, once: ~/.config/opencode/plugins/weaver.js
+```js
+import { tool } from "@opencode-ai/plugin";
 ```
 
-The `--hooks` switch installs both harness integrations for the chosen scope: the
-[Claude Code hooks](/weaver/guides/claude-code-hooks/) and this plugin. Global is a natural
-fit here — the plugin is repo-agnostic, so one global file covers every repo on the
-machine. Interactive `init` asks; scripted runs install only with an explicit `--hooks`.
+`@opencode-ai/plugin` is supplied by OpenCode. The generated file does not import or depend on a
+Weaver npm package; it invokes the installed `weaver` binary.
 
-OpenCode loads plugins at app startup — fully restart the OpenCode app after installing
-(a new session alone won't pick it up). After upgrading Weaver, re-run
-`weaver init --hooks` once to refresh the installed plugin to the latest template.
+## Install and refresh
 
-`weaver doctor` reports both scopes: `plugin : project missing · global installed`.
+```sh
+weaver init --project --hooks   # .opencode/plugins/weaver.js in this checkout
+weaver init --global --hooks    # ~/.config/opencode/plugins/weaver.js for every repo
+```
 
-## Good to know
+`--hooks` installs both the OpenCode plugin and Claude Code hooks at the chosen scope. Interactive
+init asks; non-interactive init requires the flag explicitly.
 
-- **Requires OpenCode ≥1.17** (the `shell.env` hook; PTY commands are covered from
-  v1.17.7). On ≤1.16.x you don't need it — `OPENCODE_RUN_ID` is built in and Weaver still
-  recognizes it.
-- **Advisories arrive after the first conflicting edit**, in that edit's tool output —
-  OpenCode's plugin API has no non-blocking pre-edit channel. Weaver never blocks; the
-  model reads the warning and coordinates before going further.
-- **Content-free.** Only the opaque session id and edited file *paths* ever reach weaver —
-  no prompts, file contents, or repo content — consistent with Weaver's
-  [local-only guarantee](/weaver/concepts/how-it-works/#everything-stays-on-your-machine).
-- **Your files are safe.** The installed file carries a Weaver marker. If a
-  `.opencode/plugins/weaver.js` already exists without it, Weaver reports it as *foreign*
-  and never writes over or removes it.
-- **Uninstall** with `weaver deinit` / `weaver deinit --global` (each scope removes its own
-  plugin along with the instruction block and Claude Code hooks), or just delete the file.
+The plugin has a managed marker and template protocol version. `weaver init` detects current,
+outdated, missing, and foreign plugin files. An outdated Weaver-owned file is replaced in place; a
+marker-less user-owned `weaver.js` is reported as foreign and never overwritten or removed.
+
+OpenCode loads plugins at application startup. **Fully restart OpenCode** after install or refresh.
+After `weaver upgrade`, rerun `weaver init` at your previous scope, include `--hooks`, then restart.
+`weaver doctor` and `weaver audit` report stale integrations with scope-correct commands.
+
+## Dedicated tools
+
+| Tool | Operation |
+| --- | --- |
+| `weaver_scratchpad_list` | list/search pads by lifecycle state |
+| `weaver_scratchpad_read` | bounded default/headings/section/tail read |
+| `weaver_scratchpad_create` | create a workstream pad with Markdown on stdin |
+| `weaver_scratchpad_use` | attach the execute-context session/worktree |
+| `weaver_scratchpad_edit_section` | targeted heading-body replacement at an expected revision |
+| `weaver_scratchpad_rename` | rename at an expected revision |
+| `weaver_scratchpad_archive` | archive at an expected revision |
+| `weaver_scratchpad_restore` | restore at an expected revision |
+| `weaver_scratchpad_trash` | trash with mandatory reason and expected revision |
+| `weaver_scratchpad_recover` | recover at an expected revision |
+| `weaver_facts_list` | list/search current or historical Repository Facts |
+| `weaver_fact_record` | create or supersede a Repository Fact |
+| `weaver_fact_forget` | retire a Fact with a reason |
+
+There is no generic shell/argv tool. Every tool constructs an allowlisted argv shape; scratchpad
+bodies travel over stdin; reads request JSON and stay bounded. The strict runner captures exit code,
+stdout, and bounded stderr. Non-zero exits become clear errors, with special wording for stale
+revisions, lifecycle/attachment mistakes, and coordination conflicts.
+
+The tool execute context's `sessionID` becomes `OPENCODE_SESSION_ID`. Its directory is preferred as
+the command cwd, with plugin directory/worktree fallbacks. This keeps tool writes attributed to the
+same session and checkout as shell commands.
+
+## Structural hooks
+
+- **`shell.env`** injects the current `OPENCODE_SESSION_ID` into shell and PTY commands.
+- **`tool.execute.after`** observes successful `edit`/`write` calls. It sends only the opaque
+  session id and edited path to `weaver hook`: post-edit logs/refreshes presence; pre-edit returns a
+  rate-limited advisory appended to the model-visible tool output.
+- **`session.deleted`** invokes `weaver done` for that session. Idle is deliberately not treated as
+  done.
+
+These structural subprocess calls remain best-effort: a missing/failing Weaver binary never breaks
+an OpenCode edit. Explicit custom tools are intentionally strict because the agent requested a
+Weaver operation and needs to know whether it committed.
+
+## Security and compatibility
+
+- OpenCode ≥1.17 is required for `shell.env`; PTY propagation is available from 1.17.7.
+  `OPENCODE_RUN_ID` remains recognized for older OpenCode releases.
+- No prompts or file contents flow through structural hooks. Explicit scratchpad/Fact tool content
+  is written only to the same local Weaver SQLite store requested by the agent.
+- Never put secrets or sensitive personal/customer data in local coordination content.
+- `weaver deinit` removes only a project plugin carrying Weaver's marker;
+  `weaver deinit --global` does the same for global scope.

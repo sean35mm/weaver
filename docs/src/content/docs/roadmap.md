@@ -9,10 +9,18 @@ the project (and the way people run agents) evolves.
 
 <div class="wv-eyebrow">▸ Recently shipped</div>
 
-- **OpenCode plugin** — structural coordination for OpenCode: first-class session identity,
-  automatic edit logging and presence, conflict advisories the model sees, and session
-  cleanup — installable per repo or globally. See the
+- **Workstream scratchpads** — curated Markdown, optimistic revisions, immutable history,
+  session/worktree attachments, and active/archive/trash lifecycle through one scriptable CLI.
+- **Rich scratchpad UI** — WYSIWYG/source editing, search, autosave conflict handling, lifecycle
+  actions, pad context, browser/cmux launchers, and a headless URL.
+- **Official OpenCode tools** — fixed scratchpad and Repository Facts operations through the
+  official `tool` hook, plus first-class session identity, best-effort edit logging/advisories, and
+  session cleanup. See the
   [plugin guide](/weaver/guides/opencode-plugin/).
+- **Repository Facts terminology** — `fact`/`facts` are the preferred commands while
+  `note`/`notes` remain compatible aliases and existing data stays unchanged.
+- **Facts & activity search** — free-text and path/topic/kind/time filters over retained knowledge
+  and coordination history.
 - **Usage audit & local metrics** — `weaver audit` summarizes retained usage, setup coverage,
   and concrete recommendations; observer commands record content-free usage events, locally
   only, so the audit can tell whether agents actually follow the protocol.
@@ -21,22 +29,22 @@ the project (and the way people run agents) evolves.
 - **Claude Code hooks** — coordination is now structural for Claude Code: an advisory warning
   before any edit that overlaps another live session, and automatic presence after every edit.
   See the [hooks guide](/weaver/guides/claude-code-hooks/).
-- **Note lifecycle** — notes have ids and `weaver note --update <id>` supersedes stale learnings.
+- **Fact lifecycle** — Facts have ids; `fact --update` supersedes, and `forget` retires/restores with
+  audit history.
 
 <div class="wv-eyebrow">▸ Now — in flight</div>
 
 What's actively being worked on.
 
-- **Notes & activity search** — free-text queries and `--kind`/`--path`/`--since` filters
-  over retained notes and history.
-- **Real-world dogfooding** — running Weaver on its own repo across Claude Code and OpenCode, folding the findings back in.
+- **Real-world dogfooding** — running scratchpads-first coordination on Weaver itself across Claude
+  Code, OpenCode, Codex, and ordinary terminals, then tightening the protocol from observed gaps.
 
 <div class="wv-eyebrow">▸ Next — committed, soon</div>
 
 Lined up and likely to land in the near term.
 
 - **More harness coverage** — Cursor, Gemini CLI, and Aider recognized out of the box.
-- **Dashboard & watch upgrades** — a richer live view, with filtering by area or agent.
+- **Richer workstream views** — deeper filtering and navigation across pads, agents, and areas.
 
 <div class="wv-eyebrow">▸ Later — directional</div>
 

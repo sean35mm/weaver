@@ -16,6 +16,10 @@ the repo: [`RELEASING.md`](https://github.com/sean35mm/weaver/blob/main/RELEASIN
 
 You don't hand-pick versions or write the changelog — they come from the commit messages.
 
+For the exceptional manual fallback, create the release and then explicitly dispatch
+`release-binaries.yml` with its tag (`gh workflow run release-binaries.yml -f tag=vX.Y.Z`). A
+release created by a token does not automatically start that binary workflow.
+
 ## Distribution
 
 Weaver is distributed as a **standalone binary** via `curl | sh` and `weaver upgrade`. See

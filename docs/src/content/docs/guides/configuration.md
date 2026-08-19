@@ -38,6 +38,6 @@ weaver claim 'src/auth/**' --reason "big refactor" --ttl 2h
 
 ## Diagnostics
 
-`weaver doctor` prints the resolved identity, repo id, store path, runtime/binding, and
-enabled state — the first thing to check when something looks off. See
+`weaver doctor` prints identity quality, repo/root, runtime binding, enabled state, pad/session/claim
+counts, and project/global integration freshness—the first thing to check when something looks off. See
 [Troubleshooting](/weaver/reference/troubleshooting/).

@@ -19,11 +19,17 @@ Every page also has clean markdown source in the repo under
 ## If you're an agent using Weaver
 
 Read **[Using Weaver from an agent](/weaver/guides/using-from-an-agent/)** — it's the exact protocol:
-the per-task loop, conflict handling, and the `--json` output shapes. The
+status, workstream-pad discovery, narrow reads, attach-before-write, revisions, conflicts, and
+lifecycle. The
 [CLI reference](/weaver/reference/commands/) lists every command with copy-paste examples.
+
+Treat **Repository Facts** as durable verified repo knowledge; `note`/`notes` are compatibility
+aliases. OpenCode's optional `weaver_*` tools are strict fixed-operation wrappers around the same
+CLI. Shell commands remain the universal authority, and v1 has no MCP server.
 
 ## Design principle
 
 Weaver is a CLI rather than an MCP server precisely so that *any* agent can use it by running a
-shell command — no protocol, no server, no setup. The documentation follows the same principle:
-plain, structured, copy-paste-exact.
+shell command—without an MCP client or coordination daemon. A one-time `weaver init` installs the
+managed agent protocol. The documentation follows the same principle: plain, structured, and
+copy-paste-exact.

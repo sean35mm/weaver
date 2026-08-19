@@ -70,6 +70,7 @@ Only Weaver's own entries are removed; the rest of `.claude/settings.json` is un
 
 ## Other harnesses
 
-Codex, OpenCode, and friends have different (or no) hook systems, so they coordinate through
-the instruction block alone for now. The CLI stays the universal engine; hooks are a
-Claude-Code-native accelerator on top.
+OpenCode has its own [generated plugin](/weaver/guides/opencode-plugin/) for identity, structural
+edit events, and dedicated scratchpad/Repository Facts tools. Codex, Pi, and any other shell-capable
+harness follow the managed instruction block. The CLI stays the universal engine; native hooks and
+tools are accelerators on top.

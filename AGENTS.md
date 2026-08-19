@@ -17,7 +17,7 @@ node src/cli.ts --help     # or: bun src/cli.ts --help   (runs TS directly, no b
 npm test                   # node --test  (must pass)
 npm run test:bun           # bun test     (must also pass — CI runs both)
 npm run typecheck          # tsc --noEmit
-npm run build              # tsc → dist/
+npm run build              # verify generated UI + TypeScript + temporary standalone binary
 node scripts/demo.ts       # seed a throwaway store, then `weaver watch` / `dashboard`
 ```
 

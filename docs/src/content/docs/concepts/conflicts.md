@@ -1,6 +1,6 @@
 ---
 title: The conflict model
-description: How Weaver detects and surfaces conflicts — three tiers, advisory claims, and a resolution playbook.
+description: File overlap and scratchpad revision conflicts, with an agent-safe resolution playbook.
 sidebar:
   order: 2
 ---
@@ -8,7 +8,7 @@ sidebar:
 **Weaver never blocks an edit. It surfaces; the agent decides.** Enforcement would fight the
 agent, so coordination happens through visibility.
 
-## Three tiers
+## File conflicts: three tiers
 
 When an agent runs `weaver check <path>` (or `weaver claim <glob>`), Weaver compares the target
 against the live store and reports the highest matching tier. Globs match by
@@ -34,11 +34,11 @@ shown as active — they downgrade to `stale` and the area is free.
 ## What `check` returns
 
 A non-zero exit code plus the *context* needed to decide — the other session's intent, claim
-reason, recent activity, and relevant notes — not just "denied":
+reason, recent activity, and relevant Repository Facts—not just "denied":
 
 ```
 ⚠ CONFLICT (active claim) on this area:
-  • claude-code#alice — refactor the auth module to use AuthService
+   • claude-code#alice — refactor the auth module to use AuthService (pad #7)
       claim: src/auth/** — rewriting token refresh (12s ago)
       active 12s ago
   → coordinate, work elsewhere, or ask the user how to split. Don't silently overwrite.
@@ -57,10 +57,10 @@ coordinate first.
 This is what agents are instructed to do on a conflict:
 
 ```
-1. READ the context (intent + reason + recent activity + notes).
+1. READ the context (intent + reason + attached pad + recent activity + Repository Facts).
 2. Can I do OTHER useful work that doesn't overlap?  → reroute, re-check later. (default)
-3. Is the overlap benign (different files)?          → proceed, but `weaver log` it.
-4. Blocked & need it?  → `weaver note` your intent, then ASK THE USER how to split.
+3. Is the overlap demonstrably benign?                → proceed and record why in the pad.
+4. Blocked & need it?                                  → record intent in the pad, then ASK THE USER.
 5. NEVER silently stomp. Always record activity.
 6. NEVER silently wait/poll during commit/push/PR; ask the user for a decision.
 ```
@@ -70,3 +70,17 @@ This is what agents are instructed to do on a conflict:
 Overlapping claims are **allowed** and surfaced; agents resolve socially with the human as the
 arbiter. There's no exclusive locking — it avoids deadlocks and claim races, and keeps Weaver
 from asserting false authority.
+
+## Scratchpad revision conflicts
+
+Pad writes use optimistic revisions. If you read r12 and another writer creates r13, your
+`--revision 12` mutation fails with both expected and current revisions. This protects shared
+Markdown from silent overwrites.
+
+Do not blindly retry with r13. Read the current pad (prefer the relevant section), compare it with
+your intended change, and merge deliberately. The rich/source UI preserves the local draft and
+pauses autosave when it sees the same conflict.
+
+Lifecycle errors are separate: archive/trash refuses while another live session is attached, and
+restore/recover validates the current state. Resolve the attachment or state mismatch rather than
+forcing an operation.

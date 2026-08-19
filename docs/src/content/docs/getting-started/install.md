@@ -41,16 +41,46 @@ weaver upgrade          # download + replace with the latest release
 weaver upgrade --check  # just check whether a newer version exists
 ```
 
+The binary is checksum-verified and replaced atomically. Stores migrate automatically to the
+current schema v6 the next time they are opened. The v4 → v5 step preserves existing notes (now
+presented as Repository Facts) unchanged while adding scratchpad tables and attribution columns;
+the v5 → v6 step adds scoped dashboard leases.
+
+Managed instructions and harness integrations are installed files, so refresh them after an
+upgrade:
+
+```sh
+# rerun the scope you used before
+weaver init --project          # or: weaver init --global
+
+# if you installed Claude/OpenCode integrations, include --hooks
+weaver init --project --hooks # or: weaver init --global --hooks
+```
+
+Then fully restart OpenCode so it loads the refreshed plugin and tool definitions. cmux is
+optional; Weaver also supports a normal browser, a headless launch URL, terminal commands, and
+`$VISUAL`/`$EDITOR`.
+
 ## Uninstall
 
 ```sh
-weaver uninstall              # removes the binary and ~/.weaver (prompts first)
-weaver uninstall --keep-data  # remove the binary but keep your stores
+weaver uninstall              # remove the binary and clean effective WEAVER_HOME (prompts)
+weaver uninstall --keep-data  # remove only the binary
 weaver uninstall --yes        # skip the confirmation prompt
 ```
 
-Any `weaver` blocks left in project or global instruction files are self-disabling; run
-`weaver deinit` or `weaver deinit --global` first if you want them removed.
+Without `--keep-data`, uninstall cleans the effective `WEAVER_HOME` (`$WEAVER_HOME` when set,
+otherwise `~/.weaver`). The default `~/.weaver` directory may be removed recursively after Weaver
+fences active access and validates its targets. An explicit `WEAVER_HOME` is never removed
+recursively: Weaver selectively deletes only validated Weaver `.db`, `.db-wal`, `.db-shm`, and
+`.db-journal` files, leaving unrelated files and the directory intact. `--keep-data` removes only
+the binary.
+
+Uninstall refuses rather than deleting if the standalone binary or home is missing when required,
+unsafe, or changes during inspection; if a discovered database is not a recognized Weaver store;
+or if Weaver cannot safely fence, quiesce, and drain active access. Run `weaver deinit` and/or
+`weaver deinit --global` first to remove managed instruction blocks and integrations. Any blocks
+left behind are self-disabling once the command is absent.
 
 ## Running from source (contributors)
 

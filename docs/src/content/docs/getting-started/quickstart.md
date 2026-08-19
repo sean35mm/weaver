@@ -1,89 +1,116 @@
 ---
 title: Quickstart
-description: Enable Weaver in a repo and watch two agents coordinate in about five minutes.
+description: Install the scratchpads-first protocol and watch two agent workstreams coordinate.
 sidebar:
   order: 2
 ---
 
-This gets you from zero to "two agents coordinating" in a few minutes.
+## 1. Install the managed protocol
 
-## 1. Install the agent instructions
-
-From the root of any git repo:
+From a Git repository:
 
 ```sh
 weaver init
 ```
 
-`init` asks where to append a short instruction block:
-
-- **Project files** (`./CLAUDE.md`, `./AGENTS.md`) — covers this repo only. Run `weaver init`
-  again in each repo you want covered. This is the first/default choice.
-- **Global files** (`~/.claude/CLAUDE.md`, `~/.config/opencode/AGENTS.md`, `~/.codex/AGENTS.md`)
-  — one-time setup that covers every repo on this machine. You never run `init` again.
-
-If you use Claude Code, `init` also offers to install
-[hooks](/weaver/guides/claude-code-hooks/) (default yes): Claude is then warned automatically —
-never blocked — before editing an area another agent is working in, and its presence refreshes
-on every edit.
-
-For scripts, use `weaver init --project` or `weaver init --global`, plus `--hooks` or
-`--no-hooks` to decide about Claude Code hooks non-interactively.
-
-There is no per-repo database setup either way: each repo's store is created automatically the
-first time an agent runs a weaver command there. That's the whole setup — **you don't run
-anything else by hand.**
-
-## 2. Use your agents normally
-
-Open your agents (Claude Code, Codex, OpenCode, Pi, …) in the repo as you always do. Because
-their instruction files now describe Weaver, they'll run the commands themselves as they work:
-announce their task, claim the areas they touch, and leave notes.
-
-:::note[Try it yourself]
-You can play any agent by hand. In two terminals:
+Choose **project** for this checkout (`CLAUDE.md`, `AGENTS.md`) or **global** for every repo read by
+Claude Code, OpenCode, and Codex. Interactive init also offers harness integrations: Claude Code
+edit hooks and the OpenCode plugin/tools. For a scripted install:
 
 ```sh
-# terminal 1 — "alice"
-WEAVER_SESSION=alice weaver task "refactor the auth module"
-WEAVER_SESSION=alice weaver claim 'src/auth/**' --reason "rewriting token refresh"
-
-# terminal 2 — "bob"
-WEAVER_SESSION=bob weaver status          # sees alice + her claim
-WEAVER_SESSION=bob weaver check src/auth/login.ts   # ⚠ conflict, exit 1
-```
-:::
-
-:::tip[Who types what]
-`weaver init` (step 1) is the only thing you run by hand. Your agents run `task`, `claim`,
-`note`, and `check` themselves. Day to day, you just run `status`, `watch`, or `dashboard` to
-see what they're doing.
-:::
-
-## 3. Watch the commons live
-
-```sh
-weaver status       # snapshot: who's active, claims, recent activity, notes
-weaver watch        # live terminal view
-weaver dashboard    # live web view (opens your browser)
+weaver init --project --hooks
+# or once globally:
+weaver init --global --hooks
 ```
 
-## 4. See it with sample data
+Restart OpenCode after plugin installation. Re-running init refreshes outdated Weaver-owned blocks
+in place without changing your surrounding instructions. A repository store is created lazily on
+first use; no daemon or database setup is required.
 
-Want a populated demo without wiring up real agents? From a checkout of the repo:
+## 2. Start or join a workstream
+
+Agents learn this sequence from the managed block:
 
 ```sh
-node scripts/demo.ts        # seeds a throwaway store and prints how to view it
+weaver status
+weaver scratchpad list
+weaver scratchpad read 7 --headings
+```
+
+Reuse the active pad matching the workstream. Create one only when the work is genuinely distinct:
+
+```sh
+printf '# Goal\n\nAdd OAuth safely.\n\n# Decisions\n\n# Next steps\n' |
+  weaver scratchpad create "OAuth rollout" --from -
+```
+
+Read-only/plan-only sessions stop after reading. Once code or other repository writes are
+authorized:
+
+```sh
+weaver task "implement OAuth callback validation"
+weaver scratchpad use 7
+weaver claim 'src/auth/**' --reason "callback validation"
+```
+
+## 3. Coordinate concurrent changes
+
+The pad read shows its revision. Use it for targeted edits:
+
+```sh
+printf '%s\n' 'Use PKCE for browser clients.' |
+  weaver scratchpad edit-section 7 Decisions --from - --revision 3
+```
+
+A stale revision fails clearly; re-read and merge instead of retrying blindly. Claims are also
+advisory: claim exit `1` means your claim was recorded but overlaps another live session. Read the
+other workstream context and coordinate rather than repeating the command.
+
+Promote verified, lasting knowledge separately:
+
+```sh
+weaver fact "OAuth callbacks are validated by AuthService" --path 'src/auth/**'
+```
+
+`note`/`notes` are compatibility aliases; prefer `fact`/`facts`.
+
+## 4. Watch and finish
+
+```sh
+weaver scratchpads   # rich/source editor and workstream context
+weaver watch         # terminal-only live view
+weaver status        # one snapshot
+```
+
+When complete:
+
+```sh
+weaver preflight --staged
+weaver scratchpad archive 7 --revision 4
+weaver done
+```
+
+`done` detaches the session and releases its claims. See the full
+[Scratchpads guide](/weaver/guides/scratchpads/) and [agent protocol](/weaver/guides/using-from-an-agent/).
+
+## Try two sessions by hand
+
+```sh
+# terminal 1
+WEAVER_SESSION=alice weaver task "refactor auth"
+WEAVER_SESSION=alice weaver claim 'src/auth/**' --reason "token flow"
+
+# terminal 2
+WEAVER_SESSION=bob weaver status
+WEAVER_SESSION=bob weaver check src/auth/login.ts
 ```
 
 ## Turning it off
 
 ```sh
-weaver disable      # pause agent writes for this repo
-weaver enable       # resume
-weaver deinit       # remove the project instruction block (add --purge to delete the store)
-weaver deinit --global  # remove the global instruction block
+weaver disable              # pause agent writes; reads/done still work
+weaver enable
+weaver deinit               # remove project managed files/integrations; preserve data
+weaver deinit --global      # remove global managed files/integrations
+weaver deinit --purge       # destructive: also delete this repo's entire authored store
 ```
-
-Next: learn [how it works](/weaver/concepts/how-it-works/) or jump to the
-[command reference](/weaver/reference/commands/).

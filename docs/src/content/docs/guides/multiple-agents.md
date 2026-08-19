@@ -14,8 +14,14 @@ Say you have 2× Claude Code + 2× OpenCode + 3× Codex sessions, all in the sam
 **seven participants**, and each must see the other six. Weaver treats every session as a
 distinct participant, regardless of harness or window.
 
-This works because the CLI is the **universal substrate** — every harness can run a shell
-command, so they all read and write the same local commons without any per-tool integration.
+Participants coordinate around **workstreams**, not harness brands. Two agents collaborating on
+OAuth attach to the same pad; three agents handling unrelated migrations, docs, and tests use three
+different pads. `weaver scratchpads` shows each pad with its attached sessions, claims, and recent
+activity instead of flattening every conversation into one shared document.
+
+This works because the CLI is the **universal substrate** — every harness can run a shell command,
+so they all read and write the same local commons. OpenCode tools and Claude hooks are optional
+ergonomic integrations, not separate authorities.
 
 ## How a session is identified
 
@@ -63,3 +69,18 @@ If the same live session identity appears in two known worktrees, Weaver marks t
 location as ambiguous instead of assuming it moved. Its existing claims stay conservative until
 they are released from their own worktree or age out, and `done` in one checkout cannot end the
 ambiguous session or release claims held in the other.
+
+Scratchpad attachments are keyed by session and worktree, so one identity appearing in multiple
+checkouts does not silently move its attachment. `done` affects only the current checkout when the
+location is ambiguous.
+
+## A safe parallel pattern
+
+1. Every session runs `status`, lists pads, and reads the relevant pad before investigation.
+2. Read-only sessions stay unattached.
+3. Writing sessions announce a task, attach to one pad, and claim exact edit scopes.
+4. Collaborators update different stable sections where practical and always pass the revision
+   they read.
+5. Separate workstreams use separate pads and claims.
+6. Each delivery runs a path-bounded `preflight`; completed pads are archived; each session runs
+   `done`.
