@@ -4,6 +4,57 @@ import type { Db } from "./db.ts";
 
 export const SCHEMA_VERSION = 4;
 
+export interface SchemaInspection {
+  tables: ReadonlySet<string>;
+  version: number | undefined;
+}
+
+function compatibilityError(message: string): Error {
+  return new Error(`incompatible Weaver store schema: ${message}`);
+}
+
+function parseSchemaVersion(value: unknown): number {
+  if (typeof value !== "string" || !/^(?:0|[1-9]\d*)$/.test(value)) {
+    throw compatibilityError("schema_version must be a nonnegative integer");
+  }
+  const version = Number(value);
+  if (!Number.isSafeInteger(version)) {
+    throw compatibilityError("schema_version must be a safe nonnegative integer");
+  }
+  if (version > SCHEMA_VERSION) {
+    throw compatibilityError(
+      `schema version ${version} is newer than this Weaver supports (${SCHEMA_VERSION}); upgrade Weaver before opening it`,
+    );
+  }
+  return version;
+}
+
+/** Read-only compatibility gate. This must run before any DDL or persistent PRAGMA. */
+export function inspectSchemaCompatibility(db: Db): SchemaInspection {
+  const rows = db.all<{ name: string; type: string }>("SELECT name, type FROM sqlite_master");
+  const tables = new Set(rows.filter((row) => row.type === "table").map((row) => row.name));
+  const existingTables = [...tables].filter((name) => !name.startsWith("sqlite_")).sort();
+  const meta = rows.find((row) => row.name === "weaver_meta");
+  if (!meta) {
+    if (existingTables.length > 0) {
+      throw compatibilityError(`schema_version is missing for existing tables: ${existingTables.join(", ")}`);
+    }
+    return { tables, version: undefined };
+  }
+  if (meta.type !== "table") throw compatibilityError("weaver_meta is not a table");
+
+  let row: { value: unknown } | undefined;
+  try {
+    row = db.get<{ value: unknown }>("SELECT value FROM weaver_meta WHERE key = ?", "schema_version");
+  } catch {
+    throw compatibilityError("weaver_meta cannot be read");
+  }
+  if (!row && existingTables.length > 0) {
+    throw compatibilityError(`schema_version is missing for existing tables: ${existingTables.join(", ")}`);
+  }
+  return { tables, version: row ? parseSchemaVersion(row.value) : undefined };
+}
+
 const DDL = `
 CREATE TABLE IF NOT EXISTS sessions (
   id          TEXT PRIMARY KEY,
@@ -90,9 +141,11 @@ CREATE INDEX IF NOT EXISTS idx_notes_surface      ON notes(pinned, created_at);
 `;
 
 export function migrate(db: Db): void {
+  // Recheck under the caller's migration transaction before the first schema write.
+  const inspection = inspectSchemaCompatibility(db);
+  const existingVersion = inspection.version;
   db.exec(DDL);
-  const row = db.get<{ value: string }>("SELECT value FROM weaver_meta WHERE key = ?", "schema_version");
-  const version = row ? Number(row.value) : SCHEMA_VERSION; // fresh DDL is already current
+  const version = existingVersion ?? SCHEMA_VERSION; // fresh DDL is already current
 
   // v1 → v2: note retirement (`weaver forget`). ALTER is needed because CREATE TABLE
   // IF NOT EXISTS never alters an existing table.
@@ -116,7 +169,7 @@ export function migrate(db: Db): void {
     if (!hasColumn("activity", "worktree_id")) db.exec("ALTER TABLE activity ADD COLUMN worktree_id TEXT");
   }
 
-  if (!row || version < SCHEMA_VERSION) {
+  if (existingVersion === undefined || version < SCHEMA_VERSION) {
     db.run(
       "INSERT INTO weaver_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       "schema_version",

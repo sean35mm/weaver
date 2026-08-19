@@ -27,8 +27,9 @@ import { loadConfig } from "./config.ts";
 import type { Ctx } from "./context.ts";
 import { resolveIdentity } from "./identity/session.ts";
 import { resolveRepoId } from "./repo/identity.ts";
+import { registerStoreHolder, type StoreHolderHandle } from "./store/coordination.ts";
 import { EmptyStore } from "./store/empty.ts";
-import { ensureWeaverDir, storePathForRepo } from "./store/location.ts";
+import { ensureWeaverDir } from "./store/location.ts";
 import { openStore } from "./store/open.ts";
 import { DEFAULT_COMMAND_EVENT_MAX_AGE_DAYS, DEFAULT_COMMAND_EVENT_MAX_EVENTS } from "./store/reap.ts";
 import { SCHEMA_VERSION } from "./store/schema.ts";
@@ -113,26 +114,34 @@ const REGISTRY: Record<string, Handler> = {
   hook: { run: hook.run, agent: false, store: "touch", skipIdentity: true },
 };
 
-async function openStoreForMode(repoId: string, mode: StoreMode): Promise<Ctx["store"]> {
-  const dbPath = storePathForRepo(repoId);
+async function openStoreForMode(
+  dbPath: string,
+  storeHome: string,
+  explicitHome: string | undefined,
+  mode: StoreMode,
+): Promise<Ctx["store"]> {
+  const location = { explicitHome, defaultHome: storeHome };
+  // The default home is Weaver-private and must be secured before any SQLite handle opens.
+  // Explicit homes remain caller-managed and are created only for commands that create a store.
+  if (explicitHome === undefined) ensureWeaverDir(undefined, storeHome);
   if (mode === "read" || mode === "touch") {
     if (!fs.existsSync(dbPath)) return new EmptyStore();
     if (mode === "touch") {
       try {
-        return await openStore(dbPath);
+        return await openStore(dbPath, { location });
       } catch {
         // Unwritable store (permissions, read-only filesystem): fall through to the read
         // path so observer commands keep working; usage metrics degrade on their own.
       }
     }
-    let opened = await openStore(dbPath, { readOnly: true, migrate: false });
+    let opened = await openStore(dbPath, { readOnly: true, migrate: false, location });
     try {
       // An older store must be migrated even for readers (queries reference new columns):
       // do a one-time writable open to migrate, then reopen read-only.
       if (Number(opened.getMeta("schema_version") ?? "0") < SCHEMA_VERSION) {
         opened.close();
-        (await openStore(dbPath)).close();
-        opened = await openStore(dbPath, { readOnly: true, migrate: false });
+        (await openStore(dbPath, { location })).close();
+        opened = await openStore(dbPath, { readOnly: true, migrate: false, location });
       }
     } catch (e) {
       opened.close();
@@ -141,8 +150,8 @@ async function openStoreForMode(repoId: string, mode: StoreMode): Promise<Ctx["s
     }
     return opened;
   }
-  ensureWeaverDir();
-  return openStore(dbPath);
+  ensureWeaverDir(explicitHome, storeHome);
+  return openStore(dbPath, { location });
 }
 
 function recordCommandUsage(ctx: Ctx, command: string): void {
@@ -208,6 +217,7 @@ async function main(): Promise<number> {
   const out = (s: string): void => void process.stdout.write(s);
   const err = (s: string): void => void process.stderr.write(s);
   let store: Ctx["store"] | null = null;
+  let storeHolder: StoreHolderHandle | null = null;
 
   const first = argv[0];
   if (!first || first === "--help" || first === "-h" || first === "help") {
@@ -230,11 +240,26 @@ async function main(): Promise<number> {
     const args = parseArgs(argv, BOOLEAN_FLAGS);
     const repo = resolveRepoId();
     const mode = typeof handler.store === "function" ? handler.store(args) : handler.store;
-    store = await openStoreForMode(repo.repoId, mode);
+    const explicitHome = process.env.WEAVER_HOME;
+    try {
+      storeHolder = await registerStoreHolder({
+        repoId: repo.repoId,
+        weaverHome: explicitHome,
+        command: first,
+      });
+    } catch (error) {
+      throw new CliError((error as Error).message);
+    }
+    const storeHome = storeHolder.runtime.canonicalHome;
+    const dbPath = storeHolder.runtime.storePath;
+    store = await openStoreForMode(dbPath, storeHome, explicitHome, mode);
     const identity = handler.skipIdentity ? null : resolveIdentity();
     const now = Date.now();
     const ctx: Ctx = {
       store,
+      storeHome,
+      storePath: dbPath,
+      storeHolder,
       identity,
       repo,
       config: loadConfig(store),
@@ -284,6 +309,11 @@ async function main(): Promise<number> {
       store?.close();
     } catch {
       /* may already be closed by `deinit --purge` */
+    }
+    try {
+      await storeHolder?.release();
+    } catch {
+      /* ordinary exit is best effort */
     }
   }
 }

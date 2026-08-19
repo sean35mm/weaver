@@ -3,7 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { openDb } from "../src/store/db.ts";
+import { configureWritableDb, openDb, withBusyRetry } from "../src/store/db.ts";
+import { ensureWeaverDir, hardenDefaultStore } from "../src/store/location.ts";
 import { openStore } from "../src/store/open.ts";
 import { SCHEMA_VERSION } from "../src/store/schema.ts";
 
@@ -14,6 +15,90 @@ function tmpDb(): string {
 
 const NOW = 1_000_000;
 const TTL = 5 * 60 * 1000;
+
+interface DatabaseSnapshot {
+  bytes: Buffer;
+  schema: Array<{ name: string; sql: string | null; type: string }>;
+  sentinel: Array<{ value: string }>;
+  persistentSidecars: { journal: Buffer | null; walFrames: Buffer | null };
+}
+
+async function snapshotDatabase(dbPath: string): Promise<DatabaseSnapshot> {
+  const db = await openDb(dbPath, { readOnly: true, immutable: true });
+  try {
+    const walPath = `${dbPath}-wal`;
+    const journalPath = `${dbPath}-journal`;
+    return {
+      bytes: fs.readFileSync(dbPath),
+      schema: db.all<{ name: string; sql: string | null; type: string }>(
+        "SELECT name, sql, type FROM sqlite_master ORDER BY type, name",
+      ),
+      sentinel: db.all<{ value: string }>("SELECT value FROM sentinel ORDER BY value"),
+      persistentSidecars: {
+        journal: fs.existsSync(journalPath) ? fs.readFileSync(journalPath) : null,
+        walFrames: fs.existsSync(walPath) && fs.statSync(walPath).size > 0 ? fs.readFileSync(walPath) : null,
+      },
+    };
+  } finally {
+    db.close();
+  }
+}
+
+async function rejectedSchemaFixture(version: string): Promise<string> {
+  const dbPath = tmpDb();
+  const db = await openDb(dbPath);
+  try {
+    db.exec(`
+      CREATE TABLE weaver_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE sentinel (value TEXT NOT NULL);
+    `);
+    db.run("INSERT INTO weaver_meta (key, value) VALUES (?, ?)", "schema_version", version);
+    db.run("INSERT INTO sentinel (value) VALUES (?)", "preserve me");
+    configureWritableDb(db);
+  } finally {
+    db.close();
+  }
+  return dbPath;
+}
+
+test("busy retry is bounded, selective, and has no wait on the normal path", () => {
+  const waits: number[] = [];
+  let attempts = 0;
+  const result = withBusyRetry(
+    () => {
+      attempts++;
+      if (attempts < 3) throw Object.assign(new Error("database is locked"), { code: "SQLITE_BUSY" });
+      return "ok";
+    },
+    { delaysMs: [2, 4, 8], wait: (milliseconds) => waits.push(milliseconds) },
+  );
+  assert.equal(result, "ok");
+  assert.equal(attempts, 3);
+  assert.deepEqual(waits, [2, 4]);
+
+  waits.length = 0;
+  assert.equal(
+    withBusyRetry(() => 7, { delaysMs: [2], wait: (milliseconds) => waits.push(milliseconds) }),
+    7,
+  );
+  assert.deepEqual(waits, []);
+
+  let persistentAttempts = 0;
+  assert.throws(() => {
+    withBusyRetry(
+      () => {
+        persistentAttempts++;
+        throw new Error("database is locked");
+      },
+      { delaysMs: [1, 2], wait: () => undefined },
+    );
+  }, /database is locked/);
+  assert.equal(persistentAttempts, 3);
+  assert.throws(
+    () => withBusyRetry(() => assert.fail("not a lock"), { delaysMs: [1], wait: () => undefined }),
+    /not a lock/,
+  );
+});
 
 test("sessions: round-trip, intent, active filtering, end", async () => {
   const store = await openStore(tmpDb());
@@ -370,6 +455,250 @@ test("migration: a v1 store gains new tables/columns, keeps data, and stamps cur
   const reopened = await openStore(dbPath);
   assert.equal(reopened.getMeta("schema_version"), String(SCHEMA_VERSION));
   reopened.close();
+});
+
+test("opening an empty schema-less database initializes it, ignoring SQLite internal tables", async () => {
+  for (const leaveSqliteSequence of [false, true]) {
+    const dbPath = tmpDb();
+    const raw = await openDb(dbPath);
+    if (leaveSqliteSequence) {
+      raw.exec("CREATE TABLE bootstrap_probe (id INTEGER PRIMARY KEY AUTOINCREMENT); DROP TABLE bootstrap_probe;");
+      assert.deepEqual(
+        raw.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'").map((row) => row.name),
+        ["sqlite_sequence"],
+      );
+    } else {
+      assert.deepEqual(raw.all("SELECT name FROM sqlite_master WHERE type = 'table'"), []);
+    }
+    raw.close();
+
+    const store = await openStore(dbPath);
+    assert.equal(store.getMeta("schema_version"), String(SCHEMA_VERSION));
+    store.close();
+  }
+});
+
+test("opening a populated unversioned database rejects before DDL and leaves it unchanged", async () => {
+  const dbPath = tmpDb();
+  const raw = await openDb(dbPath);
+  raw.exec("CREATE TABLE sentinel (value TEXT NOT NULL); INSERT INTO sentinel VALUES ('preserve me');");
+  raw.close();
+  const before = await snapshotDatabase(dbPath);
+
+  await assert.rejects(() => openStore(dbPath), /schema_version is missing for existing tables: sentinel/);
+
+  assert.deepEqual(await snapshotDatabase(dbPath), before);
+});
+
+test("opening a future schema rejects before DDL and leaves the database unchanged", async () => {
+  const dbPath = await rejectedSchemaFixture(String(SCHEMA_VERSION + 1));
+  const before = await snapshotDatabase(dbPath);
+
+  await assert.rejects(() => openStore(dbPath), /schema version .* newer.*upgrade Weaver/);
+
+  assert.deepEqual(await snapshotDatabase(dbPath), before);
+});
+
+test("opening a live-WAL future schema rejects without changing the database", async () => {
+  const dbPath = tmpDb();
+  const writer = await openDb(dbPath);
+  try {
+    writer.exec(`
+      CREATE TABLE weaver_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE sentinel (value TEXT NOT NULL);
+    `);
+    configureWritableDb(writer);
+    writer.transaction(() => {
+      writer.run("INSERT INTO weaver_meta (key, value) VALUES (?, ?)", "schema_version", String(SCHEMA_VERSION + 1));
+      writer.run("INSERT INTO sentinel (value) VALUES (?)", "preserve live WAL");
+    });
+
+    const walPath = `${dbPath}-wal`;
+    const sidecarPaths = [walPath, `${dbPath}-shm`, `${dbPath}-journal`];
+    assert.equal(fs.existsSync(walPath), true);
+    assert.ok(fs.statSync(walPath).size > 0);
+
+    const mainOnly = await openDb(dbPath, { readOnly: true, immutable: true });
+    try {
+      assert.deepEqual(mainOnly.all("SELECT value FROM weaver_meta WHERE key = 'schema_version'"), []);
+      assert.deepEqual(mainOnly.all("SELECT value FROM sentinel"), []);
+    } finally {
+      mainOnly.close();
+    }
+
+    const before = {
+      bytes: fs.readFileSync(dbPath),
+      schema: writer.all<{ name: string; sql: string | null; type: string }>(
+        "SELECT name, sql, type FROM sqlite_master ORDER BY type, name",
+      ),
+      sentinel: writer.all<{ value: string }>("SELECT value FROM sentinel ORDER BY value"),
+      version: writer.get<{ value: string }>("SELECT value FROM weaver_meta WHERE key = 'schema_version'"),
+      wal: fs.readFileSync(walPath),
+      sidecars: sidecarPaths.map((filePath) => fs.existsSync(filePath)),
+    };
+
+    await assert.rejects(() => openStore(dbPath), /schema version .* newer.*upgrade Weaver/);
+
+    assert.deepEqual(fs.readFileSync(dbPath), before.bytes);
+    assert.deepEqual(
+      writer.all<{ name: string; sql: string | null; type: string }>(
+        "SELECT name, sql, type FROM sqlite_master ORDER BY type, name",
+      ),
+      before.schema,
+    );
+    assert.deepEqual(writer.all<{ value: string }>("SELECT value FROM sentinel ORDER BY value"), before.sentinel);
+    assert.deepEqual(
+      writer.get<{ value: string }>("SELECT value FROM weaver_meta WHERE key = 'schema_version'"),
+      before.version,
+    );
+    assert.deepEqual(fs.readFileSync(walPath), before.wal);
+    // SQLite's shared-memory lock bytes are runtime-managed, so only sidecar presence is portable.
+    assert.deepEqual(
+      sidecarPaths.map((filePath) => fs.existsSync(filePath)),
+      before.sidecars,
+    );
+  } finally {
+    writer.close();
+  }
+});
+
+test("opening a stale-WAL future schema with no live writer rejects without a writable open", async () => {
+  const dbPath = tmpDb();
+  const writer = await openDb(dbPath);
+  writer.exec(`
+    CREATE TABLE weaver_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE sentinel (value TEXT NOT NULL);
+  `);
+  configureWritableDb(writer);
+  writer.exec("PRAGMA wal_autocheckpoint = 0");
+  writer.transaction(() => {
+    writer.run("INSERT INTO weaver_meta (key, value) VALUES (?, ?)", "schema_version", String(SCHEMA_VERSION + 1));
+    writer.run("INSERT INTO sentinel (value) VALUES (?)", "preserve stale WAL");
+  });
+
+  const walPath = `${dbPath}-wal`;
+  const shmPath = `${dbPath}-shm`;
+  assert.equal(fs.existsSync(walPath), true);
+  assert.equal(fs.existsSync(shmPath), true);
+  const stale = {
+    db: fs.readFileSync(dbPath),
+    wal: fs.readFileSync(walPath),
+    shm: fs.readFileSync(shmPath),
+  };
+  writer.close();
+
+  // Closing the final writer normally checkpoints. Restore the coherent pre-close files to
+  // model a writer that exited without cleanup, while leaving no process or SQLite lock alive.
+  fs.writeFileSync(dbPath, stale.db);
+  fs.writeFileSync(walPath, stale.wal);
+  fs.writeFileSync(shmPath, stale.shm);
+
+  const mainOnly = await openDb(dbPath, { readOnly: true, immutable: true });
+  try {
+    assert.deepEqual(mainOnly.all("SELECT value FROM weaver_meta WHERE key = 'schema_version'"), []);
+    assert.deepEqual(mainOnly.all("SELECT value FROM sentinel"), []);
+  } finally {
+    mainOnly.close();
+  }
+
+  const lockAware = await openDb(dbPath, { readOnly: true });
+  try {
+    assert.equal(
+      lockAware.get<{ value: string }>("SELECT value FROM weaver_meta WHERE key = 'schema_version'")?.value,
+      String(SCHEMA_VERSION + 1),
+    );
+    assert.deepEqual(
+      lockAware.all<{ value: string }>("SELECT value FROM sentinel").map((row) => row.value),
+      ["preserve stale WAL"],
+    );
+  } finally {
+    lockAware.close();
+  }
+
+  const before = { db: fs.readFileSync(dbPath), wal: fs.readFileSync(walPath) };
+  await assert.rejects(() => openStore(dbPath), /schema version .* newer.*upgrade Weaver/);
+  assert.deepEqual(fs.readFileSync(dbPath), before.db);
+  assert.deepEqual(fs.readFileSync(walPath), before.wal);
+  assert.equal(fs.existsSync(shmPath), true);
+});
+
+test("opening a malformed schema version rejects before DDL and leaves the database unchanged", async () => {
+  const dbPath = await rejectedSchemaFixture(` ${SCHEMA_VERSION}`);
+  const before = await snapshotDatabase(dbPath);
+
+  await assert.rejects(() => openStore(dbPath), /schema_version must be a nonnegative integer/);
+
+  assert.deepEqual(await snapshotDatabase(dbPath), before);
+});
+
+test("default store hardening follows canonical home aliases without changing explicit shared homes", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-permissions-"));
+  const defaultDir = path.join(root, ".weaver");
+  fs.mkdirSync(defaultDir, { mode: 0o777 });
+  const dbPath = path.join(defaultDir, "repo.db");
+  for (const file of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) fs.writeFileSync(file, "", { mode: 0o666 });
+  const defaultAlias = path.join(root, "default-alias");
+  fs.symlinkSync(defaultDir, defaultAlias, "dir");
+  hardenDefaultStore(dbPath, undefined, defaultAlias);
+  assert.equal(fs.statSync(defaultDir).mode & 0o777, 0o700);
+  for (const file of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+
+  fs.chmodSync(defaultDir, 0o775);
+  fs.chmodSync(dbPath, 0o664);
+  hardenDefaultStore(dbPath, defaultDir, defaultDir);
+  assert.equal(fs.statSync(defaultDir).mode & 0o777, 0o775);
+  assert.equal(fs.statSync(dbPath).mode & 0o777, 0o664);
+});
+
+test("default store creation is private under a permissive umask while explicit shared homes are unchanged", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "weaver-dir-permissions-"));
+  const defaultDir = path.join(root, "default");
+  const previousUmask = process.umask(0);
+  try {
+    ensureWeaverDir(undefined, defaultDir);
+    assert.equal(fs.statSync(defaultDir).mode & 0o777, 0o700);
+    const defaultDb = path.join(defaultDir, "repo.db");
+    const privateStore = await openStore(defaultDb, {
+      location: { explicitHome: undefined, defaultHome: defaultDir },
+    });
+    privateStore.setMeta("permission_probe", "1");
+    assert.equal(fs.statSync(defaultDb).mode & 0o777, 0o600);
+    for (const sidecar of [`${defaultDb}-wal`, `${defaultDb}-shm`]) {
+      assert.equal(fs.existsSync(sidecar), true);
+      assert.equal(fs.statSync(sidecar).mode & 0o777, 0o600);
+    }
+    privateStore.close();
+
+    const incompatible = await openDb(defaultDb);
+    incompatible.run("UPDATE weaver_meta SET value = ? WHERE key = 'schema_version'", String(SCHEMA_VERSION + 1));
+    incompatible.close();
+    fs.chmodSync(defaultDb, 0o666);
+    await assert.rejects(
+      () =>
+        openStore(defaultDb, {
+          location: { explicitHome: undefined, defaultHome: defaultDir },
+        }),
+      /schema version .* newer.*upgrade Weaver/,
+    );
+    assert.equal(fs.statSync(defaultDb).mode & 0o777, 0o600);
+
+    const sharedDir = path.join(root, "shared");
+    fs.mkdirSync(sharedDir, { mode: 0o775 });
+    fs.chmodSync(sharedDir, 0o775);
+    ensureWeaverDir(sharedDir, defaultDir);
+    const sharedDb = path.join(sharedDir, "repo.db");
+    fs.writeFileSync(sharedDb, "", { mode: 0o664 });
+    fs.chmodSync(sharedDb, 0o664);
+    const sharedStore = await openStore(sharedDb, {
+      location: { explicitHome: sharedDir, defaultHome: defaultDir },
+    });
+    sharedStore.setMeta("permission_probe", "1");
+    assert.equal(fs.statSync(sharedDir).mode & 0o777, 0o775);
+    assert.equal(fs.statSync(sharedDb).mode & 0o777, 0o664);
+    sharedStore.close();
+  } finally {
+    process.umask(previousUmask);
+  }
 });
 
 test("advisories: record, refresh, prune by age", async () => {
