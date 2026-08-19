@@ -211,6 +211,16 @@ test("deinit --global removes global blocks", async () => {
   assert.ok(!hasBlock(fs.readFileSync(claude, "utf8")));
 });
 
+test("deinit purge helper reports every removal failure", () => {
+  const attempts: string[] = [];
+  const failures = deinit.purgeStoreFiles("/store/repo.db", (file) => {
+    attempts.push(file);
+    if (file.endsWith("-wal")) throw new Error("permission denied");
+  });
+  assert.deepEqual(attempts, ["/store/repo.db", "/store/repo.db-wal", "/store/repo.db-shm", "/store/repo.db-journal"]);
+  assert.deepEqual(failures, ["/store/repo.db-wal: permission denied"]);
+});
+
 test("uninstall refuses when not running the standalone binary", async () => {
   const root = tmpDir("weaver-repo-");
   let err = "";
@@ -224,6 +234,192 @@ test("uninstall refuses when not running the standalone binary", async () => {
 
   assert.equal(await uninstall.run(ctx), 1);
   assert.match(err, /only applies to the standalone/);
+  ctx.store.close();
+});
+
+test("uninstall preserves the binary when authored-data removal fails", () => {
+  const root = tmpDir("weaver-uninstall-removal-failure-");
+  const home = path.join(root, ".weaver");
+  fs.mkdirSync(home, { mode: 0o700 });
+  const binary = path.join(root, "weaver");
+  fs.writeFileSync(binary, "standalone");
+  const homeTarget = uninstall.inspectUninstallHome(home)!;
+  const attempts: string[] = [];
+  let out = "";
+  let err = "";
+  const result = uninstall.removeInstallFiles(
+    { out: (text) => (out += text), err: (text) => (err += text) },
+    home,
+    binary,
+    false,
+    ((target: fs.PathLike) => {
+      attempts.push(String(target));
+      if (String(target) === home) throw new Error("permission denied");
+    }) as typeof fs.rmSync,
+    {
+      binary: uninstall.inspectUninstallBinary(binary),
+      defaultHome: home,
+      home: homeTarget,
+      recursiveHome: true,
+    },
+  );
+  assert.equal(result, 1);
+  assert.deepEqual(attempts, [home]);
+  assert.match(err, /couldn't remove .*permission denied/);
+  assert.doesNotMatch(out, /removed .*weaver/);
+});
+
+test("uninstall removes data before the binary after all removals succeed", () => {
+  const root = tmpDir("weaver-uninstall-removal-order-");
+  const home = path.join(root, ".weaver");
+  fs.mkdirSync(home, { mode: 0o700 });
+  const binary = path.join(root, "weaver");
+  fs.writeFileSync(binary, "standalone");
+  const attempts: string[] = [];
+  const result = uninstall.removeInstallFiles(
+    { out: () => undefined, err: () => undefined },
+    home,
+    binary,
+    false,
+    ((target: fs.PathLike) => attempts.push(String(target))) as typeof fs.rmSync,
+    {
+      binary: uninstall.inspectUninstallBinary(binary),
+      defaultHome: home,
+      home: uninstall.inspectUninstallHome(home),
+      recursiveHome: true,
+    },
+  );
+  assert.equal(result, 0);
+  assert.deepEqual(attempts, [home, binary]);
+});
+
+test("uninstall home inspection rejects roots, symlinks, non-directories, unsafe modes, and owner mismatches", () => {
+  const root = tmpDir("weaver-uninstall-targets-");
+  const home = path.join(root, "home");
+  const linked = path.join(root, "linked-home");
+  const regularFile = path.join(root, "home-file");
+  fs.mkdirSync(home, { mode: 0o700 });
+  fs.symlinkSync(home, linked);
+  fs.writeFileSync(regularFile, "not a directory");
+
+  assert.throws(() => uninstall.inspectUninstallHome(path.parse(root).root), /filesystem root/);
+  assert.throws(() => uninstall.inspectUninstallHome(linked), /non-symlink directory/);
+  assert.throws(() => uninstall.inspectUninstallHome(regularFile), /non-symlink directory/);
+  fs.chmodSync(home, 0o722);
+  assert.throws(() => uninstall.inspectUninstallHome(home), /group- or world-writable/);
+  fs.chmodSync(home, 0o700);
+  const uid = typeof process.getuid === "function" ? process.getuid() : 0;
+  assert.throws(() => uninstall.inspectUninstallHome(home, { deps: { uid: uid + 1 } }), /not owned/);
+});
+
+test("uninstall binary inspection rejects symlinks and inode replacement before removal", () => {
+  const root = tmpDir("weaver-uninstall-binary-");
+  const realBinary = path.join(root, "weaver-real");
+  const binary = path.join(root, "weaver");
+  fs.writeFileSync(realBinary, "first");
+  fs.symlinkSync(realBinary, binary);
+  assert.throws(() => uninstall.inspectUninstallBinary(binary), /regular non-symlink/);
+
+  fs.unlinkSync(binary);
+  fs.writeFileSync(binary, "installed");
+  const inspected = uninstall.inspectUninstallBinary(binary);
+  const replacement = path.join(root, "replacement");
+  fs.writeFileSync(replacement, "replacement");
+  fs.renameSync(replacement, binary);
+  const removals: string[] = [];
+  let err = "";
+  const result = uninstall.removeInstallFiles(
+    { out: () => undefined, err: (text) => (err += text) },
+    path.join(root, "unused-home"),
+    binary,
+    true,
+    ((target: fs.PathLike) => removals.push(String(target))) as typeof fs.rmSync,
+    { binary: inspected },
+  );
+  assert.equal(result, 1);
+  assert.deepEqual(removals, []);
+  assert.match(err, /changed during uninstall/);
+  assert.equal(fs.readFileSync(binary, "utf8"), "replacement");
+});
+
+test("uninstall --keep-data validates and removes only the binary", async () => {
+  const root = tmpDir("weaver-uninstall-keep-data-");
+  const binary = path.join(root, "weaver");
+  fs.writeFileSync(binary, "standalone");
+  const ctx = await ctxFor(root, ["uninstall", "--yes", "--keep-data"], { WEAVER_HOME: path.parse(root).root });
+
+  assert.equal(await uninstall.run(ctx, { execPath: binary }), 0);
+  assert.equal(fs.existsSync(binary), false);
+  assert.equal(fs.existsSync(path.parse(root).root), true);
+  ctx.store.close();
+});
+
+test("full uninstall aborts before removing data or binary when the binary or parent is replaced after quiescence", async () => {
+  for (const replacement of ["binary", "parent"] as const) {
+    const root = tmpDir(`weaver-uninstall-${replacement}-race-`);
+    const home = tmpDir("weaver-uninstall-race-home-");
+    const binaryParent = path.join(root, "bin");
+    const binary = path.join(binaryParent, "weaver");
+    const dbPath = path.join(home, "repo.db");
+    fs.mkdirSync(binaryParent);
+    fs.writeFileSync(binary, "standalone");
+    (await openStore(dbPath)).close();
+    const ctx = await ctxFor(root, ["uninstall", "--yes"], { HOME: home, WEAVER_HOME: home });
+    const removals: string[] = [];
+    let replaced = false;
+
+    const result = await uninstall.run(ctx, {
+      dataSafety: {
+        quiesce: async () => {
+          if (!replaced) {
+            replaced = true;
+            if (replacement === "binary") {
+              const nextBinary = path.join(root, "replacement");
+              fs.writeFileSync(nextBinary, "replacement");
+              fs.renameSync(nextBinary, binary);
+            } else {
+              const oldParent = path.join(root, "old-bin");
+              fs.renameSync(binaryParent, oldParent);
+              fs.mkdirSync(binaryParent);
+              fs.renameSync(path.join(oldParent, "weaver"), binary);
+            }
+          }
+          return { ok: true };
+        },
+      },
+      execPath: binary,
+      remove: ((target: fs.PathLike) => removals.push(String(target))) as typeof fs.rmSync,
+    });
+
+    assert.equal(result, 1, replacement);
+    assert.deepEqual(removals, [], replacement);
+    assert.equal(fs.existsSync(dbPath), true, replacement);
+    assert.equal(fs.existsSync(binary), true, replacement);
+    ctx.store.close();
+  }
+});
+
+test("full uninstall selectively removes Weaver files from explicit WEAVER_HOME and preserves unrelated files", async () => {
+  const root = tmpDir("weaver-uninstall-explicit-");
+  const home = tmpDir("weaver-uninstall-user-home-");
+  const binary = path.join(root, "weaver");
+  const dbPath = path.join(home, "repo.db");
+  const unrelated = path.join(home, "important.txt");
+  fs.writeFileSync(binary, "standalone");
+  fs.writeFileSync(unrelated, "preserve me");
+  (await openStore(dbPath)).close();
+  const ctx = await ctxFor(root, ["uninstall", "--yes"], { HOME: home, WEAVER_HOME: home });
+  let out = "";
+  ctx.out = (text) => {
+    out += text;
+  };
+
+  assert.equal(await uninstall.run(ctx, { execPath: binary }), 0);
+  assert.equal(fs.existsSync(binary), false);
+  assert.equal(fs.existsSync(dbPath), false);
+  assert.equal(fs.readFileSync(unrelated, "utf8"), "preserve me");
+  assert.equal(fs.lstatSync(home).isDirectory(), true);
+  assert.match(out, /left the directory and unrelated files intact/);
   ctx.store.close();
 });
 

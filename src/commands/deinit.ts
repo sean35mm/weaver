@@ -1,13 +1,29 @@
 import fs from "node:fs";
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
+import { quiesceDashboard } from "../dashboard/maintenance.ts";
 import { removeBlock } from "../instructions/block.ts";
 import { uninstallHooks, uninstallHooksGlobal } from "../instructions/hooks.ts";
 import { uninstallOpencodePlugin, uninstallOpencodePluginGlobal } from "../instructions/opencode.ts";
 import { instructionTargets, scopeFromFlags } from "../instructions/targets.ts";
-import { storePathForRepo } from "../store/location.ts";
+import { acquireStoreMaintenance, drainStoreHolders } from "../store/coordination.ts";
 
-export function run(ctx: Ctx): number {
+export function purgeStoreFiles(
+  dbPath: string,
+  remove: (file: string, opts: { force: true }) => void = fs.rmSync,
+): string[] {
+  const failures: string[] = [];
+  for (const file of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`, `${dbPath}-journal`]) {
+    try {
+      remove(file, { force: true });
+    } catch (error) {
+      failures.push(`${file}: ${(error as Error).message}`);
+    }
+  }
+  return failures;
+}
+
+export async function run(ctx: Ctx): Promise<number> {
   const flagged = scopeFromFlags(ctx);
   if (flagged === "conflict") {
     ctx.err("weaver: choose either --project or --global, not both.\n");
@@ -44,16 +60,62 @@ export function run(ctx: Ctx): number {
   }
 
   if (flagBool(ctx.args, "purge")) {
-    const dbPath = storePathForRepo(ctx.repo.repoId);
-    ctx.store.close(); // release the handle before deleting (dispatcher's close is tolerant)
-    for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
-      try {
-        fs.rmSync(f, { force: true });
-      } catch {
-        /* best effort */
-      }
+    const holder = ctx.storeHolder;
+    const dbPath = ctx.storePath;
+    if (!holder || !dbPath || !ctx.storeHome) {
+      ctx.err("weaver: store purge requires an active store holder\n");
+      return 1;
     }
-    ctx.out(`✓ purged store at ${dbPath}\n`);
+    const runtime = holder.runtime;
+    ctx.out(
+      "! --purge deletes this repo's authored scratchpads, revision history, Repository Facts, sessions, claims, and activity.\n",
+    );
+    const maintenance = await acquireStoreMaintenance({
+      repoId: ctx.repo.repoId,
+      weaverHome: ctx.storeHome,
+      reason: "purge",
+    });
+    if (!maintenance.acquired) {
+      ctx.err("weaver: store purge blocked by active or unsafe maintenance\n");
+      return 1;
+    }
+    try {
+      const quiescence = await quiesceDashboard({
+        store: ctx.store,
+        repoId: ctx.repo.repoId,
+        scopeId: runtime.storeScopeId,
+        runtimeDirectory: runtime.storeDirectory,
+      });
+      if (!quiescence.ok) {
+        ctx.err(`weaver: store purge blocked: ${quiescence.error}\n`);
+        return 1;
+      }
+      ctx.store.close();
+      try {
+        await holder.release();
+      } catch (error) {
+        ctx.err(`weaver: store purge could not release its holder: ${(error as Error).message}\n`);
+        return 1;
+      }
+      const drained = await drainStoreHolders(maintenance, runtime);
+      if (!drained.ok) {
+        ctx.err(`weaver: store purge blocked: ${drained.error}\n`);
+        return 1;
+      }
+      if (!(await maintenance.revalidate())) {
+        ctx.err("weaver: store purge blocked: maintenance fence ownership changed\n");
+        return 1;
+      }
+      const failures = purgeStoreFiles(dbPath);
+      if (failures.length) {
+        for (const failure of failures) ctx.err(`weaver: couldn't remove ${failure}\n`);
+        ctx.err("weaver: store purge incomplete\n");
+        return 1;
+      }
+      ctx.out(`✓ purged store at ${dbPath}\n`);
+    } finally {
+      await maintenance.release().catch(() => undefined);
+    }
   }
   return 0;
 }

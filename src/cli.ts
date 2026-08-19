@@ -145,7 +145,7 @@ const REGISTRY: Record<string, Handler> = {
   deinit: { run: deinit.run, presence: "observer", store: "touch" },
   config: { run: config.run, presence: "observer", store: "create" },
   upgrade: { run: upgrade.run, presence: "observer", store: "read" },
-  uninstall: { run: uninstall.run, presence: "observer", store: "read" },
+  uninstall: { run: uninstall.run, presence: "observer", store: "none" },
   // Claude Code hook endpoint — fires on every edit, so it derives identity from the hook
   // payload itself and never creates a store in repos that haven't opted in.
   hook: { run: hook.run, presence: "observer", store: "touch", skipIdentity: true },
@@ -245,7 +245,7 @@ function printHelp(write: (s: string) => void): void {
   write("  deinit [--project|--global] [--purge]    remove instructions (and optionally the store)\n");
   write("  config [<key> [<seconds>]]               view/set tunables (TTLs)\n");
   write("  upgrade [--check]                        update the installed binary to the latest release\n");
-  write("  uninstall [--yes] [--keep-data]          remove the binary and ~/.weaver\n");
+  write("  uninstall [--yes] [--keep-data]          remove the binary and clean effective WEAVER_HOME\n");
   write("\n");
   write("global flags: --color[=always|auto|never], --no-color\n");
 }
