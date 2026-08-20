@@ -140,18 +140,17 @@ export async function openDb(path: string, opts: OpenDbOptions = {}): Promise<Db
   let db: Db;
   if (isBun) {
     // @ts-expect-error - bun:sqlite is provided by the Bun runtime
-    const { Database } = await import("bun:sqlite");
+    const { Database, constants } = await import("bun:sqlite");
     // Bun cannot read a checkpointed WAL-mode database read-only after SQLite removes
     // its empty WAL/SHM files. Immutable mode is correct only when those sidecars are absent.
-    const bunPath =
-      opts.immutable || (readOnly && !fs.existsSync(`${path}-wal`) && !fs.existsSync(`${path}-shm`))
-        ? immutableUrl.href
-        : path;
-    db = wrap(
-      new Database(bunPath, readOnly ? { readonly: true, create: false } : { create: true }) as unknown as RawDatabase,
-      "bun:sqlite",
-      opts.busyRetry,
-    );
+    const useImmutable = opts.immutable || (readOnly && !fs.existsSync(`${path}-wal`) && !fs.existsSync(`${path}-shm`));
+    const bunPath = useImmutable ? immutableUrl.href : path;
+    const bunOptions = useImmutable
+      ? constants.SQLITE_OPEN_READONLY | constants.SQLITE_OPEN_URI
+      : readOnly
+        ? { readonly: true, create: false }
+        : { create: true };
+    db = wrap(new Database(bunPath, bunOptions) as unknown as RawDatabase, "bun:sqlite", opts.busyRetry);
   } else {
     const { DatabaseSync } = await import("node:sqlite");
     db = wrap(

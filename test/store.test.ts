@@ -543,6 +543,54 @@ test("opening a future schema rejects before DDL and leaves the database unchang
   assert.deepEqual(await snapshotDatabase(dbPath), before);
 });
 
+test("immutable read-only opens encode POSIX paths and ignore WAL content", {
+  skip: process.platform === "win32",
+}, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weaver immutable-é#?-"));
+  const dbPath = path.join(dir, "store space-é#?.db");
+  const writer = await openDb(dbPath);
+  writer.exec("CREATE TABLE sentinel (value TEXT NOT NULL)");
+  writer.run("INSERT INTO sentinel (value) VALUES (?)", "main database");
+  configureWritableDb(writer);
+  writer.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  writer.exec("PRAGMA wal_autocheckpoint = 0");
+  writer.run("INSERT INTO sentinel (value) VALUES (?)", "WAL only");
+
+  const walPath = `${dbPath}-wal`;
+  const shmPath = `${dbPath}-shm`;
+  const stale = {
+    db: fs.readFileSync(dbPath),
+    wal: fs.readFileSync(walPath),
+    shm: fs.readFileSync(shmPath),
+  };
+  writer.close();
+
+  fs.writeFileSync(dbPath, stale.db);
+  fs.writeFileSync(walPath, stale.wal);
+  fs.writeFileSync(shmPath, stale.shm);
+
+  const immutable = await openDb(dbPath, { readOnly: true, immutable: true });
+  try {
+    assert.deepEqual(
+      immutable.all<{ value: string }>("SELECT value FROM sentinel ORDER BY rowid").map((row) => row.value),
+      ["main database"],
+    );
+    assert.throws(() => immutable.run("INSERT INTO sentinel (value) VALUES (?)", "must fail"), /read.?only/i);
+  } finally {
+    immutable.close();
+  }
+
+  const lockAware = await openDb(dbPath, { readOnly: true });
+  try {
+    assert.deepEqual(
+      lockAware.all<{ value: string }>("SELECT value FROM sentinel ORDER BY rowid").map((row) => row.value),
+      ["main database", "WAL only"],
+    );
+  } finally {
+    lockAware.close();
+  }
+});
+
 test("opening a live-WAL future schema rejects without changing the database", async () => {
   const dbPath = tmpDb();
   const writer = await openDb(dbPath);

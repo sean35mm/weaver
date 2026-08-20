@@ -355,7 +355,7 @@ test("scratchpad CLI supports shared lifecycle, bounded JSON reads, attribution,
 
 test("scratchpad edit uses a 0600 draft and rejects a concurrent revision without overwriting it", {
   timeout: 15_000,
-}, () => {
+}, async () => {
   const root = tmpDir("weaver-repo-");
   const home = tmpDir("weaver-home-");
   const created = run(root, home, null, ["scratchpad", "create", "Editor pad", "--from", "-", "--json"], "# Draft\n");
@@ -380,10 +380,21 @@ test("scratchpad edit uses a 0600 draft and rejects a concurrent revision withou
     }>;
     assert.equal(history[0]?.provenance, "cli-editor");
     assert.ok(history[0]!.createdAt >= editorResult.completedAt);
-    const statusAfterEdit = JSON.parse(run(root, home, null, ["status", "--json", "--full"]).stdout) as {
-      sessions: Array<{ lastSeenMsAgo: number }>;
-    };
-    assert.ok(statusAfterEdit.sessions.some((session) => session.lastSeenMsAgo < 1_000));
+    const repoId = resolveRepoId(fs.realpathSync(root)).repoId;
+    const db = await openDb(path.join(home, `${repoId}.db`), { readOnly: true });
+    try {
+      const completion = db.get<{ created_at: number; last_seen: number }>(
+        `SELECT revisions.created_at, sessions.last_seen
+         FROM scratchpad_revisions AS revisions
+         JOIN sessions ON sessions.id = revisions.actor_id
+         WHERE revisions.scratchpad_id = ? AND revisions.revision = 2 AND revisions.provenance = 'cli-editor'`,
+        Number(id),
+      );
+      assert.ok(completion);
+      assert.equal(completion.last_seen, completion.created_at);
+    } finally {
+      db.close();
+    }
 
     const racingEditor = path.join(root, "racing-editor.mjs");
     fs.writeFileSync(
