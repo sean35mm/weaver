@@ -5,6 +5,23 @@ All notable changes to this project are documented here. This project adheres to
 [Keep a Changelog](https://keepachangelog.com/). During `0.x`, minor versions may include
 breaking changes. This file is maintained automatically by release-please.
 
+## [0.14.0](https://github.com/sean35mm/weaver/compare/v0.13.0...v0.14.0) (2026-08-27)
+
+
+### Features
+
+* add revision-safe scratchpad coordination ([af4c70b](https://github.com/sean35mm/weaver/commit/af4c70ba19fa3999bc6b9bcc51ba0df6b0b192c0))
+* make coordination-lite the default protocol ([5a237c4](https://github.com/sean35mm/weaver/commit/5a237c44cbde5be8756fe32bdb8137c358c8bcba))
+* ship the secure singleton scratchpad dashboard ([75fa984](https://github.com/sean35mm/weaver/commit/75fa984d1e5de5e7da7760931c9bb95e9aeb3c52))
+* teach agents the scratchpads-first protocol ([f334873](https://github.com/sean35mm/weaver/commit/f3348732f209079d7feabc7d72c45d5e17b1b9a1))
+
+
+### Bug Fixes
+
+* coordinate store access for safe maintenance ([2f3c7f8](https://github.com/sean35mm/weaver/commit/2f3c7f8da7753e9e8f80895d7fdf0a9062b31621))
+* make purge and uninstall fail closed ([00fe917](https://github.com/sean35mm/weaver/commit/00fe91723d9018762c7b51842718987cda1d926f))
+* open immutable Bun databases with URI flags ([09a7bcf](https://github.com/sean35mm/weaver/commit/09a7bcff94a1d616151550977be78ab42e142c5f))
+
 ## [0.13.0](https://github.com/sean35mm/weaver/compare/v0.12.0...v0.13.0) (2026-07-24)
 
 
