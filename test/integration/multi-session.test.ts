@@ -278,7 +278,7 @@ test("scratchpad CLI supports shared lifecycle, bounded JSON reads, attribution,
 
   const source = path.join(root, "pad.md");
   fs.writeFileSync(source, "# File\nfrom file\n```md\n# Not a heading\n```\n## Real child\nchild\n# Next\nafter\n");
-  const fromFile = run(root, home, null, ["scratchpad", "create", "File pad", "--from", source, "--json"]);
+  const fromFile = run(root, home, "file-author", ["scratchpad", "create", "File pad", "--from", source, "--json"]);
   assert.equal(fromFile.status, 0);
   const fromFileId = (JSON.parse(fromFile.stdout) as { id: number }).id;
   const fileRead = JSON.parse(
