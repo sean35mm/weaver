@@ -67,7 +67,7 @@ async function chooseHooks(ctx: Ctx): Promise<boolean> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
   ctx.out("\nInstall harness integrations for this repo? Claude Code hooks warn agents before they\n");
   ctx.out("edit an area another agent is working in; the OpenCode plugin adds session identity,\n");
-  ctx.out("structural hooks, and dedicated Weaver scratchpad/Repository Facts tools. [Y/n]: ");
+  ctx.out("structural hooks, and optional Weaver scratchpad/Repository Facts tools. [Y/n]: ");
   const answer = await readAnswer();
   return answer === "" || answer === "y" || answer === "yes";
 }

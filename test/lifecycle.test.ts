@@ -469,7 +469,10 @@ test("init --global --hooks installs global integrations; deinit --global remove
 
 test("init refreshes stale managed blocks and plugin without changing user content", async () => {
   const root = tmpDir("weaver-repo-");
-  const stale = INSTRUCTION_BLOCK.replace("protocol=3", "protocol=2").replace("scratchpads-first", "legacy");
+  const stale = INSTRUCTION_BLOCK.replace("protocol=4", "protocol=3").replace(
+    "Run `weaver status` every task.",
+    "Legacy protocol.",
+  );
   fs.writeFileSync(path.join(root, "AGENTS.md"), `# User heading\n\nkeep before\n\n${stale}\n\nkeep after\n`);
   fs.mkdirSync(path.join(root, ".opencode", "plugins"), { recursive: true });
   fs.writeFileSync(path.join(root, ".opencode", "plugins", "weaver.js"), "// weaver:opencode-plugin protocol=1\n");
@@ -487,7 +490,7 @@ test("init refreshes stale managed blocks and plugin without changing user conte
 
 test("doctor reports outdated protocol files with scope-correct refresh commands", async () => {
   const root = tmpDir("weaver-repo-");
-  const stale = INSTRUCTION_BLOCK.replace("protocol=3", "protocol=2");
+  const stale = INSTRUCTION_BLOCK.replace("protocol=4", "protocol=3");
   fs.writeFileSync(path.join(root, "AGENTS.md"), stale);
   fs.mkdirSync(path.join(root, ".opencode", "plugins"), { recursive: true });
   fs.writeFileSync(path.join(root, ".opencode", "plugins", "weaver.js"), "// weaver:opencode-plugin protocol=1\n");
@@ -500,6 +503,7 @@ test("doctor reports outdated protocol files with scope-correct refresh commands
   assert.equal(doctor.run(ctx), 0);
   assert.match(out, /outdated AGENTS\.md.*weaver init --project/);
   assert.match(out, /plugin[^\n]*project outdated[^\n]*weaver init --project --hooks/);
+  assert.match(out, /optional scratchpad\/Repository Facts tools/);
   ctx.store.close();
 });
 

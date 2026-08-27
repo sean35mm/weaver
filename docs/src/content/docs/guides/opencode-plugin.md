@@ -12,6 +12,10 @@ Weaver's generated OpenCode plugin combines two layers while keeping the CLI aut
 2. **Strict custom tools** expose a fixed set of scratchpad and Repository Facts operations through
    OpenCode's official `tool` hook.
 
+These custom tools remain installed and fully supported in Phase 1, but they are optional helpers;
+the coordination-lite protocol does not require a scratchpad or any dedicated tool. No profile or
+tool-consolidation behavior is shipped yet.
+
 The generated ESM begins with:
 
 ```js
@@ -39,7 +43,7 @@ OpenCode loads plugins at application startup. **Fully restart OpenCode** after 
 After `weaver upgrade`, rerun `weaver init` at your previous scope, include `--hooks`, then restart.
 `weaver doctor` and `weaver audit` report stale integrations with scope-correct commands.
 
-## Dedicated tools
+## Optional dedicated tools
 
 | Tool | Operation |
 | --- | --- |

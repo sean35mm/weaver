@@ -298,12 +298,28 @@ test("scratchpad CLI supports shared lifecycle, bounded JSON reads, attribution,
   const id = String(createdJson.id);
   assert.equal(run(root, home, "agent-a", ["scratchpad", "use", id]).status, 0);
   assert.equal(run(root, home, "agent-a", ["claim", "src/shared/**"]).status, 0);
-  const status = JSON.parse(run(root, home, "viewer", ["status", "--json", "--full"]).stdout) as {
+  const status = JSON.parse(run(root, home, "viewer", ["status", "--json"]).stdout) as {
     claims: Array<{ scratchpadId: number | null }>;
-    scratchpads: Array<Record<string, unknown>>;
+    scratchpads: Array<{ body?: unknown; attachedSessions: Array<{ name: string | null }> }>;
   };
   assert.ok(status.claims.some((claim) => claim.scratchpadId === createdJson.id));
-  assert.equal(status.scratchpads[0]?.body, undefined);
+  assert.ok(status.scratchpads.every((pad) => pad.body === undefined));
+  assert.ok(status.scratchpads.some((pad) => pad.attachedSessions.some((session) => session.name === "agent-a")));
+
+  assert.equal(run(root, home, "viewer", ["scratchpad", "create", "Standalone viewer pad"]).status, 0);
+  assert.equal(run(root, home, "viewer", ["scratchpad", "use", id]).status, 0);
+  const normalHuman = run(root, home, "viewer", ["status"]);
+  assert.match(normalHuman.stdout, /scratchpads \(2 active\):/);
+  assert.match(normalHuman.stdout, /Shared plan.*agent-a/);
+  assert.doesNotMatch(normalHuman.stdout, /viewer/);
+  assert.match(normalHuman.stdout, /File pad/);
+  assert.doesNotMatch(normalHuman.stdout, /Standalone viewer pad/);
+  assert.match(normalHuman.stdout, /src\/shared\/\*\*/);
+  const fullHuman = run(root, home, "viewer", ["status", "--full"]);
+  assert.match(fullHuman.stdout, /scratchpads \(3 active\):/);
+  assert.match(fullHuman.stdout, /Standalone viewer pad/);
+  assert.match(fullHuman.stdout, /Shared plan.*agent-a.*viewer/);
+  assert.equal(run(root, home, "viewer", ["done"]).status, 0);
 
   const appended = run(
     root,
@@ -351,6 +367,77 @@ test("scratchpad CLI supports shared lifecycle, bounded JSON reads, attribution,
   assert.equal(run(root, home, "agent-a", ["fact", "scratchpads are repo scoped"]).status, 0);
   assert.match(run(root, home, null, ["facts"]).stdout, /scratchpads are repo scoped/);
   assert.match(run(root, home, null, ["notes"]).stdout, /scratchpads are repo scoped/);
+});
+
+test("an active scratchpad alone does not make default human status relevant", () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  assert.equal(
+    run(root, home, null, ["scratchpad", "create", "Optional context", "--from", "-"], "# Notes\n").status,
+    0,
+  );
+
+  const normal = run(root, home, null, ["status"]);
+  assert.equal(normal.status, 0);
+  assert.match(normal.stdout, /no other active agents/);
+  assert.doesNotMatch(normal.stdout, /Optional context/);
+
+  const full = run(root, home, null, ["status", "--full"]);
+  assert.match(full.stdout, /Optional context/);
+});
+
+test("default human status hydrates a relevant pad beyond the JSON pad cap", { timeout: 15_000 }, () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  const created = run(
+    root,
+    home,
+    "agent-a",
+    ["scratchpad", "create", "Older attached pad", "--from", "-", "--json"],
+    "SECRET OLD BODY",
+  );
+  assert.equal(created.status, 0);
+  const olderId = String((JSON.parse(created.stdout) as { id: number }).id);
+  assert.equal(run(root, home, "agent-a", ["scratchpad", "use", olderId]).status, 0);
+
+  for (let index = 0; index < 11; index++) {
+    assert.equal(run(root, home, "viewer", ["scratchpad", "create", `New standalone ${index}`]).status, 0);
+  }
+
+  const jsonResult = run(root, home, "viewer", ["status", "--json"]);
+  assert.equal(jsonResult.status, 0);
+  const json = JSON.parse(jsonResult.stdout) as {
+    scratchpads: Array<{ id: number; body?: unknown }>;
+  };
+  assert.equal(json.scratchpads.length, 10);
+  assert.equal(
+    json.scratchpads.some((pad) => String(pad.id) === olderId),
+    false,
+  );
+  assert.ok(json.scratchpads.every((pad) => pad.body === undefined));
+
+  const human = run(root, home, "viewer", ["status"]);
+  assert.equal(human.status, 0);
+  assert.match(human.stdout, /Older attached pad/);
+  assert.doesNotMatch(human.stdout, /SECRET OLD BODY/);
+  assert.doesNotMatch(human.stdout, /New standalone/);
+});
+
+test("a self-only attachment beyond the pad cap does not make default status noisy", { timeout: 15_000 }, () => {
+  const root = tmpDir("weaver-repo-");
+  const home = tmpDir("weaver-home-");
+  const created = run(root, home, "solo", ["scratchpad", "create", "Older self pad", "--json"]);
+  assert.equal(created.status, 0);
+  const olderId = String((JSON.parse(created.stdout) as { id: number }).id);
+  assert.equal(run(root, home, "solo", ["scratchpad", "use", olderId]).status, 0);
+  for (let index = 0; index < 11; index++) {
+    assert.equal(run(root, home, "solo", ["scratchpad", "create", `Self standalone ${index}`]).status, 0);
+  }
+
+  const status = run(root, home, "solo", ["status"]);
+  assert.equal(status.status, 0);
+  assert.match(status.stdout, /no other active agents/);
+  assert.doesNotMatch(status.stdout, /Older self pad|Self standalone/);
 });
 
 test("scratchpad edit uses a 0600 draft and rejects a concurrent revision without overwriting it", {

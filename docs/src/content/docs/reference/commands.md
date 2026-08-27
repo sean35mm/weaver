@@ -1,6 +1,6 @@
 ---
 title: CLI reference
-description: Exact shipped commands for scratchpads, coordination, Repository Facts, views, and lifecycle.
+description: Exact shipped commands for coordination, optional scratchpads, Repository Facts, views, and lifecycle.
 sidebar:
   order: 1
 ---
@@ -9,7 +9,60 @@ Run `weaver --help` and `weaver scratchpad help` for the authoritative summaries
 resolve against the current repository/worktree. `--session <id>` or `WEAVER_SESSION=<id>` provides
 an explicit identity when harness/TTY discovery is unavailable.
 
-## Scratchpad commands
+## Coordination commands
+
+### `weaver status [--json] [--full]`
+
+Observer snapshot of active/recent sessions, intents, claims, activity, Repository Facts, and pad
+attribution. Default human output omits standalone active-pad summaries, so pads alone do not make a
+quiet status noisy; pad-attributed claims/activity remain visible. `--full` includes active-pad
+summaries and increases normal caps. JSON always retains the backward-compatible scratchpad and
+attachment data regardless of `--full`.
+
+### `weaver task <intent…>`
+
+Registers/refreshes the current session and sets its intent.
+
+### `weaver claim <glob>`
+
+```text
+weaver claim <glob> [--reason TEXT] [--ttl 30m]
+```
+
+Records an advisory, TTL-bound claim. Exit `0` is clear. Exit `1` means the claim **was recorded**
+but overlaps another live session; do not rerun it. `--ttl` accepts durations such as `90s`, `30m`,
+`2h`, and `1d` within configured bounds.
+
+### `weaver release <glob>`
+
+Releases the current session's matching claim in this checkout.
+
+### `weaver check <path> [--no-touch]`
+
+Observer-safe path conflict check. Exit `0` clear, `1` conflict. It normally refreshes a recognized
+live caller; `--no-touch` prevents that heartbeat.
+
+### `weaver preflight`
+
+```text
+weaver preflight [paths…|--staged|--upstream|--base REF]
+  [--operation commit|push|pr] [--fail-on soft|hard|never] [--json] [--full]
+```
+
+Checks only supplied/inferred delivery paths, once, without heartbeat refresh or polling.
+`--staged` uses the index; `--upstream` uses `@{upstream}...HEAD`; `--base` uses `<ref>...HEAD`.
+Default `--fail-on soft` returns `1` for relevant soft/hard overlap and `2` for input/tooling errors.
+`hard` fails only active claims; `never` reports without overlap failure.
+
+### `weaver done`
+
+Ends presence for the current checkout, releases its claims, and detaches its scratchpad. Ambiguous
+same-identity/multiple-worktree presence remains conservative.
+
+## Optional scratchpad commands
+
+Scratchpads are not required for ordinary coordination. Use them for matching active workstreams,
+collaboration, handoff/resumption, conflict/shared decisions, or explicit user requests.
 
 ### `weaver scratchpad list`
 
@@ -98,54 +151,6 @@ Archive moves active → archived; restore moves archived → active. Trash reme
 state; recover returns there. Agent trash requires both reason and revision. Archive/trash refuses
 other live attachments. There is no individual permanent pad purge.
 
-## Coordination commands
-
-### `weaver status [--json] [--full]`
-
-Observer snapshot of active/recent sessions, intents, claims, activity, and Repository Facts.
-Human output stays silent when nothing is relevant; JSON always emits structure. `--full` increases
-normal caps.
-
-### `weaver task <intent…>`
-
-Registers/refreshes the current session and sets its intent.
-
-### `weaver claim <glob>`
-
-```text
-weaver claim <glob> [--reason TEXT] [--ttl 30m]
-```
-
-Records an advisory, TTL-bound claim. Exit `0` is clear. Exit `1` means the claim **was recorded**
-but overlaps another live session; do not rerun it. `--ttl` accepts durations such as `90s`, `30m`,
-`2h`, and `1d` within configured bounds.
-
-### `weaver release <glob>`
-
-Releases the current session's matching claim in this checkout.
-
-### `weaver check <path> [--no-touch]`
-
-Observer-safe path conflict check. Exit `0` clear, `1` conflict. It normally refreshes a recognized
-live caller; `--no-touch` prevents that heartbeat.
-
-### `weaver preflight`
-
-```text
-weaver preflight [paths…|--staged|--upstream|--base REF]
-  [--operation commit|push|pr] [--fail-on soft|hard|never] [--json] [--full]
-```
-
-Checks only supplied/inferred delivery paths, once, without heartbeat refresh or polling.
-`--staged` uses the index; `--upstream` uses `@{upstream}...HEAD`; `--base` uses `<ref>...HEAD`.
-Default `--fail-on soft` returns `1` for relevant soft/hard overlap and `2` for input/tooling errors.
-`hard` fails only active claims; `never` reports without overlap failure.
-
-### `weaver done`
-
-Ends presence for the current checkout, releases its claims, and detaches its scratchpad. Ambiguous
-same-identity/multiple-worktree presence remains conservative.
-
 ## Repository Facts and activity
 
 ### `weaver fact`
@@ -223,7 +228,8 @@ Installs/refreshes the versioned managed block. Project targets are `./CLAUDE.md
 global targets are `~/.claude/CLAUDE.md`, `~/.config/opencode/AGENTS.md`, and
 `$CODEX_HOME/AGENTS.md` (default `~/.codex/AGENTS.md`).
 
-`--hooks` also merges Claude Code hooks and installs the OpenCode plugin at the same scope. User
+`--hooks` also merges Claude Code hooks and installs the OpenCode plugin—with its existing optional
+scratchpad/Repository Facts tools—at the same scope. User
 content and foreign files are preserved. Interactive runs prompt; noninteractive runs default to
 project and skip integrations unless `--hooks` is explicit.
 

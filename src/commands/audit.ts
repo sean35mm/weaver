@@ -156,7 +156,7 @@ function recommendations(opts: {
     const installScopes = (["project", "global"] as const).filter((scope) => opts.opencodePlugin[scope] === "missing");
     if (installScopes.length)
       recs.push(
-        `A current OpenCode plugin is not installed; run ${installScopes.map((scope) => `\`weaver init --${scope} --hooks\``).join(" or ")} for identity and dedicated tools.`,
+        `A current OpenCode plugin is not installed; run ${installScopes.map((scope) => `\`weaver init --${scope} --hooks\``).join(" or ")} for identity and optional scratchpad/Repository Facts tools.`,
       );
   }
   if (opts.project.outdated.length)

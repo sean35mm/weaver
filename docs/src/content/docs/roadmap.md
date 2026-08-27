@@ -9,8 +9,11 @@ the project (and the way people run agents) evolves.
 
 <div class="wv-eyebrow">▸ Recently shipped</div>
 
+- **Coordination-lite protocol** — `status` every task, `task` and one-time scope claims before
+  writes, bounded preflight, and `done`; scratchpads activate only for objective collaboration,
+  handoff, conflict/decision, matching-pad, or user-request triggers.
 - **Workstream scratchpads** — curated Markdown, optimistic revisions, immutable history,
-  session/worktree attachments, and active/archive/trash lifecycle through one scriptable CLI.
+  session/worktree attachments, and active/archive/trash lifecycle as optional shared context.
 - **Rich scratchpad UI** — WYSIWYG/source editing, search, autosave conflict handling, lifecycle
   actions, pad context, browser/cmux launchers, and a headless URL.
 - **Official OpenCode tools** — fixed scratchpad and Repository Facts operations through the
@@ -36,14 +39,16 @@ the project (and the way people run agents) evolves.
 
 What's actively being worked on.
 
-- **Real-world dogfooding** — running scratchpads-first coordination on Weaver itself across Claude
-  Code, OpenCode, Codex, and ordinary terminals, then tightening the protocol from observed gaps.
+- **Real-world dogfooding** — running coordination-lite across Claude Code, OpenCode, Codex, and
+  ordinary terminals, then tightening the protocol from observed gaps.
 
 <div class="wv-eyebrow">▸ Next — committed, soon</div>
 
 Lined up and likely to land in the near term.
 
 - **More harness coverage** — Cursor, Gemini CLI, and Aider recognized out of the box.
+- **OpenCode tool profiles** — explore a lighter default tool surface without removing the existing
+  Phase 1 scratchpad/Fact tools prematurely.
 - **Richer workstream views** — deeper filtering and navigation across pads, agents, and areas.
 
 <div class="wv-eyebrow">▸ Later — directional</div>

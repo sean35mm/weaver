@@ -1,27 +1,28 @@
 ---
 title: How it works
-description: The local commons behind workstream scratchpads, sessions, claims, activity, and Repository Facts.
+description: The local commons behind sessions, claims, activity, optional scratchpads, and Repository Facts.
 sidebar:
   order: 1
 ---
 
-## A shared workstream notebook
+## A lightweight coordination commons
 
-Weaver coordinates through a shared local environment rather than direct agent-to-agent chat. Each
-workstream gets curated Markdown; sessions attach to it; claims and activity show who is changing
-which files; durable Repository Facts sit above individual tasks.
+Weaver coordinates through a shared local environment rather than direct agent-to-agent chat.
+Status, task intent, advisory claims, activity, and `done` form the default loop. Durable Repository
+Facts sit above individual tasks; curated Markdown scratchpads are optional for workstreams that
+need collaboration, handoff, or a shared decision record.
 
 | Primitive | What it answers |
 | --- | --- |
-| **Scratchpads** | What does this workstream know, decide, and need next? |
-| **Revisions** | Am I editing the version I actually read? |
 | **Sessions** | Who is active, in which harness/checkout, and with what intent? |
 | **Claims** | Which file areas have a live advisory owner? |
 | **Activity** | What happened recently and under which pad? |
 | **Repository Facts** | Which verified repo truths should survive this task? |
+| **Scratchpads** | When needed, what does this workstream know, decide, and need next? |
+| **Revisions** | Am I editing the pad version I actually read? |
 
-A session attaches to at most one active pad per worktree. Different workstreams use different
-pads, while multiple collaborating sessions may attach to the same one.
+When used, a session attaches to at most one active pad per worktree. Different workstreams use
+different pads, while collaborating sessions may attach to the same one.
 
 ## CLI authority, optional views and integrations
 

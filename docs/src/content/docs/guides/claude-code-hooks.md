@@ -5,8 +5,8 @@ sidebar:
   order: 3
 ---
 
-The instruction block asks agents to run `weaver status` and `weaver check` at the right
-moments — and they usually do. Hooks remove the "usually": Claude Code itself calls Weaver
+The coordination-lite instruction block asks agents to run `weaver status`, announce write tasks,
+and claim scopes. Hooks add structural edit checks: Claude Code itself calls Weaver
 around every file edit, so conflict detection and presence no longer depend on the agent
 remembering anything.
 
@@ -71,6 +71,6 @@ Only Weaver's own entries are removed; the rest of `.claude/settings.json` is un
 ## Other harnesses
 
 OpenCode has its own [generated plugin](/weaver/guides/opencode-plugin/) for identity, structural
-edit events, and dedicated scratchpad/Repository Facts tools. Codex, Pi, and any other shell-capable
+edit events, and optional dedicated scratchpad/Repository Facts tools. Codex, Pi, and any other shell-capable
 harness follow the managed instruction block. The CLI stays the universal engine; native hooks and
 tools are accelerators on top.

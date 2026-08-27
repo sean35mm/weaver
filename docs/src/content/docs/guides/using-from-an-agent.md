@@ -1,6 +1,6 @@
 ---
 title: Using Weaver from an agent
-description: The exact scratchpads-first protocol a coding agent should follow.
+description: The exact coordination-lite protocol a coding agent should follow.
 sidebar:
   order: 2
 ---
@@ -11,29 +11,38 @@ This is the expanded form of the versioned block installed by `weaver init`.
 
 ```sh
 weaver status
-weaver scratchpad list
-weaver scratchpad read <id> --headings
 ```
 
-Reuse the active pad matching this workstream. Create a separate pad only for a genuinely separate
-workstream:
+**Read-only and plan-only work stops there** unless status or the user identifies a relevant existing
+pad. You may read that pad, but do not create or attach one, register a task, claim files, or call
+`done`.
 
-```sh
-weaver scratchpad create "<workstream title>" --from -
-```
-
-Read relevant sections before investigating. **Read-only and plan-only work may read pads but must
-not attach, mutate a pad, register a task, or claim files.**
-
-Once repository writes are authorized:
+Once repository writes are authorized, use this concise flow when no scratchpad trigger applies:
 
 ```sh
 weaver task "<specific goal>"
+weaver claim '<glob>' --reason "<why this area is needed>"
+```
+
+Claim every path you expect to edit, each scope once, before the first edit.
+
+## Use a scratchpad only when it helps coordination
+
+A pad is optional. Use one only for a matching active pad, multiple collaborating sessions,
+planned handoff/resumption, a conflict/shared decision record, or an explicit user request.
+Complexity or duration alone does not require one.
+
+```sh
+weaver task "<specific goal>"
+weaver scratchpad list
+weaver scratchpad read <id> --headings
+weaver scratchpad create "<workstream title>" --from - # only if no matching pad exists
 weaver scratchpad use <id>
 weaver claim '<glob>' --reason "<why this area is needed>"
 ```
 
-Attach before the first repository write. Claim every path you expect to edit, each scope once.
+When a trigger applies, find/read/use the pad after `task` and before `claim`; claims snapshot the
+current attachment. In either flow, claim each scope once before the first repository edit.
 
 ## Maintain curated shared Markdown
 
@@ -55,7 +64,8 @@ intentional.
 
 ## Promote Repository Facts
 
-Task state belongs in the pad. Verified, lasting repo knowledge belongs in Repository Facts:
+When a pad is used, task state belongs there. Verified, lasting repo knowledge belongs in
+Repository Facts whether or not the task has a pad:
 
 ```sh
 weaver fact "AuthService owns token refresh" --path 'src/auth/**'
@@ -72,10 +82,10 @@ customer data in pads, Facts, intents, reasons, or summaries.
 
 Claim exit `1` means the claim **was recorded** and a conflict was surfaced. Do not rerun it.
 
-1. Read the other live session's intent, claims, activity, and attached pad.
+1. Read the other live session's intent, claims, activity, and attached pad when one exists.
 2. Prefer useful non-overlapping work.
 3. Proceed only when the overlap is demonstrably harmless.
-4. Otherwise record your intent in the pad and ask the user how to split the work.
+4. Otherwise coordinate in a shared pad when useful and ask the user how to split the work.
 5. Never silently edit over another live session.
 
 Known different-worktree overlaps are informational because checked-out files are isolated. Still
@@ -94,10 +104,11 @@ weaver preflight --base main
 If relevant soft/hard overlap appears, pause and ask the user. Do not silently poll or wait unless
 the user explicitly requests waiting.
 
-Update final decisions and next steps in the pad. Archive a completed pad with its current
-revision. Leave a paused/shared workstream active when other sessions still need it.
+If a pad was used, update final decisions and next steps. Archive it only when the whole workstream
+is complete; leave a paused/shared workstream active when other sessions still need it.
 
 ```sh
+# optional, only when the whole workstream is complete:
 weaver scratchpad archive 7 --revision 14
 weaver done
 ```
@@ -120,5 +131,6 @@ weaver activity --json
 weaver preflight --staged --json
 ```
 
-OpenCode users with the generated plugin can use its dedicated `weaver_*` tools; those tools are
-strict wrappers around these same commands. Shell commands remain the universal authority.
+OpenCode users with the generated plugin can still use its optional dedicated scratchpad/Fact
+`weaver_*` tools in Phase 1; those tools are strict wrappers around these same commands. Shell
+commands remain the universal authority.

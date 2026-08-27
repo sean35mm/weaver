@@ -14,10 +14,11 @@ Say you have 2× Claude Code + 2× OpenCode + 3× Codex sessions, all in the sam
 **seven participants**, and each must see the other six. Weaver treats every session as a
 distinct participant, regardless of harness or window.
 
-Participants coordinate around **workstreams**, not harness brands. Two agents collaborating on
-OAuth attach to the same pad; three agents handling unrelated migrations, docs, and tests use three
-different pads. `weaver scratchpads` shows each pad with its attached sessions, claims, and recent
-activity instead of flattening every conversation into one shared document.
+Participants coordinate around **tasks and edit scopes**, not harness brands. Every session checks
+`status`; writing sessions announce a task and claim their edit areas. When collaboration, handoff,
+or a shared decision record warrants a scratchpad, two agents can attach to the same pad while
+unrelated work proceeds without one. `weaver scratchpads` shows optional pads with their attached
+sessions, claims, and recent activity.
 
 This works because the CLI is the **universal substrate** — every harness can run a shell command,
 so they all read and write the same local commons. OpenCode tools and Claude hooks are optional
@@ -76,11 +77,11 @@ location is ambiguous.
 
 ## A safe parallel pattern
 
-1. Every session runs `status`, lists pads, and reads the relevant pad before investigation.
-2. Read-only sessions stay unattached.
-3. Writing sessions announce a task, attach to one pad, and claim exact edit scopes.
-4. Collaborators update different stable sections where practical and always pass the revision
-   they read.
-5. Separate workstreams use separate pads and claims.
-6. Each delivery runs a path-bounded `preflight`; completed pads are archived; each session runs
-   `done`.
+1. Every session runs `status`; read-only/plan-only sessions stop unless an existing relevant pad is
+   identified, and may read it without attaching.
+2. Writing sessions run `task`, then claim each exact edit scope once before editing.
+3. If a pad trigger applies, run `task`, find/read/use the matching pad, then `claim` so claims inherit
+   the attachment. Complexity or duration alone does not require a pad.
+4. Pad collaborators update stable sections where practical and pass the revision they read.
+5. Each delivery runs a path-bounded `preflight`; write sessions finish with `done`. Archive a pad
+   only when the whole workstream is complete.

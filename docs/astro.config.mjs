@@ -10,7 +10,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Weaver",
-      tagline: "Shared situational awareness for your coding agents.",
+      tagline: "Lightweight coordination for your coding agents.",
       favicon: "/favicon.svg",
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/sean35mm/weaver" }],
       components: { SocialIcons: "./src/components/SocialIcons.astro" },
@@ -24,7 +24,7 @@ export default defineConfig({
         starlightLlmsTxt({
           projectName: "Weaver",
           description:
-            "Weaver is a CLI-first local coordination layer for coding agents: one curated Markdown scratchpad per workstream, attached sessions and claims, revision-safe edits, and durable Repository Facts. The CLI and local SQLite store are authoritative; there is no account, telemetry, remote sync, coordination daemon, or MCP server.",
+            "Weaver is a CLI-first local coordination layer for coding agents: status, task intent, advisory claims, activity, and durable Repository Facts, with optional revision-safe Markdown scratchpads for collaboration and handoff. The CLI and local SQLite store are authoritative; there is no account, telemetry, remote sync, coordination daemon, or MCP server.",
         }),
       ],
       sidebar: [
@@ -33,9 +33,9 @@ export default defineConfig({
         {
           label: "Guides",
           items: [
-            { label: "Scratchpads", slug: "guides/scratchpads" },
             { label: "Using Weaver from an agent", slug: "guides/using-from-an-agent" },
             { label: "Coordinating many agents", slug: "guides/multiple-agents" },
+            { label: "Scratchpads (optional)", slug: "guides/scratchpads" },
             { label: "Claude Code hooks", slug: "guides/claude-code-hooks" },
             { label: "OpenCode plugin", slug: "guides/opencode-plugin" },
             { label: "Scratchpad UI & watch", slug: "guides/dashboard" },

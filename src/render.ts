@@ -38,6 +38,8 @@ export function shortId(key: string): string {
 
 interface FormatOptions {
   width?: number;
+  scratchpads?: "none" | "relevant" | "all";
+  liveAttachmentSessions?: ReadonlySet<string>;
 }
 
 const NOTE_WIDTH = 100;
@@ -173,6 +175,30 @@ export interface StatusData {
   scratchpadAttachments?: ScratchpadAttachmentRow[];
 }
 
+export function selectStatusScratchpads(
+  d: StatusData,
+  visibility: NonNullable<FormatOptions["scratchpads"]>,
+  liveAttachmentSessions?: ReadonlySet<string>,
+): ScratchpadRow[] {
+  const scratchpads = d.scratchpads ?? [];
+  if (visibility === "all") return scratchpads;
+  if (visibility === "none") return [];
+  const visibleAttachmentSessions = liveAttachmentSessions ?? new Set(d.sessions.map((session) => session.id));
+  const relevant = new Set<number>();
+  for (const attachment of d.scratchpadAttachments ?? []) {
+    if (visibleAttachmentSessions.has(attachment.sessionId)) {
+      relevant.add(attachment.scratchpadId);
+    }
+  }
+  for (const claim of d.claims) {
+    if (claim.scratchpadId != null) relevant.add(claim.scratchpadId);
+  }
+  for (const activity of d.activity) {
+    if (activity.scratchpadId != null) relevant.add(activity.scratchpadId);
+  }
+  return scratchpads.filter((pad) => relevant.has(pad.id));
+}
+
 export function formatStatus(
   d: StatusData,
   now: number,
@@ -221,12 +247,18 @@ export function formatStatus(
       else out.push(base);
     }
   }
-  const scratchpads = d.scratchpads ?? [];
+  const scratchpadVisibility = opts.scratchpads ?? "all";
+  const visibleAttachmentSessions = opts.liveAttachmentSessions ?? new Set(d.sessions.map((session) => session.id));
+  const scratchpads = selectStatusScratchpads(d, scratchpadVisibility, visibleAttachmentSessions);
   const attachments = d.scratchpadAttachments ?? [];
   if (scratchpads.length) {
     pushSection(out, theme.heading(`scratchpads (${scratchpads.length} active):`));
     for (const pad of scratchpads) {
-      const attached = attachments.filter((entry) => entry.scratchpadId === pad.id);
+      const attached = attachments.filter(
+        (entry) =>
+          entry.scratchpadId === pad.id &&
+          (scratchpadVisibility !== "relevant" || visibleAttachmentSessions.has(entry.sessionId)),
+      );
       const names = attached
         .map((entry) => store.getSession(entry.sessionId))
         .filter((session): session is SessionRow => Boolean(session))

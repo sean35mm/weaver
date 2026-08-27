@@ -1,18 +1,27 @@
 ---
 title: Scratchpads
-description: Coordinate each workstream through curated Markdown, attached sessions, optimistic revisions, and an explicit lifecycle.
+description: Optionally coordinate a workstream through curated Markdown, attached sessions, optimistic revisions, and an explicit lifecycle.
 sidebar:
   order: 1
 ---
 
-Scratchpads are Weaver's primary shared context. Use **one pad per workstream**, not one giant pad
-for the repository and not one disposable pad per agent. Sessions collaborating on OAuth can share
-one pad while a parallel test-isolation effort uses another.
+Scratchpads are optional shared context layered on Weaver's default `status → task → claim → done`
+loop. Use one for a matching active pad, multiple collaborating sessions, planned handoff/resumption,
+a conflict/shared decision record, or an explicit user request—not for complexity or duration alone.
+When a pad is warranted, use **one per workstream**, not one giant repository pad or one disposable
+pad per agent.
 
 ## Start a workstream
 
+For read-only investigation or planning, run `status` and stop unless it or the user identifies a
+relevant existing pad; you may read that pad but do not create, attach, or mutate it.
+
+For write work when a scratchpad trigger applies, announce the task before finding or creating the
+pad:
+
 ```sh
 weaver status
+weaver task "implement OAuth callback validation"
 weaver scratchpad list
 weaver scratchpad read 7 --headings
 ```
@@ -35,11 +44,9 @@ Ship the callback and token flow safely.
 MARKDOWN
 ```
 
-For read-only investigation or planning, read the relevant pad but do not attach or mutate it.
-After repository writes are authorized:
+Once the matching pad exists, attach before claiming because claims snapshot the current attachment:
 
 ```sh
-weaver task "implement OAuth callback validation"
 weaver scratchpad use 7
 weaver claim 'src/auth/**' --reason "callback and token validation"
 ```
@@ -128,7 +135,8 @@ weaver scratchpad trash 9 --reason "duplicate of #7" --revision 2
 weaver scratchpad recover 9 --revision 3
 ```
 
-Archive completed work rather than trashing it. Agents may trash only empty, duplicate, or
+Archive only when the whole workstream is complete rather than when one task/session ends. Agents
+may trash only empty, duplicate, or
 demonstrably obsolete pads; a reason and current revision are mandatory. Archive/trash refuses
 when another live session is attached. There is no command to permanently purge one pad. The
 separate, destructive `weaver deinit --purge` deletes the entire repository store, including all

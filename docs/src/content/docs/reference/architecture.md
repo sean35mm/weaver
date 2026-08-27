@@ -15,7 +15,8 @@ sidebar:
                                               scratchpads UI / watch
 ```
 
-Weaver is a single CLI over a local SQLite file. Each ordinary invocation opens the file, does a
+Weaver is a single CLI over a local SQLite file. Its default coordination loop is
+`status → task → claim → done`; scratchpads and Facts are additive context. Each ordinary invocation opens the file, does a
 small amount of work, and exits. There is no coordination daemon or MCP server. `scratchpads`
 temporarily serves the human editor on loopback, and `watch` stays open to redraw a terminal view;
 agents do not require either process.
@@ -84,7 +85,8 @@ browser tabs are outside Weaver's lifecycle and cannot be enforceably deduplicat
 
 ## Scratchpad transactions
 
-Every mutation compares the expected revision and writes the current row plus an immutable
+Scratchpads are optional; ordinary sessions need not attach to one. When used, every mutation
+compares the expected revision and writes the current row plus an immutable
 revision snapshot in one transaction. A stale compare fails instead of overwriting a concurrent
 writer. Attachments key a session and worktree to at most one active pad; claims, activity, and
 scratchpad mutations by that session inherit the attachment when one exists. Repository Facts stay
@@ -92,7 +94,8 @@ repo-wide and may use `--path`/`--tag` for relevance instead of belonging to one
 
 ## Migration
 
-Opening an older store migrates it to the current schema v6 in order. The v4 → v5 step creates
+Opening an older store migrates it to the current schema v6 in order. Coordination-lite changes no
+schema and does not detach existing sessions. The v4 → v5 step creates
 scratchpad, revision, and attachment tables and adds nullable scratchpad attribution to
 claims/activity. Existing rows in `notes` are not renamed or rewritten; the CLI simply presents
 them as Repository Facts. The v5 → v6 step adds scoped dashboard leases. Freshness of installed

@@ -38,7 +38,7 @@ reason, recent activity, and relevant Repository Facts—not just "denied":
 
 ```
 ⚠ CONFLICT (active claim) on this area:
-   • claude-code#alice — refactor the auth module to use AuthService (pad #7)
+    • claude-code#alice — refactor the auth module to use AuthService
       claim: src/auth/** — rewriting token refresh (12s ago)
       active 12s ago
   → coordinate, work elsewhere, or ask the user how to split. Don't silently overwrite.
@@ -57,10 +57,10 @@ coordinate first.
 This is what agents are instructed to do on a conflict:
 
 ```
-1. READ the context (intent + reason + attached pad + recent activity + Repository Facts).
+1. READ the context (intent + reason + recent activity + Facts, plus an attached pad if present).
 2. Can I do OTHER useful work that doesn't overlap?  → reroute, re-check later. (default)
-3. Is the overlap demonstrably benign?                → proceed and record why in the pad.
-4. Blocked & need it?                                  → record intent in the pad, then ASK THE USER.
+3. Is the overlap demonstrably benign?                → proceed and record why when useful.
+4. Blocked & need it?                                  → use a shared decision pad if useful; ASK USER.
 5. NEVER silently stomp. Always record activity.
 6. NEVER silently wait/poll during commit/push/PR; ask the user for a decision.
 ```

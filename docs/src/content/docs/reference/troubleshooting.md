@@ -31,10 +31,10 @@ Observer commands (`status`, `check`) work without identity.
 - Is it disabled? `weaver doctor` shows `enabled`. Re-enable with `weaver enable`.
 - Are the agents actually in the **same repo**? `weaver doctor` shows the `repo` id — it should
   match across sessions.
-- Did each agent list/read the matching active scratchpad, then attach before writing? Separate
-  workstreams should use separate pads; collaborators should attach to the same one.
+- Did every agent run `status`, and did writing agents run `task` then claim exact scopes before
+  editing? If a scratchpad trigger applies, the order is `task` → find/read/use the pad → `claim`.
 - For Claude Code, install [hooks](/weaver/guides/claude-code-hooks/) (`weaver init --hooks`) for
-  best-effort edit presence and advisories. Agents must still use tasks, pads, and claims.
+  best-effort edit presence and advisories. Agents still use tasks and claims; pads remain optional.
 
 ### `scratchpad` is an unknown command after upgrading docs/instructions
 The binary on `PATH` predates scratchpads, which were added in schema v5. Run `weaver --version`,
@@ -134,8 +134,8 @@ artifacts from GitHub.
 
 **Does it work offline?** Yes — except `weaver upgrade`, which fetches the latest release.
 
-**Can I use just one agent?** Sure, but Weaver shines with several at once. With one it is mostly a
-workstream notebook plus durable Repository Facts.
+**Can I use just one agent?** Sure, but Weaver shines with several at once. With one it provides a
+coordination snapshot and durable Repository Facts, plus an optional workstream notebook.
 
 **What deletes authored data?** Ordinary `deinit` only removes managed instructions/integrations.
 `deinit --purge` deletes the current repo's entire store. Uninstall without `--keep-data` cleans the

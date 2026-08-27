@@ -1,6 +1,6 @@
 # Weaver
 
-> **Shared scratchpads and situational awareness for coding agents.**
+> **Lightweight coordination and optional shared context for coding agents.**
 
 [![CI](https://github.com/sean35mm/weaver/actions/workflows/ci.yml/badge.svg)](https://github.com/sean35mm/weaver/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/github/license/sean35mm/weaver)](./LICENSE)
@@ -10,21 +10,20 @@
 Claude Code, Codex, OpenCode, Pi, and ordinary terminals can work in one repo without naturally
 sharing context. Weaver gives them one local commons:
 
-- **one curated Markdown scratchpad per workstream**;
-- sessions, file claims, and recent activity attached to the relevant pad;
-- revision-safe edits so concurrent writers do not silently overwrite each other; and
-- durable **Repository Facts** that survive individual tasks and pads.
+- a token-cheap `status → task → claim → done` coordination loop;
+- live sessions, advisory file claims, and recent activity;
+- optional, revision-safe Markdown scratchpads for collaborating workstreams; and
+- durable **Repository Facts** for verified knowledge that should survive a task.
 
 ```console
-$ weaver scratchpad list
-#7 OAuth rollout  [active] r12 · 2 attached
-#4 Test isolation  [active] r5 · 1 attached
-
 $ weaver status
 3 other active sessions
   claude-code   refactor the auth module       12s ago
   codex         add a Google OAuth provider     just now
 ⚠ src/auth/** claimed by claude-code — coordinate or work elsewhere
+
+$ weaver scratchpad list  # optional shared workstream context
+#7 OAuth rollout  [active] r12 · 2 attached
 ```
 
 Weaver is a CLI over a local SQLite store. There is no cloud account, remote sync, coordination
@@ -55,39 +54,47 @@ Weaver-owned content in place and preserves text outside the managed block. A fo
 `.opencode/plugins/weaver.js` is never overwritten. Restart OpenCode after installing or refreshing
 its plugin.
 
-## Scratchpads-first workflow
+## Coordination-lite workflow
 
 Agents receive this workflow from the managed protocol:
 
 ```sh
 weaver status
-weaver scratchpad list
-weaver scratchpad read 7 --headings
 
 # Only after repository writes are authorized:
 weaver task "add OAuth callback validation"
-weaver scratchpad use 7
 weaver claim 'src/auth/**' --reason "callback and token validation"
-
-# Read r12, then make a targeted compare-and-swap edit:
-printf '%s\n' 'Use PKCE for every browser flow.' |
-  weaver scratchpad edit-section 7 Decisions --from - --revision 12
 
 weaver fact "OAuth callbacks are validated in AuthService" --path 'src/auth/**'
 weaver preflight --staged
-weaver scratchpad archive 7 --revision 13
 weaver done
 ```
 
-Use a separate pad for a separate workstream. Read-only and plan-only sessions may read pads but
-should not attach or mutate them. Keep Markdown curated under stable headings—decisions,
-constraints, findings, and next steps—not as a terminal transcript.
+Read-only and plan-only sessions stop after `status` unless it or the user identifies a relevant
+existing pad; they may read that pad without attaching or mutating it. For write work, pads are
+optional. Use one when sessions are collaborating, a handoff/resumption is planned, a conflict or
+shared decision needs a record, the work matches an active pad, or the user asks. Complexity or
+duration alone does not require one.
+
+When a pad is useful, attach after `task` and before `claim` (claims snapshot the current
+attachment), then keep it curated:
+
+```sh
+weaver task "add OAuth callback validation"
+weaver scratchpad list
+weaver scratchpad read 7 --headings
+weaver scratchpad use 7
+weaver claim 'src/auth/**' --reason "callback and token validation"
+printf '%s\n' 'Use PKCE for every browser flow.' |
+  weaver scratchpad edit-section 7 Decisions --from - --revision 12
+```
 
 Every mutation creates a revision. Passing `--revision` prevents a stale writer from replacing a
 newer edit; on conflict, re-read and merge deliberately. `use` attaches the current session and
 worktree, so the rich UI can show that pad's agents, claims, and activity.
 
-Pads move through **active → archived** or **trash**, with restore/recover operations. Agents may
+Pads move through **active → archived** or **trash**, with restore/recover operations. Archive only
+when the whole workstream is complete. Agents may
 trash only empty, duplicate, or demonstrably obsolete pads, with a reason and current revision,
 and never while another live session is attached. There is no individual permanent-purge command.
 
@@ -180,7 +187,7 @@ weaver preflight --base main    # PR-sized diff
 
 ```text
 Scratchpads:
-  scratchpad list|create|read|find|use
+  scratchpad list|create|read|find|use (optional workstream context)
   scratchpad replace|append|edit-section|rename|edit|history
   scratchpad archive|restore|trash|recover
   scratchpads [--port N] [--no-open] [--open=auto|browser|cmux]

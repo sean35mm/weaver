@@ -30,20 +30,23 @@ test("inject is idempotent — no duplicate block", () => {
 
 test("managed block status distinguishes current, outdated, missing, and foreign", () => {
   assert.equal(instructionBlockStatus(INSTRUCTION_BLOCK), "current");
-  assert.equal(instructionBlockStatus(INSTRUCTION_BLOCK.replace("protocol=3", "protocol=2")), "outdated");
+  assert.equal(instructionBlockStatus(INSTRUCTION_BLOCK.replace("protocol=4", "protocol=3")), "outdated");
   assert.equal(instructionBlockStatus("# user instructions\n"), "missing");
   assert.equal(instructionBlockStatus("<!-- weaver:start protocol=1 -->\nunterminated"), "foreign");
-  assert.equal(INSTRUCTION_PROTOCOL_VERSION, 3);
+  assert.equal(INSTRUCTION_PROTOCOL_VERSION, 4);
 });
 
 test("inject refreshes an outdated block in place without changing user text", () => {
-  const old = INSTRUCTION_BLOCK.replace("protocol=3", "protocol=2").replace("scratchpads-first", "old protocol");
+  const old = INSTRUCTION_BLOCK.replace("protocol=4", "protocol=3").replace(
+    "Run `weaver status` every task.",
+    "Old protocol.",
+  );
   const input = `# Before\n\nuser guidance\n\n${old}\n\n# After\n\nmore guidance\n`;
   const output = injectBlock(input);
   assert.equal(instructionBlockStatus(output), "current");
   assert.match(output, /^# Before\n\nuser guidance/);
   assert.match(output, /# After\n\nmore guidance\n$/);
-  assert.doesNotMatch(output, /old protocol/);
+  assert.doesNotMatch(output, /Old protocol/);
 });
 
 test("inject leaves an incomplete foreign marker untouched", () => {
@@ -76,7 +79,11 @@ test("remove is a no-op without a block", () => {
   assert.equal(removeBlock("# x\n"), "# x\n");
 });
 
-test("managed lifecycle guidance distinguishes recoverable pads from full-store purge", () => {
-  assert.match(INSTRUCTION_BLOCK, /no permanent per-pad/);
-  assert.match(INSTRUCTION_BLOCK, /deinit --purge.*entire local store/);
+test("coordination-lite keeps pads optional while preserving safety-critical guidance", () => {
+  assert.match(INSTRUCTION_BLOCK, /Read-only\/plan-only: stop/);
+  assert.match(INSTRUCTION_BLOCK, /not complexity\/duration/);
+  assert.match(INSTRUCTION_BLOCK, /claim.*exits 1.*WAS recorded/s);
+  assert.match(INSTRUCTION_BLOCK, /Archive only when the whole workstream is complete/);
+  assert.match(INSTRUCTION_BLOCK, /preflight --staged.*preflight --upstream.*preflight --base <ref>/s);
+  assert.match(INSTRUCTION_BLOCK, /Write sessions finish with `weaver done`/);
 });

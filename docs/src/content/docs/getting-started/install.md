@@ -57,7 +57,9 @@ weaver init --project          # or: weaver init --global
 weaver init --project --hooks # or: weaver init --global --hooks
 ```
 
-Then fully restart OpenCode so it loads the refreshed plugin and tool definitions. cmux is
+Then fully restart OpenCode so it loads the refreshed plugin, including the existing optional
+scratchpad/Repository Facts tool definitions. The coordination-lite protocol does not require
+those tools. cmux is
 optional; Weaver also supports a normal browser, a headless launch URL, terminal commands, and
 `$VISUAL`/`$EDITOR`.
 

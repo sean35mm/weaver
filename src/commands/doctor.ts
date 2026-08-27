@@ -115,7 +115,7 @@ export function run(ctx: Ctx): number {
     `plugin   : ${integrationLine(
       opencodePluginStatusForRepo(ctx.repo.root),
       opencodePluginStatusGlobal(ctx.env),
-      "OpenCode identity and dedicated tools",
+      "OpenCode identity and optional scratchpad/Repository Facts tools",
       "current",
     )}\n`,
   );

@@ -18,14 +18,15 @@ Every page also has clean markdown source in the repo under
 
 ## If you're an agent using Weaver
 
-Read **[Using Weaver from an agent](/weaver/guides/using-from-an-agent/)** — it's the exact protocol:
-status, workstream-pad discovery, narrow reads, attach-before-write, revisions, conflicts, and
-lifecycle. The
+Read **[Using Weaver from an agent](/weaver/guides/using-from-an-agent/)** — it expands the exact
+coordination-lite protocol: status every task; task and claims before writes; conflicts, preflight,
+and done; plus objective triggers for optional scratchpads. The
 [CLI reference](/weaver/reference/commands/) lists every command with copy-paste examples.
 
 Treat **Repository Facts** as durable verified repo knowledge; `note`/`notes` are compatibility
-aliases. OpenCode's optional `weaver_*` tools are strict fixed-operation wrappers around the same
-CLI. Shell commands remain the universal authority, and v1 has no MCP server.
+aliases. Phase 1 still ships OpenCode's optional `weaver_*` scratchpad/Fact tools as strict
+fixed-operation wrappers around the same CLI. Shell commands remain the universal authority, and
+v1 has no MCP server.
 
 ## Design principle
 

@@ -133,6 +133,7 @@ test("audit summarizes retained usage and recommendations as JSON", async () => 
   assert.deepEqual(parsed.setup.opencodePlugin, { project: "missing", global: "missing" });
   assert.ok(parsed.recommendations.some((rec) => rec.includes("weak")));
   assert.ok(parsed.recommendations.some((rec) => rec.includes("--path")));
+  assert.ok(parsed.recommendations.some((rec) => rec.includes("optional scratchpad/Repository Facts tools")));
   assert.doesNotMatch(out, /secret scratchpad body/);
 
   ctx.store.close();
@@ -154,7 +155,7 @@ test("audit renders a human report without crashing", async () => {
 
 test("audit reports outdated managed integrations and scope-correct refresh guidance", async () => {
   const root = tmpDir("weaver-repo-");
-  fs.writeFileSync(path.join(root, "AGENTS.md"), INSTRUCTION_BLOCK.replace("protocol=3", "protocol=2"));
+  fs.writeFileSync(path.join(root, "AGENTS.md"), INSTRUCTION_BLOCK.replace("protocol=4", "protocol=3"));
   fs.mkdirSync(path.join(root, ".opencode", "plugins"), { recursive: true });
   fs.writeFileSync(path.join(root, ".opencode", "plugins", "weaver.js"), "// weaver:opencode-plugin protocol=1\n");
   const ctx = await ctxFor(root, ["audit", "--json"]);

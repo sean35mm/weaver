@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Install the scratchpads-first protocol and watch two agent workstreams coordinate.
+description: Install the coordination-lite protocol and watch two agent sessions coordinate.
 sidebar:
   order: 2
 ---
@@ -27,42 +27,41 @@ Restart OpenCode after plugin installation. Re-running init refreshes outdated W
 in place without changing your surrounding instructions. A repository store is created lazily on
 first use; no daemon or database setup is required.
 
-## 2. Start or join a workstream
+## 2. Start a task
 
 Agents learn this sequence from the managed block:
 
 ```sh
 weaver status
-weaver scratchpad list
-weaver scratchpad read 7 --headings
 ```
 
-Reuse the active pad matching the workstream. Create one only when the work is genuinely distinct:
-
-```sh
-printf '# Goal\n\nAdd OAuth safely.\n\n# Decisions\n\n# Next steps\n' |
-  weaver scratchpad create "OAuth rollout" --from -
-```
-
-Read-only/plan-only sessions stop after reading. Once code or other repository writes are
-authorized:
+Read-only/plan-only sessions stop there unless status or the user identifies a relevant existing
+pad; they may read it but must not create, attach, claim, or call `done`. Once repository writes are
+authorized, the concise no-pad flow is:
 
 ```sh
 weaver task "implement OAuth callback validation"
-weaver scratchpad use 7
 weaver claim 'src/auth/**' --reason "callback validation"
 ```
 
 ## 3. Coordinate concurrent changes
 
-The pad read shows its revision. Use it for targeted edits:
+Scratchpads are optional. Use one for a matching active pad, collaborating sessions, planned
+handoff/resumption, a conflict/shared decision record, or an explicit user request—not merely
+because work is complex or long. When a trigger applies, find and attach the pad after `task` but
+before `claim`, because the claim snapshots the current attachment:
 
 ```sh
+weaver task "implement OAuth callback validation"
+weaver scratchpad list
+weaver scratchpad read 7 --headings
+weaver scratchpad use 7
+weaver claim 'src/auth/**' --reason "callback validation"
 printf '%s\n' 'Use PKCE for browser clients.' |
   weaver scratchpad edit-section 7 Decisions --from - --revision 3
 ```
 
-A stale revision fails clearly; re-read and merge instead of retrying blindly. Claims are also
+A stale pad revision fails clearly; re-read and merge instead of retrying blindly. Claims are
 advisory: claim exit `1` means your claim was recorded but overlaps another live session. Read the
 other workstream context and coordinate rather than repeating the command.
 
@@ -86,11 +85,11 @@ When complete:
 
 ```sh
 weaver preflight --staged
-weaver scratchpad archive 7 --revision 4
 weaver done
 ```
 
-`done` detaches the session and releases its claims. See the full
+`done` ends the write session, detaches any pad, and releases its claims. Archive a pad only when
+the whole workstream is complete. See the full
 [Scratchpads guide](/weaver/guides/scratchpads/) and [agent protocol](/weaver/guides/using-from-an-agent/).
 
 ## Try two sessions by hand

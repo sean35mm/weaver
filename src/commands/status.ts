@@ -1,6 +1,6 @@
 import { flagBool } from "../args.ts";
 import type { Ctx } from "../context.ts";
-import { claimsByLiveHolders, formatStatus, type StatusData, statusJson } from "../render.ts";
+import { claimsByLiveHolders, formatStatus, type StatusData, selectStatusScratchpads, statusJson } from "../render.ts";
 import { DEFAULT_COMPLETED_SESSION_RECENT_MS } from "../store/reap.ts";
 import { themeFromCtx } from "../terminal/color.ts";
 
@@ -11,6 +11,27 @@ function isKnownSelf(
   recordWorktreeId: string | null | undefined,
 ): boolean {
   return !!selfId && selfId === recordId && !!callerWorktreeId && callerWorktreeId === recordWorktreeId;
+}
+
+function hydrateRelevantScratchpads(ctx: Ctx, data: StatusData, liveSessionIds: ReadonlySet<string>): StatusData {
+  const scratchpads = [...(data.scratchpads ?? [])];
+  const present = new Set(scratchpads.map((pad) => pad.id));
+  const relevant = new Set<number>();
+  for (const attachment of data.scratchpadAttachments ?? []) {
+    if (liveSessionIds.has(attachment.sessionId)) relevant.add(attachment.scratchpadId);
+  }
+  for (const claim of data.claims) {
+    if (claim.scratchpadId != null) relevant.add(claim.scratchpadId);
+  }
+  for (const activity of data.activity) {
+    if (activity.scratchpadId != null) relevant.add(activity.scratchpadId);
+  }
+  for (const id of relevant) {
+    if (present.has(id)) continue;
+    const pad = ctx.store.getScratchpad(id);
+    if (pad?.state === "active") scratchpads.push(pad);
+  }
+  return { ...data, scratchpads };
 }
 
 // Observer: shows the picture of OTHER sessions; never registers presence.
@@ -40,11 +61,14 @@ export function run(ctx: Ctx): number {
     scratchpads: ctx.store.listScratchpads(["active"], full ? 100 : 10),
     scratchpadAttachments: ctx.store.listScratchpadAttachments(),
   };
+  const visibleSessionIds = new Set(data.sessions.map((session) => session.id));
 
   if (flagBool(ctx.args, "json")) {
     ctx.out(JSON.stringify(statusJson(ctx.repo.repoId, data, ctx.now, ctx.store)) + "\n");
     return 0;
   }
+
+  const renderData = full ? data : hydrateRelevantScratchpads(ctx, data, visibleSessionIds);
 
   // Silent when there's nothing worth an agent's tokens. Notes count even unpinned:
   // durable learnings must surface in a quiet repo, not just while activity is fresh.
@@ -54,12 +78,17 @@ export function run(ctx: Ctx): number {
     !data.notes.length &&
     !data.activity.length &&
     !data.completed.length &&
-    !data.scratchpads?.length
+    !selectStatusScratchpads(renderData, full ? "all" : "relevant", visibleSessionIds).length
   ) {
     ctx.out(`${theme.success("weaver:")} no other active agents\n`);
     return 0;
   }
 
-  ctx.out(formatStatus(data, ctx.now, ctx.store, theme));
+  ctx.out(
+    formatStatus(renderData, ctx.now, ctx.store, theme, {
+      scratchpads: full ? "all" : "relevant",
+      liveAttachmentSessions: visibleSessionIds,
+    }),
+  );
   return 0;
 }
